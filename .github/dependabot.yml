@@ -49,6 +49,11 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/react-dom"
         update-types: ["version-update:semver-major"]
+      # Tailwind 4 replaces the JS config with CSS-first configuration and
+      # moves the PostCSS plugin, so tailwind.config.ts and the stylesheet
+      # entry point both have to be rewritten. Not a bump.
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
