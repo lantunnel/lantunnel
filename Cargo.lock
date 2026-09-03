@@ -1900,7 +1900,7 @@ dependencies = [
  "parking_lot",
  "portable-atomic",
  "quanta",
- "rand 0.8.6",
+ "rand 0.8.8",
  "smallvec",
  "spinning_top",
 ]
@@ -2709,7 +2709,7 @@ dependencies = [
  "futures-util",
  "hex",
  "libc",
- "rand 0.8.6",
+ "rand 0.9.4",
  "rcgen",
  "ring",
  "rsa",
@@ -3143,7 +3143,7 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand 0.8.6",
+ "rand 0.8.8",
  "smallvec",
  "zeroize",
 ]
@@ -3655,7 +3655,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d5285893bb5eb82e6aaf5d59ee909a06a16737a8970984dd7746ba9283498d6"
 dependencies = [
  "phf_shared 0.10.0",
- "rand 0.8.6",
+ "rand 0.8.8",
 ]
 
 [[package]]
@@ -3665,7 +3665,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared 0.11.3",
- "rand 0.8.6",
+ "rand 0.8.8",
 ]
 
 [[package]]
@@ -4163,9 +4163,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.6"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
+checksum = "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -6059,7 +6059,7 @@ dependencies = [
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.6",
+ "rand 0.8.8",
  "slab",
  "tokio",
  "tokio-util",
@@ -6166,7 +6166,7 @@ dependencies = [
  "hkdf",
  "nonzero_ext",
  "parking_lot",
- "rand 0.8.6",
+ "rand 0.9.4",
  "ring",
  "rustls-pemfile",
  "serde",
@@ -6250,7 +6250,7 @@ dependencies = [
  "governor",
  "nonzero_ext",
  "parking_lot",
- "rand 0.8.6",
+ "rand 0.9.4",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -6540,7 +6540,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rustls",
  "rustls-pki-types",
  "sha1",
