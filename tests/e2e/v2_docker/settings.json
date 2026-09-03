@@ -31,7 +31,6 @@
     }
   ],
   "client_access": {
-    "default_action": "deny",
     "allow": [
       {
         "target": { "type": "this_peer" },

@@ -10,6 +10,18 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- A settings file the Client could not read no longer leaves this machine open
+  to the rest of your Tunnel. Settings that could be read but not applied
+  already fell back to refusing everything; a file with a stray character, a
+  setting name that no longer exists, or a value of the wrong type skipped that
+  fallback and started the Client on defaults instead — and a Client nobody has
+  configured is reachable by every Peer holding a profile for its Tunnel. Both
+  cases now refuse incoming access and say so in Settings, and a file that is
+  simply absent still opens, so a fresh install is reachable as before. Your
+  saved file is left untouched either way, so it can be repaired by hand.
+
 ## [2.0.8] - 2026-08-31
 
 Your Client now shares the network it is sitting on, so the devices around it

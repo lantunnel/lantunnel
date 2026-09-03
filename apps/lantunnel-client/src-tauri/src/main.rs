@@ -576,6 +576,13 @@ struct AppSettings {
     p2p_allow_lan_candidates: bool,
     local_service_exports: Vec<tp_core::config::LocalServiceExportConfig>,
     log_level: String,
+    /// True when a settings file existed but could not be parsed, so none of
+    /// the fields above came from it.
+    ///
+    /// Never serialized: it is a fact about this read, not a saved setting, and
+    /// it must not reach the frontend or be written back to disk.
+    #[serde(skip)]
+    unreadable: bool,
     #[serde(flatten)]
     v2: ClientSettingsV2,
     #[serde(flatten)]
@@ -605,6 +612,7 @@ impl Default for AppSettings {
             p2p_allow_lan_candidates: false,
             local_service_exports: Vec::new(),
             log_level: "info".into(),
+            unreadable: false,
             v2: ClientSettingsV2::default(),
             unknown: DenyUnknownSettingsFields::default(),
         }
@@ -634,7 +642,16 @@ fn persist_validated_app_settings(
 }
 
 fn compiled_app_v2_settings_or_safe_default(settings: &AppSettings) -> CompiledClientSettingsV2 {
-    match compile_app_v2_settings(settings) {
+    // Not parsing and not compiling are the same failure to the engine: either
+    // way the owner configured this Client and we cannot honour it. Only the
+    // second used to reach this guard, so a file with one stray character was
+    // silently replaced by open defaults.
+    let compiled = if settings.unreadable {
+        Err("saved Client settings could not be parsed".to_owned())
+    } else {
+        compile_app_v2_settings(settings)
+    };
+    match compiled {
         Ok(compiled) => compiled,
         Err(_) => {
             tracing::warn!(
@@ -1424,6 +1441,41 @@ fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &PathBuf) -> T {
     let _ = harden_existing_config_path(path);
     value
 }
+
+/// Read saved Client settings, telling absence apart from corruption.
+///
+/// `read_json` cannot make that distinction: any failure becomes `Default`. For
+/// most config files that is right, but settings carry the access policy, and
+/// defaults open this Client to its Tunnel. A file that exists and cannot be
+/// parsed means someone configured this Client and we cannot read what they
+/// asked for, which is the case `compiled_app_v2_settings_or_safe_default`
+/// already closes for a policy that parses but does not compile. A syntax
+/// error, an unknown field, or a wrong type never reached that guard.
+///
+/// The parsed fields are still left at their defaults rather than substituted,
+/// so nothing invented here can be written back over the owner's file.
+fn read_settings_json(path: &PathBuf) -> AppSettings {
+    let raw = std::fs::read_to_string(path).ok();
+    let settings = match raw.as_deref().map(serde_json::from_str::<AppSettings>) {
+        // No file, or not readable as text at all. Nobody configured this
+        // Client, so it opens to its Tunnel like a fresh install.
+        None => AppSettings::default(),
+        Some(Ok(settings)) => settings,
+        Some(Err(error)) => {
+            tracing::warn!(
+                %error,
+                "saved Client settings could not be parsed; using deny-all with no LAN Exports"
+            );
+            AppSettings {
+                unreadable: true,
+                ..AppSettings::default()
+            }
+        }
+    };
+    let _ = harden_existing_config_path(path);
+    settings
+}
+
 fn write_json<T: Serialize>(path: &Path, value: &T) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         ensure_private_dir(parent)?;
@@ -2330,7 +2382,7 @@ fn init_logging(
         .map(str::to_string)
         .or_else(|| std::env::var("LOG_LEVEL").ok())
         .unwrap_or_else(|| {
-            merge_product_defaults(read_json(&settings_path(product)), product).log_level
+            merge_product_defaults(read_settings_json(&settings_path(product)), product).log_level
         });
     let initial_filter =
         EnvFilter::try_new(&initial_level).unwrap_or_else(|_| EnvFilter::new("info"));
@@ -2485,7 +2537,7 @@ impl LocalControlState {
 
     fn status(&self) -> ClientStatusReadModelV2 {
         let status = self.last_status.read().clone();
-        let settings = merge_product_defaults(read_json(&self.settings_path), ProductKind);
+        let settings = merge_product_defaults(read_settings_json(&self.settings_path), ProductKind);
         let native_apply_result = self.desktop_tun.lock().latest_apply_result;
         let capability = get_desktop_tun_capability();
         let runtime_snapshot = self
@@ -2780,7 +2832,7 @@ fn reconcile_auto_start(
     app: &AppHandle,
     product: ProductKind,
 ) -> Result<AutoStartValidation, String> {
-    let setting: AppSettings = read_json(&settings_path(product));
+    let setting: AppSettings = read_settings_json(&settings_path(product));
     let mgr = app.autolaunch();
     let os_enabled = mgr.is_enabled().map_err(|e| e.to_string())?;
     if os_enabled != setting.auto_start {
@@ -2993,7 +3045,10 @@ async fn connect_runtime_inner(
     engine_for_cleanup: &mut Option<Arc<Engine>>,
     cleanup_needed: &mut bool,
 ) -> Result<(), String> {
-    let settings = merge_product_defaults(read_json(&settings_path(input.product)), input.product);
+    let settings = merge_product_defaults(
+        read_settings_json(&settings_path(input.product)),
+        input.product,
+    );
     let local_proxy_listen = local_proxy_listen_addr(&settings)?;
     validate_v2_local_proxy_listen(local_proxy_listen)?;
     let install_identity = load_or_create_install_identity(input.product)
@@ -3170,7 +3225,7 @@ async fn start_headless_network_tasks(
 
 async fn run_no_ui(product: ProductKind, startup: StartupArgs) -> anyhow::Result<()> {
     startup.validate_no_ui().map_err(anyhow::Error::msg)?;
-    let settings = merge_product_defaults(read_json(&settings_path(product)), product);
+    let settings = merge_product_defaults(read_settings_json(&settings_path(product)), product);
     let tunnel_id = startup
         .peer_tunnel_id
         .clone()
@@ -3196,7 +3251,7 @@ async fn run_no_ui_peer(
         tp_core::provisioning::PeerBootstrapV2::ManagedPlatform { .. } => None,
     };
     let settings = apply_startup_overrides(
-        merge_product_defaults(read_json(&settings_path(product)), product),
+        merge_product_defaults(read_settings_json(&settings_path(product)), product),
         startup,
     );
     let local_proxy_listen = local_proxy_listen_addr(&settings).map_err(anyhow::Error::msg)?;
@@ -3386,7 +3441,10 @@ fn get_status(state: State<'_, AppState>) -> ClientStatusReadModelV2 {
 
 #[tauri::command]
 fn get_proxy_status(state: State<'_, AppState>) -> ProxyStatus {
-    let settings = merge_product_defaults(read_json(&settings_path(state.product)), state.product);
+    let settings = merge_product_defaults(
+        read_settings_json(&settings_path(state.product)),
+        state.product,
+    );
     let (tun_running, tun_routes) = desktop_tun_status(&state.desktop_tun);
     proxy_status_from_parts(
         local_proxy_task_running(&state.local_proxy),
@@ -3398,7 +3456,10 @@ fn get_proxy_status(state: State<'_, AppState>) -> ProxyStatus {
 
 #[tauri::command]
 fn get_clash_config(state: State<'_, AppState>) -> Result<String, String> {
-    let settings = merge_product_defaults(read_json(&settings_path(state.product)), state.product);
+    let settings = merge_product_defaults(
+        read_settings_json(&settings_path(state.product)),
+        state.product,
+    );
     let listen = local_proxy_listen_addr(&settings)?
         .ok_or_else(|| "local SOCKS5 proxy is disabled for this product".to_string())?;
     let engine = state
@@ -3532,7 +3593,10 @@ fn clipboard_command_candidates() -> &'static [ClipboardCommand] {
 
 #[tauri::command]
 fn get_settings(state: State<'_, AppState>) -> AppSettingsReadModelV2 {
-    let settings = merge_product_defaults(read_json(&settings_path(state.product)), state.product);
+    let settings = merge_product_defaults(
+        read_settings_json(&settings_path(state.product)),
+        state.product,
+    );
     let local_exports = state
         .engine
         .read()
@@ -3589,7 +3653,8 @@ fn app_settings_read_model_with_exports(
     // Tauri command the UI calls on every status tick. Enumerating every
     // network interface once a second on the main thread stopped the Windows
     // message pump outright: the window went "not responding" while connected.
-    let v2_settings_rejected = compile_client_settings_v2(&settings.v2).is_err();
+    let v2_settings_rejected =
+        settings.unreadable || compile_client_settings_v2(&settings.v2).is_err();
     let client_ui = project_client_settings(ClientSettingsFactsV2 {
         tunnel_first: Some(settings.v2.tunnel_first),
         exported_lans: Some(settings.v2.exported_lans.clone()),
@@ -3630,7 +3695,7 @@ async fn save_settings(
         previous_compiled_v2,
     ) = {
         let product = state.product;
-        let previous = merge_product_defaults(read_json(&settings_path(product)), product);
+        let previous = merge_product_defaults(read_settings_json(&settings_path(product)), product);
         let previous_compiled_v2 = compiled_app_v2_settings_or_safe_default(&previous);
         let mut settings = merge_product_defaults(settings, product);
         settings.local_socks5_listen =
@@ -3749,7 +3814,7 @@ async fn save_settings(
 
 #[tauri::command]
 fn set_auto_start(app: AppHandle, enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
-    let mut s: AppSettings = read_json(&settings_path(state.product));
+    let mut s: AppSettings = read_settings_json(&settings_path(state.product));
     s.auto_start = enabled;
     write_json(&settings_path(state.product), &s).map_err(|e| e.to_string())?;
     let mgr = app.autolaunch();
@@ -3763,7 +3828,7 @@ fn set_auto_start(app: AppHandle, enabled: bool, state: State<'_, AppState>) -> 
 
 #[tauri::command]
 fn set_auto_connect(enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
-    let mut s: AppSettings = read_json(&settings_path(state.product));
+    let mut s: AppSettings = read_settings_json(&settings_path(state.product));
     s.auto_connect = enabled;
     write_json(&settings_path(state.product), &s).map_err(|e| e.to_string())
 }
@@ -4032,6 +4097,69 @@ mod tests {
         assert!(
             model.v2_settings_rejected,
             "the owner was not told their settings are not in effect"
+        );
+    }
+
+    /// The same reasoning one layer earlier. A policy that parses but does not
+    /// compile is replaced with deny-all, yet a file that does not parse at all
+    /// never reached that guard: `read_json` turned it into `Default`, whose
+    /// empty Allow list opens this Client to its Tunnel. A file we cannot read
+    /// is not a Client nobody configured.
+    #[test]
+    fn settings_that_do_not_parse_are_closed_and_reported() {
+        let dir = std::env::temp_dir().join(format!(
+            "lantunnel-unreadable-settings-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp settings dir");
+        let path = dir.join("settings.json");
+
+        // The exact shape that went stale in tests/e2e/v2_docker: a field the
+        // policy no longer has, under `deny_unknown_fields`.
+        std::fs::write(
+            &path,
+            r#"{"log_level":"debug","client_access":{"default_action":"deny","allow":[],"deny":[]}}"#,
+        )
+        .expect("write corrupt settings");
+
+        let settings = read_settings_json(&path);
+        assert!(
+            settings.unreadable,
+            "a settings file that exists and does not parse must be marked unreadable"
+        );
+
+        let compiled = compiled_app_v2_settings_or_safe_default(&settings);
+        assert!(
+            compiled.client_access.is_closed(),
+            "an unreadable settings file must not widen this Client to its Tunnel"
+        );
+
+        assert!(
+            app_settings_read_model(settings).v2_settings_rejected,
+            "the owner was not told their settings could not be read"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Absence is not corruption: a Client nobody has configured still opens to
+    /// its Tunnel, which is what makes a fresh install reachable.
+    #[test]
+    fn absent_settings_stay_open() {
+        let path = std::env::temp_dir().join(format!(
+            "lantunnel-absent-settings-{}-does-not-exist.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+
+        let settings = read_settings_json(&path);
+        assert!(!settings.unreadable, "a missing file is not a corrupt one");
+        assert!(
+            !compiled_app_v2_settings_or_safe_default(&settings)
+                .client_access
+                .is_closed(),
+            "a Client nobody configured must stay reachable inside its Tunnel"
         );
     }
 
@@ -6121,7 +6249,7 @@ fn main() {
             }
 
             let startup_settings =
-                merge_product_defaults(read_json(&settings_path(product)), product);
+                merge_product_defaults(read_settings_json(&settings_path(product)), product);
             let startup_auto_connect = startup_auto_connect_peer(
                 &startup_settings,
                 read_json(&last_peer_selection_path(product)),
