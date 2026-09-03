@@ -1,0 +1,93 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this.
+
+        **Please do not report security vulnerabilities here.** Use
+        [private vulnerability reporting](https://github.com/lantunnel/lantunnel/security/advisories/new)
+        instead — see [SECURITY.md](https://github.com/lantunnel/lantunnel/blob/main/SECURITY.md).
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - lantunnel-client (desktop UI)
+        - lantunnel-client (--headless)
+        - lantunnel-gateway
+        - lantunnel-admin
+        - Android app
+        - iOS app
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`lantunnel-client --version`, or the release you installed."
+      placeholder: "2.0.8"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      description: Where does the Gateway come from?
+      options:
+        - Self-hosted Gateway (static profile)
+        - Hosted Gateway via lantunnel.app (managed profile)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 15.2 arm64 / Windows 11 / Ubuntu 24.04 / Android 15"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Import profile with `lantunnel-client tunnel import ...`
+        2. Connect
+        3. Try to reach 198.18.0.7:8096 through 127.0.0.1:1080
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Run with `--log-level debug` where you can. Logs never contain private
+        keys, profile contents, or session keys — but please still check before
+        pasting, and replace any real hostnames or addresses you would rather
+        not publish.
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: NAT type, whether the path was Direct or Relay, network topology, anything you already ruled out.

@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a capability or a change in behavior
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: large refactors and architectural changes are worth
+        raising here first rather than opening a pull request — see
+        [CONTRIBUTING.md](https://github.com/lantunnel/lantunnel/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation, not the solution. What are you unable to accomplish today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+      description: Workarounds, other tools, or approaches you considered and rejected.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This affects the wire protocol or profile format (`docs/PROTOCOL.md`)
+        - label: This changes the security model (`SECURITY.md`)
+        - label: I would be willing to implement this

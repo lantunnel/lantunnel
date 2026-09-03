@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or help getting connected
+    url: https://github.com/lantunnel/lantunnel/discussions
+    about: "\"How do I reach my NAS?\" and similar — ask in Discussions rather than opening an issue."
+  - name: Usage guide
+    url: https://github.com/lantunnel/lantunnel/blob/main/docs/USAGE.md
+    about: Setup, LAN exports, access rules, headless servers, and troubleshooting.
+  - name: Report a security vulnerability
+    url: https://github.com/lantunnel/lantunnel/security/advisories/new
+    about: Report privately. Please do not open a public issue.
+  - name: Hosted Lantunnel Platform
+    url: https://lantunnel.app/
+    about: Accounts, billing, managed Gateways, and downloads are not part of this repository.

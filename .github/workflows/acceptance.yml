@@ -1,0 +1,52 @@
+# The three-Peer V2 Docker acceptance.
+#
+# `tests/v2_docker_acceptance_source_test.sh` in Rust CI only greps the script;
+# it cannot tell whether the run still passes. Nothing executed the run itself,
+# so `tests/e2e/v2_docker/settings.json` was able to go stale against a settings
+# field that had been removed and stay broken, undetected, for as long as nobody
+# ran it by hand.
+#
+# It is too slow for every pull request — it builds the release image and starts
+# a Gateway plus three Clients — so it runs nightly and on demand instead.
+# README.md and CONTRIBUTING.md both send contributors here as the acceptance
+# that needs no special hardware, which is exactly why it has to keep working.
+#
+# run.sh dumps `compose ps` and the Gateway/Client logs to stderr before tearing
+# the project down, so a failed run leaves its diagnosis in this job's log.
+
+name: Docker acceptance
+
+on:
+  schedule:
+    # 03:00 UTC daily, well clear of the Dependabot window.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      transport:
+        description: "Gateway transport to exercise"
+        type: choice
+        default: quic
+        options: [quic, websocket, grpc]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  three-peer:
+    name: three-Peer Direct and Encrypted Relay (${{ inputs.transport || 'quic' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Free runner disk space
+        run: bash .github/scripts/free-disk.sh
+
+      - name: Run the three-Peer acceptance
+        env:
+          V2_GATEWAY_TRANSPORT: ${{ inputs.transport || 'quic' }}
+        run: tests/e2e/v2_docker/run.sh

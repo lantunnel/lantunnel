@@ -3,6 +3,13 @@
 Thanks for your interest. This document covers what you need to build, test,
 and land a change.
 
+If you are here to *use* Lantunnel rather than change it, [`docs/USAGE.md`](./docs/USAGE.md)
+is the guide you want. [`CONTEXT.md`](./CONTEXT.md) explains the architecture,
+and [`docs/PROTOCOL.md`](./docs/PROTOCOL.md) is the wire format.
+
+By participating you agree to abide by our
+[Code of Conduct](./CODE_OF_CONDUCT.md).
+
 ## License
 
 Lantunnel is licensed under the Apache License, Version 2.0. By submitting a

@@ -19,12 +19,36 @@ updates:
       # blocked on the gtk4-rs migration.
       - dependency-name: glib
         versions: ["0.18.x"]
+      # The two majors below do not compile against the current tree and are
+      # not drive-by upgrades. Each needs its own change with the API migration
+      # in it, so leaving Dependabot to reopen a red pull request every week
+      # only trains reviewers to ignore the list.
+      #
+      # rand 0.9 — reworked the generator traits and the `thread_rng` entry
+      # point that the P2P and provisioning paths use.
+      # prost 0.14 — moves the generated gRPC transport code, so it lands
+      # together with a tonic bump.
+      - dependency-name: rand
+        update-types: ["version-update:semver-major"]
+      - dependency-name: prost
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /apps/lantunnel-client/frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # React majors move the whole Tauri frontend at once; that is a deliberate
+      # change, not a dependency bump, and the automated attempt fails the build.
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

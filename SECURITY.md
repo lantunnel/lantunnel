@@ -75,4 +75,7 @@ Out of scope:
 - The local SOCKS5 surface has no shared secret and is therefore restricted to
   a loopback listener.
 
-See `docs/PROTOCOL.md` and `CONTEXT.md` for the full contract.
+See [`docs/PROTOCOL.md`](./docs/PROTOCOL.md) for the wire format,
+[`CONTEXT.md`](./CONTEXT.md) for the architecture and trust boundaries, and
+[`docs/USAGE.md`](./docs/USAGE.md) for how the access policy and LAN exports are
+configured in practice.
