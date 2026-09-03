@@ -1,0 +1,22 @@
+<resources>
+  <!--
+    Light theme matching the Lantunnel web design tokens (globals.css):
+    canvas #F8FAFC, accent #6D28D9. Theme.Material is a dark base and repaints
+    system-drawn widgets — dialogs, the text selection handles, the overflow
+    menu — in dark grey over a light page, so the light variant is the parent.
+    windowLightStatusBar/-NavigationBar make the system icons dark, which is
+    what a near-white bar needs to stay legible.
+  -->
+  <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:fontFamily">sans</item>
+    <item name="android:windowBackground">#F8FAFC</item>
+    <item name="android:colorAccent">#6D28D9</item>
+    <item name="android:navigationBarColor">#F8FAFC</item>
+    <item name="android:statusBarColor">#F8FAFC</item>
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="android:windowLightNavigationBar">true</item>
+    <item name="android:textColorPrimary">#0F172A</item>
+    <item name="android:textColorSecondary">#475569</item>
+    <item name="android:textColorHint">#64748B</item>
+  </style>
+</resources>

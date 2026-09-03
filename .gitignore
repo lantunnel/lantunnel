@@ -1,0 +1,126 @@
+# ── Rust ───────────────────────────────────────────────────────────────
+/target
+**/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# ── Vendored cargo / rustup cache used by the Dockerfile builder ──────
+/.cache/
+
+# ── Release artifacts built by the Makefile / scripts ────────────────
+/dist/
+
+# ── Node / Vite (client & client-app frontends) ──────────────────────
+node_modules/
+**/node_modules/
+apps/lantunnel-client/frontend/dist/
+**/.vite/
+*.tsbuildinfo
+
+# ── Android mobile app build outputs ────────────────────────────────
+apps/android-proxy/.gradle/
+apps/android-proxy/.kotlin/
+apps/android-proxy/app/build/
+apps/android-proxy/app/src/main/jniLibs/
+
+# ── iOS mobile app generated native libraries / Xcode user state ────
+apps/ios-proxy/NativeLibs/*.xcframework/
+apps/ios-proxy/NativeLibs/TpMobileFfiBuild/
+# The Xcode project is generated from project.yml by `xcodegen generate`.
+apps/ios-proxy/TunnelProxyIOS.xcodeproj/
+apps/ios-proxy/ExportOptions-AppStore.plist
+apps/ios-proxy/DerivedData-*/
+
+# ── Python bytecode caches ───────────────────────────────────────────
+**/__pycache__/
+
+# ── Tauri generated sources & per-build overrides ────────────────────
+apps/lantunnel-client/src-tauri/gen/
+apps/lantunnel-client/src-tauri/.tauri-build-override-*.json
+
+# ── Runtime logs ─────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Local config overrides (not checked in) ──────────────────────────
+*.local.yaml
+*.local.yml
+*.local.toml
+# Per-machine Apple signing identity consumed by the Makefile.
+release.local.mk
+.env
+.env.*
+!.env.example
+!.env.*.example
+.env.local
+.env.*.local
+upload.env
+
+# ── Secrets / TLS material — users supply their own at runtime ──────
+certs/*.key
+certs/*.crt
+certs/*.pem
+*.pfx
+*.p12
+*.p8
+
+# ── Editor / OS ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+.DS_Store
+Thumbs.db
+
+# ── Claude Code session state (kept local) ───────────────────────────
+.claude/
+.superpowers/
+state/
+
+# ── Local agent/operator instructions (kept local, never published) ──
+# These carry Apple Developer account identity, production platform
+# hostnames, business-model notes, and paths into the private platform
+# repository. They are working notes for the maintainer's machine, not
+# contributor documentation — see CONTRIBUTING.md for that.
+/CLAUDE.md
+/AGENTS.md
+
+# ── Local TODO plans (kept on the maintainer's machine, never published) ──
+/docs/plans/
+
+# ── Local build summary scratch files ────────────────────────────────
+client-summary.txt
+gw-summary.txt
+
+# ── Local E2E evidence ──────────────────────────────────────────────
+# Run artifacts, not source.
+tests/e2e/_fixtures/.matrix-out/
+
+# ── Phase 2 latency JSON metric reports ──────────────────────────────
+# `tp-e2e-p2 --test <name>` writes `latency_<name>_<cell>.json` to the
+# CWD when invoked directly by a V2 harness.
+# These are run artifacts, not source.
+/latency_*.json
+
+# ── Phase 3 throughput JSON metric reports ───────────────────────────
+# `tp-e2e-p3 --test <name>` writes `throughput_<name>_<cell>.json` to
+# the CWD. Same rationale as the latency artifacts above.
+/throughput_*.json
+
+# ── Performance benchmark output ─────────────────────────────────────
+# Historical run reports are no longer tracked. Benchmark scripts still
+# write here on a maintainer machine; keep the whole tree local.
+reports/
+
+# The shared UI bundle is staged into each phone by `make _stage-android-ui`
+# and `make _stage-ios-ui`. It is build output of apps/lantunnel-client/frontend,
+# not source; committing it would let a phone ship screens older than the code.
+apps/android-proxy/app/src/main/assets/ui/
+apps/ios-proxy/TunnelProxy/Resources/ui/
+
+# Android release signing. The keystore lives outside the repository; this
+# file carries its passwords and must never be committed.
+apps/android-proxy/keystore.properties
+*.jks
+*.keystore

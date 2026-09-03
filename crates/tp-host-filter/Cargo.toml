@@ -1,0 +1,12 @@
+[package]
+name = "tp-host-filter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared host allow/deny matcher for tunnel client and gateway policy enforcement."
+
+[dependencies]
+regex.workspace = true
+thiserror.workspace = true

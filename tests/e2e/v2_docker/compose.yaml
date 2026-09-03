@@ -1,0 +1,177 @@
+name: lantunnel-v2-local
+
+x-lantunnel-image: &lantunnel-image
+  image: lantunnel:2.0-dev
+
+x-helper-image: &helper-image
+  image: lantunnel-v2-acceptance-helper:local
+  build:
+    context: ../../..
+    dockerfile: tests/e2e/v2_docker/Dockerfile
+
+x-client: &client
+  <<: *lantunnel-image
+  depends_on:
+    gateway:
+      condition: service_healthy
+  restart: unless-stopped
+  stop_grace_period: 10s
+  volumes:
+    - state:/state
+    - ./:/accept:ro
+  environment:
+    LOG_LEVEL: debug
+    ENABLE_LAN_P2P: "true"
+    LANTUNNEL_LOCAL_SOCKS5_LISTEN: 127.0.0.1:1080
+  healthcheck:
+    # Linux comm is limited to 15 bytes, shorter than this public binary name.
+    test: ["CMD-SHELL", "pgrep -f '[l]antunnel-client' >/dev/null"]
+    interval: 2s
+    timeout: 2s
+    retries: 30
+    start_period: 2s
+
+x-echo: &echo
+  <<: *helper-image
+  restart: unless-stopped
+  command:
+    - tp-e2e-echo-services
+    - --bind
+    - 127.0.0.1
+  volumes:
+    - state:/state:ro
+    - ./:/accept:ro
+
+services:
+  cert-init:
+    <<: *helper-image
+    user: "0:0"
+    command: ["/bin/sh", "/accept/cert-init.sh"]
+    volumes:
+      - certs:/certs
+      - ./:/accept:ro
+    restart: "no"
+
+  provision:
+    <<: *lantunnel-image
+    user: "0:0"
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    command: ["/bin/sh", "/accept/provision.sh"]
+    environment:
+      V2_GATEWAY_TRANSPORT: "${V2_GATEWAY_TRANSPORT:-quic}"
+    volumes:
+      - certs:/certs:ro
+      - state:/state
+      - ./:/accept:ro
+    restart: "no"
+
+  # One socket owner per OS network namespace. The Gateway container joins
+  # this service's network namespace and only probes UDP/8444 during startup.
+  mapping:
+    <<: *lantunnel-image
+    command: ["lantunnel-gateway", "mapping", "serve"]
+    restart: unless-stopped
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f '[l]antunnel-gateway mapping serve' >/dev/null"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+    networks:
+      mesh:
+        aliases: [gateway]
+      peer1_gateway:
+        aliases: [gateway]
+      peer2_gateway:
+        aliases: [gateway]
+      peer3_gateway:
+        aliases: [gateway]
+
+  gateway:
+    <<: *lantunnel-image
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+      mapping:
+        condition: service_healthy
+    command: ["lantunnel-gateway", "--config", "${V2_GATEWAY_CONFIG:-/accept/gateway.yaml}"]
+    volumes:
+      - certs:/certs:ro
+      - state:/state
+      - ./:/accept:ro
+    restart: unless-stopped
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f '[l]antunnel-gateway' >/dev/null"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+    network_mode: "service:mapping"
+
+  client1:
+    <<: *client
+    command: ["/bin/sh", "/accept/client.sh", "1"]
+    environment:
+      LOG_LEVEL: debug
+      ENABLE_LAN_P2P: "true"
+      LANTUNNEL_LOCAL_SOCKS5_LISTEN: 127.0.0.1:1080
+      TUNNEL_PROXY_APP_CONFIG_DIR: /state/client1
+    networks:
+      - mesh
+
+  client2:
+    <<: *client
+    command: ["/bin/sh", "/accept/client.sh", "2"]
+    environment:
+      LOG_LEVEL: debug
+      ENABLE_LAN_P2P: "true"
+      LANTUNNEL_LOCAL_SOCKS5_LISTEN: 127.0.0.1:1080
+      TUNNEL_PROXY_APP_CONFIG_DIR: /state/client2
+    networks:
+      - mesh
+
+  client3:
+    <<: *client
+    command: ["/bin/sh", "/accept/client.sh", "3"]
+    environment:
+      LOG_LEVEL: debug
+      ENABLE_LAN_P2P: "true"
+      LANTUNNEL_LOCAL_SOCKS5_LISTEN: 127.0.0.1:1080
+      TUNNEL_PROXY_APP_CONFIG_DIR: /state/client3
+    networks:
+      - mesh
+
+  echo1:
+    <<: *echo
+    depends_on:
+      client1:
+        condition: service_healthy
+    network_mode: "service:client1"
+
+  echo2:
+    <<: *echo
+    depends_on:
+      client2:
+        condition: service_healthy
+    network_mode: "service:client2"
+
+  echo3:
+    <<: *echo
+    depends_on:
+      client3:
+        condition: service_healthy
+    network_mode: "service:client3"
+
+volumes:
+  certs:
+  state:
+
+networks:
+  peer1_gateway:
+  peer2_gateway:
+  peer3_gateway:
+  mesh:

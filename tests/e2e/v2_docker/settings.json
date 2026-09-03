@@ -1,0 +1,56 @@
+{
+  "local_socks5_listen": "127.0.0.1:1080",
+  "local_proxy_enabled": true,
+  "desktop_network_mode": "socks5_only",
+  "p2p_allow_lan_candidates": true,
+  "log_level": "debug",
+  "local_service_exports": [
+    {
+      "route_kind": "overlay",
+      "protocol": "tcp",
+      "ingress_port": 18998,
+      "source_policy": { "type": "any_tunnel_peer" },
+      "local_host": "127.0.0.1",
+      "local_port": 18998
+    },
+    {
+      "route_kind": "overlay",
+      "protocol": "tcp",
+      "ingress_port": 18999,
+      "source_policy": { "type": "any_tunnel_peer" },
+      "local_host": "127.0.0.1",
+      "local_port": 18999
+    },
+    {
+      "route_kind": "overlay",
+      "protocol": "udp",
+      "ingress_port": 18997,
+      "source_policy": { "type": "any_tunnel_peer" },
+      "local_host": "127.0.0.1",
+      "local_port": 18997
+    }
+  ],
+  "client_access": {
+    "default_action": "deny",
+    "allow": [
+      {
+        "target": { "type": "this_peer" },
+        "protocol": "tcp",
+        "port": { "type": "exact", "value": 18998 }
+      },
+      {
+        "target": { "type": "this_peer" },
+        "protocol": "tcp",
+        "port": { "type": "exact", "value": 18999 }
+      },
+      {
+        "target": { "type": "this_peer" },
+        "protocol": "udp",
+        "port": { "type": "exact", "value": 18997 }
+      }
+    ],
+    "deny": []
+  },
+  "exported_lans": [],
+  "tunnel_first": false
+}

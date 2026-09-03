@@ -1,0 +1,50 @@
+[package]
+name = "tp-e2e-echo-services"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "E2E echo services (HTTP/TCP/UDP) for Lantunnel E2E tests."
+publish = false
+
+[[bin]]
+name = "tp-e2e-echo-services"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime — net + io-util + sync + time are the surface this crate uses.
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+] }
+# Web framework for the HTTP echo + /stats endpoint. Workspace pin is axum 0.8.
+axum.workspace = true
+# Structured logging.
+tracing.workspace = true
+tracing-subscriber.workspace = true
+# CLI parsing for --bind / --http-port / --tcp-port / --udp-port.
+clap.workspace = true
+# Error type used at the binary boundary (main.rs / serve fns).
+anyhow.workspace = true
+# SHA-256 for the TCP large-download X-SHA256 header. Not in workspace deps;
+# 0.10 is already in Cargo.lock transitively, so pinning to 0.10 here adds no
+# new lock entries.
+sha2 = "0.10"
+
+[dev-dependencies]
+# Smoke tests use tokio for TCP/UDP and reqwest for HTTP/POST + /stats.
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+] }
+reqwest.workspace = true
+sha2 = "0.10"

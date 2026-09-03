@@ -1,0 +1,126 @@
+# Contributing to Lantunnel
+
+Thanks for your interest. This document covers what you need to build, test,
+and land a change.
+
+## License
+
+Lantunnel is licensed under the Apache License, Version 2.0. By submitting a
+pull request you agree that your contribution is licensed under the same terms,
+per section 5 of the license. There is no separate CLA.
+
+New files do not require a license header. The `LICENSE` and `NOTICE` files at
+the repository root cover the whole tree. If you vendor third-party source,
+add it to `NOTICE` with its own license text in place.
+
+## What ships
+
+The repository builds exactly three public binaries plus two mobile apps:
+
+| Component | Path |
+|---|---|
+| `lantunnel-gateway` | `apps/lantunnel-gateway` |
+| `lantunnel-client` | `apps/lantunnel-client` |
+| `lantunnel-admin` | `apps/lantunnel-admin` |
+| Android app | `apps/android-proxy` |
+| iOS app | `apps/ios-proxy` |
+
+Shared code lives in `crates/`. `lantunnel-tun-helper` is an internal helper
+binary, not a fourth product.
+
+## Build
+
+```bash
+# Gateway and local provisioning tool
+cargo build --release -p lantunnel-gateway
+cargo build --release -p lantunnel-admin
+
+# Client: build the frontend before checking the Tauri crate
+npm --prefix apps/lantunnel-client/frontend ci
+npm --prefix apps/lantunnel-client/frontend run build
+cargo check -p lantunnel-client
+```
+
+The workspace MSRV is pinned in `Cargo.toml` (`rust-version`) and CI builds
+both stable and that exact version. `protoc` is required for the gRPC
+transport.
+
+On Linux the Tauri Client links against webkit2gtk, appindicator, and rsvg, so
+`cargo check`, `clippy`, and `test` all need those `-dev` packages installed —
+see `.github/workflows/ci.yml` for the exact list.
+
+## Test
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+Some `crates/tp-client` P2P tests bind real sockets and can take a minute; run
+a narrower `-p` target while iterating.
+
+Beyond the Rust tests, `tests/*.sh` holds source-contract tests. These grep the
+tree to enforce invariants that a unit test cannot express — cross-file log
+policy, hot-path allocation guardrails, Windows-only code that will not compile
+on a Linux runner, and V1-retirement checks. If you move or rename a file that
+one of them names, update the test in the same commit. CI runs the wired
+subset; `.github/workflows/ci.yml` and `release.yml` are the source of truth
+for which.
+
+End-to-end suites live under `tests/e2e/`. The Docker three-Peer acceptance is
+the one that runs without special hardware:
+
+```bash
+tests/e2e/v2_docker/run.sh
+```
+
+## Supply chain
+
+`cargo deny check` gates advisories, licenses, sources, and bans, and runs on
+every PR. A new transitive dependency with a license outside the allowlist in
+`deny.toml` fails the build. Either add the license to the allowlist with a
+short justification in the same commit, or pin/replace the dependency.
+
+## Style
+
+- Prefer the smallest change that solves the problem. Large refactors should be
+  proposed in an issue first.
+- Match the surrounding code. The tree is `rustfmt`-clean and
+  `clippy -D warnings`-clean; keep it that way.
+- Immutable data by default. Return new values rather than mutating in place.
+- Handle errors explicitly. Do not silently swallow them, and do not log secret
+  material — private keys, profile contents, or session keys must never reach a
+  log line.
+- Validate at boundaries. Anything arriving from the network, a profile file,
+  or a CLI flag is untrusted until parsed and checked.
+
+## Commits and pull requests
+
+Commit messages follow Conventional Commits:
+
+```
+<type>: <description>
+
+<optional body>
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`.
+Scope the type when it helps, for example `fix(gateway):`.
+
+A pull request should explain what changed and why, note any protocol or
+profile-compatibility impact, and list how you tested it. Protocol changes need
+a matching update to `docs/PROTOCOL.md`.
+
+## The desktop bundle identifier
+
+`apps/lantunnel-client/src-tauri/tauri.conf.json` sets `identifier` to
+`com.buhuipao.tunnel-proxy-app`, which carries the project's former name. It is
+deliberately frozen: it is the macOS bundle id, the Windows installer registry
+key, and the Linux `.desktop` id of every existing install. Changing it would
+not rename the app, it would ship a second unrelated one, and nobody would
+upgrade in place. Leave it alone.
+
+## Reporting security issues
+
+Do not open a public issue. See [SECURITY.md](./SECURITY.md).

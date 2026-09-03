@@ -1,0 +1,25 @@
+log:
+  level: debug
+  format: text
+  output: stdout
+
+gateway:
+  listen_addr: "0.0.0.0:8443"
+  transport_type: grpc
+  tls_cert: "/certs/server.crt"
+  tls_key: "/certs/server.key"
+  scopes_dir: "/state/scopes.d"
+  mapping_probe_port: 8444
+  transport:
+    congestion: bbr
+    keep_alive_secs: 10
+    max_idle_secs: 60
+  usage_ledger:
+    wal_path: "/state/gateway/relay-usage.wal"
+  p2p:
+    enabled: true
+    max_v2_attachments: 32
+    max_replicas_per_peer: 1
+    peer_idle_secs: 120
+    session_idle_secs: 60
+    punch_sync_offset_ms: 250

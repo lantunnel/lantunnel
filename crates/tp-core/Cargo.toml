@@ -1,0 +1,39 @@
+[package]
+name = "tp-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared core: binary wire protocol, credentials, and configuration types for Lantunnel"
+
+[dependencies]
+base64.workspace = true
+bytes.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true
+serde_yaml.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+hkdf.workspace = true
+ring.workspace = true
+rustls-pemfile.workspace = true
+governor.workspace = true
+nonzero_ext.workspace = true
+tracing.workspace = true
+tempfile = "3"
+file-rotate.workspace = true
+chrono = { workspace = true }
+sha2.workspace = true
+uuid.workspace = true
+x25519-dalek.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "protocol"
+harness = false

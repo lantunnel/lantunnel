@@ -1,0 +1,596 @@
+name: Release Lantunnel 2.0 Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: "Exact 40-hex source commit at dispatched main HEAD"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.source_commit || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  BUILD_PROFILE: release-perf
+
+jobs:
+  manual-build-prepare:
+    name: validate release contract
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      PROTOC: /usr/bin/protoc
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: release
+        name: Require requested source commit to belong to dispatched main
+        shell: bash
+        env:
+          REQUESTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          source_commit="$REQUESTED_SOURCE_COMMIT"
+          if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'manual release candidate requires an exact lowercase 40-hex source commit' >&2
+            exit 1
+          fi
+          test "$(git cat-file -t "$source_commit")" = commit
+          test "$source_commit" = "$GITHUB_SHA"
+          version="$(git show "${source_commit}:Cargo.toml" | sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "source commit ${source_commit} has no workspace version" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "commit=${source_commit}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.release.outputs.commit }}
+          persist-credentials: false
+
+      - name: Verify immutable candidate checkout
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+
+      # The gate runs the same workspace test suite as CI, so it needs the same
+      # disk headroom and the same owner-only temporary directory.
+      - name: Free runner disk space
+        run: bash .github/scripts/free-disk.sh
+
+      - name: Use a trusted temporary directory
+        run: bash .github/scripts/trusted-tmpdir.sh
+
+      - name: cargo-deny (advisories + licenses + bans + sources)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check all
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - name: Build lantunnel-client frontend
+        run: npm --prefix apps/lantunnel-client/frontend ci --no-audit --no-fund && npm --prefix apps/lantunnel-client/frontend run build
+
+      # ripgrep backs two of the release source contracts below; the runner
+      # image has no `rg`, so they would fail on a missing command instead of
+      # a real violation.
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler \
+            ripgrep
+
+      - name: Verify protobuf compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$PROTOC"
+          "$PROTOC" --version
+          command -v rg
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-workspace-gates-stable
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (warnings as errors)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Verify release source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/v2_public_release_surface_test.sh
+          bash tests/v2_client_only_source_test.sh
+          bash tests/v2_platform_api_only_source_test.sh
+          bash tests/v2_operator_authority_source_test.sh
+          bash tests/android_mobile_source_test.sh
+          bash tests/ios_mobile_source_test.sh
+          # The desktop guard existed and was wired to nothing, which is how its
+          # assertions came to describe a UI that had been replaced.
+          bash tests/tunnel_proxy_app_frontend_source_test.sh
+          bash tests/tun_sidecar_release_source_test.sh
+          bash tests/v2_windows_secret_acl_source_test.sh
+          bash tests/v2_relay_hotpath_source_test.sh
+          bash tests/v2_release_packaging_source_test.sh
+
+  build-cli:
+    name: ${{ matrix.product }} ${{ matrix.platform }}
+    needs: manual-build-prepare
+    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - product: lantunnel-gateway
+            platform: linux-amd64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-gateway-linux-amd64
+            rust_target: x86_64-unknown-linux-musl
+            artifact: lantunnel-gateway-${version}-x86_64-unknown-linux-musl
+          - product: lantunnel-gateway
+            platform: macos-arm64
+            os: macos-latest
+            make_target: _release-lantunnel-gateway-macos-arm64
+            rust_target: aarch64-apple-darwin
+            artifact: lantunnel-gateway-${version}-aarch64-apple-darwin
+          - product: lantunnel-admin
+            platform: linux-amd64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-admin-linux-amd64
+            rust_target: x86_64-unknown-linux-musl
+            artifact: lantunnel-admin-${version}-x86_64-unknown-linux-musl
+          - product: lantunnel-admin
+            platform: macos-arm64
+            os: macos-latest
+            make_target: _release-lantunnel-admin-macos-arm64
+            rust_target: aarch64-apple-darwin
+            artifact: lantunnel-admin-${version}-aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.manual-build-prepare.outputs.commit }}
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-cli-${{ matrix.rust_target }}
+
+      # macOS runners ship no protoc and tp-transport's build script needs it.
+      # The Linux targets build inside a container that installs its own.
+      - name: Install protobuf compiler
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install protobuf
+          protoc --version
+
+      - name: Build through the public Make release path
+        shell: bash
+        env:
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          make --no-print-directory "${{ matrix.make_target }}" \
+            VERSION="$VERSION" BUILD_PROFILE="$BUILD_PROFILE"
+          artifact='${{ matrix.artifact }}'
+          artifact="${artifact//\$\{version\}/$VERSION}"
+          test -f "dist/release/${artifact}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.product }}-${{ matrix.platform }}
+          path: dist/release/${{ matrix.product }}-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.rust_target }}
+          if-no-files-found: error
+
+  build-client-linux:
+    name: lantunnel-client ${{ matrix.platform }}
+    needs: manual-build-prepare
+    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    # Each AppImage builds on its own architecture. Emulating arm64 on an x86
+    # runner exceeded the six-hour job limit while the native amd64 build took
+    # half an hour.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-linux-amd64
+            artifact: lantunnel-client-${version}-linux-amd64.AppImage
+          - platform: linux-arm64
+            os: ubuntu-24.04-arm
+            make_target: _release-lantunnel-client-linux-arm64
+            artifact: lantunnel-client-${version}-linux-arm64.AppImage
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.manual-build-prepare.outputs.commit }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          platforms: arm64
+
+      - name: Build AppImage through the public Make release path
+        shell: bash
+        env:
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          make --no-print-directory "${{ matrix.make_target }}" \
+            VERSION="$VERSION" UI_VERSION="$VERSION" BUILD_PROFILE="$BUILD_PROFILE"
+          artifact='${{ matrix.artifact }}'
+          artifact="${artifact//\$\{version\}/$VERSION}"
+          test -f "dist/release/${artifact}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-lantunnel-client-${{ matrix.platform }}
+          path: dist/release/lantunnel-client-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.platform }}.AppImage
+          if-no-files-found: error
+
+  build-client-macos:
+    name: lantunnel-client ${{ matrix.platform }} signed and notarized
+    needs: manual-build-prepare
+    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            make_target: _release-lantunnel-client-macos-arm64
+            rust_target: aarch64-apple-darwin
+            artifact: lantunnel-client-${version}-macos-arm64.dmg
+          - platform: macos-amd64
+            make_target: _release-lantunnel-client-macos-amd64
+            rust_target: x86_64-apple-darwin
+            artifact: lantunnel-client-${version}-macos-amd64.dmg
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.manual-build-prepare.outputs.commit }}
+          persist-credentials: false
+
+      - name: Require Apple production signing credentials
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_P8_BASE64: ${{ secrets.ASC_PRIVATE_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          : "${MACOS_CERTIFICATE_P12_BASE64:?missing MACOS_CERTIFICATE_P12_BASE64}"
+          : "${MACOS_CERTIFICATE_PASSWORD:?missing MACOS_CERTIFICATE_PASSWORD}"
+          : "${MACOS_CODESIGN_IDENTITY:?missing MACOS_CODESIGN_IDENTITY}"
+          : "${ASC_KEY_ID:?missing ASC_KEY_ID}"
+          : "${ASC_ISSUER_ID:?missing ASC_ISSUER_ID}"
+          : "${ASC_PRIVATE_KEY_P8_BASE64:?missing ASC_PRIVATE_KEY_P8_BASE64}"
+
+      - uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+
+      - name: Install App Store Connect notarization key
+        shell: bash
+        env:
+          ASC_PRIVATE_KEY_P8_BASE64: ${{ secrets.ASC_PRIVATE_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+          printf '%s' "$ASC_PRIVATE_KEY_P8_BASE64" | base64 -D > "$key_path"
+          chmod 0600 "$key_path"
+          test -s "$key_path"
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.rust_target }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-client-${{ matrix.rust_target }}
+
+      # macOS runners ship no protoc and tp-transport's build script needs it.
+      - name: Install protobuf compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install protobuf
+          protoc --version
+
+      - name: Build, sign, notarize, and staple DMG through Make
+        shell: bash
+        env:
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          make --no-print-directory "${{ matrix.make_target }}" \
+            VERSION="$VERSION" UI_VERSION="$VERSION" BUILD_PROFILE="$BUILD_PROFILE"
+          artifact='${{ matrix.artifact }}'
+          artifact="${artifact//\$\{version\}/$VERSION}"
+          test -f "dist/release/${artifact}"
+          codesign --verify --verbose=2 "dist/release/${artifact}"
+          xcrun stapler validate "dist/release/${artifact}"
+          spctl -a -vv --type open --context context:primary-signature "dist/release/${artifact}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-lantunnel-client-${{ matrix.platform }}
+          path: dist/release/lantunnel-client-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.platform }}.dmg
+          if-no-files-found: error
+
+  build-client-windows:
+    name: lantunnel-client windows-amd64 unsigned preview NSIS
+    needs: manual-build-prepare
+    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.manual-build-prepare.outputs.commit }}
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - name: Build lantunnel-client frontend once for Windows
+        shell: powershell
+        run: |
+          npm --prefix apps/lantunnel-client/frontend ci --no-audit --no-fund
+          npm --prefix apps/lantunnel-client/frontend run build
+          $nodeDirectory = Split-Path (Get-Command node).Source
+          "WINDOWS_NODE_DIRECTORY=$nodeDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-client-x86_64-pc-windows-msvc
+
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+        with:
+          msystem: MSYS
+          install: make gcc curl unzip mingw-w64-x86_64-protobuf
+          update: true
+
+      - name: Windows secret ACL tests
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          export PATH="$(cygpath -u "$CARGO_HOME")/bin:$PATH"
+          export PROTOC="$(cygpath -w /mingw64/bin/protoc.exe)"
+          /mingw64/bin/protoc.exe --version
+          cargo test -p lantunnel-admin --test cli
+          cargo test -p lantunnel-client --test peer_import --test private_json_store --test windows_acl
+
+      - name: Build HEV sidecar and install pinned signed Wintun
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          hev_dir='apps/android-proxy/app/src/main/jni/hev-socks5-tunnel'
+          prebuilt_dir='dist/tun-sidecars/x86_64-pc-windows-msvc'
+          make --no-print-directory -C "$hev_dir" clean
+          make --no-print-directory -C "$hev_dir" exec
+          mkdir -p "$prebuilt_dir"
+          install -m 0755 "$hev_dir/bin/hev-socks5-tunnel.exe" "$prebuilt_dir/hev-socks5-tunnel.exe"
+          install -m 0644 /usr/bin/msys-2.0.dll "$prebuilt_dir/msys-2.0.dll"
+          wintun_archive="$prebuilt_dir/wintun-0.14.1.zip"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://www.wintun.net/builds/wintun-0.14.1.zip \
+            --output "$wintun_archive"
+          echo '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51 *'"$wintun_archive" | sha256sum --check --strict
+          unzip -p "$wintun_archive" 'wintun/bin/amd64/wintun.dll' > "$prebuilt_dir/wintun.dll"
+          test -s "$prebuilt_dir/wintun.dll"
+
+      - name: Verify unsigned Windows TUN sidecar assets and signed Wintun
+        shell: powershell
+        run: |
+          $unsignedAssets = @(
+            'dist/tun-sidecars/x86_64-pc-windows-msvc/hev-socks5-tunnel.exe',
+            'dist/tun-sidecars/x86_64-pc-windows-msvc/msys-2.0.dll'
+          )
+          foreach ($asset in $unsignedAssets) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $asset
+            if ($signature.Status -ne 'NotSigned') {
+              throw "expected unsigned Windows preview asset ${asset}, got: $($signature.Status)"
+            }
+          }
+          $wintun = 'dist/tun-sidecars/x86_64-pc-windows-msvc/wintun.dll'
+          $wintunSignature = Get-AuthenticodeSignature -LiteralPath $wintun
+          if ($wintunSignature.Status -ne 'Valid') {
+            throw "invalid upstream Authenticode signature for pinned Wintun ${wintun}: $($wintunSignature.Status)"
+          }
+
+      - name: Build unsigned preview NSIS installer through the public Make release path
+        shell: msys2 {0}
+        env:
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          export PATH="$(cygpath -u "$WINDOWS_NODE_DIRECTORY"):$(cygpath -u "$CARGO_HOME")/bin:$PATH"
+          export PROTOC="$(cygpath -w /mingw64/bin/protoc.exe)"
+          node --version
+          cargo --version
+          /mingw64/bin/protoc.exe --version
+          ALLOW_UNSIGNED_WINDOWS_INSTALLER=1 SKIP_UI_FRONTEND=1 make --no-print-directory _release-lantunnel-client-windows-amd64 \
+            VERSION="$VERSION" UI_VERSION="$VERSION" BUILD_PROFILE="$BUILD_PROFILE"
+          test -f "dist/release/lantunnel-client-${VERSION}-windows-amd64.exe"
+
+      - name: Verify unsigned preview installer is NotSigned
+        shell: powershell
+        env:
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+        run: |
+          $artifact = "dist/release/lantunnel-client-$env:VERSION-windows-amd64.exe"
+          $signature = Get-AuthenticodeSignature -LiteralPath $artifact
+          if ($signature.Status -ne 'NotSigned') {
+            throw "expected unsigned Windows preview installer ${artifact}, got: $($signature.Status)"
+          }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-lantunnel-client-windows-amd64
+          path: dist/release/lantunnel-client-${{ needs.manual-build-prepare.outputs.version }}-windows-amd64.exe
+          if-no-files-found: error
+
+  manual-build-bundle:
+    name: assemble manual build bundle
+    needs:
+      - manual-build-prepare
+      - build-cli
+      - build-client-linux
+      - build-client-macos
+      - build-client-windows
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      needs.manual-build-prepare.result == 'success' &&
+      needs.build-cli.result == 'success' &&
+      needs.build-client-linux.result == 'success' &&
+      needs.build-client-macos.result == 'success' &&
+      needs.build-client-windows.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.manual-build-prepare.outputs.commit }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          path: dist/release
+          merge-multiple: true
+
+      - name: Verify and package the exact manual build set
+        shell: bash
+        env:
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          version="$VERSION"
+          expected=(
+            "lantunnel-gateway-${version}-aarch64-apple-darwin"
+            "lantunnel-gateway-${version}-x86_64-unknown-linux-musl"
+            "lantunnel-admin-${version}-aarch64-apple-darwin"
+            "lantunnel-admin-${version}-x86_64-unknown-linux-musl"
+            "lantunnel-client-${version}-macos-arm64.dmg"
+            "lantunnel-client-${version}-macos-amd64.dmg"
+            "lantunnel-client-${version}-windows-amd64.exe"
+            "lantunnel-client-${version}-linux-amd64.AppImage"
+            "lantunnel-client-${version}-linux-arm64.AppImage"
+          )
+          mapfile -t actual < <(find dist/release -maxdepth 1 -type f -printf '%f\n' | sort)
+          if [ "${#actual[@]}" -ne "${#expected[@]}" ]; then
+            echo 'refusing incomplete or extra public release artifacts' >&2
+            printf 'actual: %s\n' "${actual[@]}" >&2
+            exit 1
+          fi
+          for artifact in "${expected[@]}"; do
+            if [ ! -f "dist/release/${artifact}" ]; then
+              echo "refusing incomplete or extra public release artifacts: missing ${artifact}" >&2
+              exit 1
+            fi
+          done
+          for artifact in "${actual[@]}"; do
+            matched=0
+            for wanted in "${expected[@]}"; do
+              if [ "$artifact" = "$wanted" ]; then matched=1; break; fi
+            done
+            if [ "$matched" -ne 1 ]; then
+              echo "refusing incomplete or extra public release artifacts: unexpected ${artifact}" >&2
+              exit 1
+            fi
+          done
+          cd dist/release
+          sha256sum "${expected[@]}" > checksums.txt
+          cp ../../CHANGELOG.md CHANGELOG.md
+          cd ../..
+          DIST_DIR=dist \
+            RELEASE_DIR=dist/release \
+            DOWNLOAD_DIR=dist/release \
+            CHANGELOG_FILE=dist/release/CHANGELOG.md \
+            ./scripts/upload.sh "$VERSION" check
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-release-candidate-${{ needs.manual-build-prepare.outputs.version }}
+          path: dist/release/*
+          if-no-files-found: error

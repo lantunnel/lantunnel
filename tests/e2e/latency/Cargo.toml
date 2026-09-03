@@ -1,0 +1,47 @@
+[package]
+name = "tp-e2e-p2-latency"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "E2E Phase 2 latency tests for Lantunnel."
+publish = false
+
+# Library surface mirrors Phase 1 (`tp-e2e-p1-connectivity`) so individual
+# test bodies can be exercised by both the bin runner and `cargo test`.
+[lib]
+name = "tp_e2e_p2_latency"
+path = "src/lib.rs"
+
+# `tp-e2e-p2` is the stateless V2 latency probe bin.
+[[bin]]
+name = "tp-e2e-p2"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+] }
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+# Reuse Phase 1 SOCKS5 / SOCKS5-UDP / IPv4-parse helpers instead of
+# duplicating them. Phase 1's `pub mod socks5`, `pub mod socks5_udp` and
+# top-level `parse_host_port` are already publicly exposed.
+tp-e2e-p1-connectivity = { path = "../connectivity" }
+
+# JSON metric reports emitted by every Phase 2 workload.
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# High-precision percentile histograms. Not in workspace yet; pinned here
+# to a single Phase 2-local version. v7.x is the current stable line.
+hdrhistogram = "7"

@@ -1,0 +1,94 @@
+name: TunnelProxyIOS
+options:
+  bundleIdPrefix: com.buhuipao
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # Keep in step with the workspace version in Cargo.toml. The build number
+    # follows the same major*10000 + minor*100 + patch encoding Android derives
+    # in app/build.gradle.kts.
+    MARKETING_VERSION: "2.0.8"
+    CURRENT_PROJECT_VERSION: "20008"
+    # No DEVELOPMENT_TEAM here: xcodegen writes the key verbatim, so a
+    # placeholder becomes a literal invalid team. Simulator builds and the
+    # CI suite need no team. To sign for a device, select your team in
+    # Xcode or pass DEVELOPMENT_TEAM=<id> to xcodebuild.
+    CODE_SIGN_STYLE: Automatic
+targets:
+  TunnelProxy:
+    type: application
+    platform: iOS
+    sources:
+      - TunnelProxy
+      - TunnelProxyShared
+      # The shared UI bundle, kept as a folder reference so index.html can be
+      # found under the "ui" subdirectory at runtime. `make _stage-ios-ui`
+      # fills it; it is build output, not source.
+      - path: TunnelProxy/Resources/ui
+        type: folder
+        optional: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.buhuipao.tunnelproxy.ios
+        INFOPLIST_FILE: TunnelProxy/Info.plist
+        CODE_SIGN_ENTITLEMENTS: TunnelProxy/TunnelProxy.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - framework: NativeLibs/TpMobileFfi.xcframework
+        embed: false
+      - framework: NativeLibs/HevSocks5Tunnel.xcframework
+        embed: false
+      - sdk: CoreFoundation.framework
+      - target: PacketTunnel
+  PacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - PacketTunnel
+      - TunnelProxyShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.buhuipao.tunnelproxy.ios.PacketTunnel
+        INFOPLIST_FILE: PacketTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
+    dependencies:
+      - framework: NativeLibs/TpMobileFfi.xcframework
+        embed: false
+      - framework: NativeLibs/HevSocks5Tunnel.xcframework
+        embed: false
+      - sdk: CoreFoundation.framework
+  TunnelProxyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - TunnelProxyTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: TunnelProxy
+schemes:
+  TunnelProxy:
+    build:
+      targets:
+        TunnelProxy: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TunnelProxyTests
+  PacketTunnel:
+    build:
+      targets:
+        PacketTunnel: all
+  TunnelProxyTests:
+    build:
+      targets:
+        TunnelProxyTests: test
+    test:
+      config: Debug
+      targets:
+        - TunnelProxyTests

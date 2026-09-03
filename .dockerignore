@@ -1,0 +1,39 @@
+# Anything not required inside the image / build context.
+# Keeping this tight shrinks the context tarball sent to the docker daemon.
+
+# Build outputs
+target/
+dist/
+**/target/
+**/dist/
+!apps/lantunnel-client/frontend/dist/
+!apps/lantunnel-client/frontend/dist/**
+**/node_modules/
+**/*.rs.bk
+
+# VCS & editor junk
+.git/
+.gitignore
+.github/
+.claude/
+.superpowers/
+.cache/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Dev-only docs & local state
+CHANGELOG.md
+README.md
+logs/
+*.log
+
+# Secrets / local-only certs (users supply their own at runtime)
+certs/*.key
+certs/*.crt
+docs/
+
+# Previous session workdirs
+/tmp/

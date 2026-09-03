@@ -1,0 +1,7 @@
+FROM tp-builder:arm64
+
+COPY tp-e2e-p1 tp-e2e-p2 tp-e2e-p3 tp-e2e-echo-services /usr/local/bin/
+
+RUN chmod 0755 /usr/local/bin/tp-e2e-p1 /usr/local/bin/tp-e2e-p2 /usr/local/bin/tp-e2e-p3 /usr/local/bin/tp-e2e-echo-services
+
+USER 10001:10001

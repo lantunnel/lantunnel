@@ -1,0 +1,34 @@
+[package]
+name = "tp-e2e-p1-connectivity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "E2E Phase 1 connectivity tests for Lantunnel."
+publish = false
+
+# Library surface so sibling P1 task crates (or future `cargo test` integration)
+# can import the test bodies and the SOCKS5 helper without re-implementing them.
+[lib]
+name = "tp_e2e_p1_connectivity"
+path = "src/lib.rs"
+
+# One stateless probe bin per phase. Tests are selected by `--test <name>`.
+[[bin]]
+name = "tp-e2e-p1"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+] }
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true

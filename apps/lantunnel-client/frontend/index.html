@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The webview follows the OS by default, which repaints form controls
+         and the pre-mount canvas dark on a dark-mode machine. The app is a
+         light surface, so it says so before any script runs. The canvas colour
+         itself comes from the render-blocking stylesheet's `body` rule, not an
+         inline style attribute, so the Content Security Policy can forbid
+         inline styles outright. -->
+    <meta name="color-scheme" content="light" />
+    <title>Lantunnel</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

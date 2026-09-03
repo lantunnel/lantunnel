@@ -1,0 +1,27 @@
+[package]
+name = "tp-ipc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Local IPC between the Lantunnel desktop GUI and its background service."
+
+[dependencies]
+tokio.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true
+bytes.workspace = true
+async-trait.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+] }

@@ -1,0 +1,25 @@
+# The Windows installer builder.
+#
+# Windows NSIS packaging was cross-built for four releases with a hand-typed
+# `docker run` against an image that existed only in one laptop's daemon —
+# `make release-lantunnel-client-windows-amd64` refused to run anywhere but a
+# native Windows host, so nothing in the repository described how the shipped
+# .exe was produced. A `docker image prune` would have made the Windows build
+# unreproducible.
+#
+# This is the ordinary builder plus what makensis and the Tauri NSIS bundler
+# need. Everything else — the Rust toolchain, cargo-xwin, the rustup seed —
+# comes from the base.
+ARG BUILDER_IMAGE=tp-builder:amd64
+FROM ${BUILDER_IMAGE}
+
+# makensis itself. cargo-xwin supplies the MSVC CRT and Windows SDK headers,
+# so nothing else here is Windows-specific.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends nsis nsis-common \
+ && rm -rf /var/lib/apt/lists/*
+
+# The bundler downloads nsis_tauri_utils.dll on first use and verifies its
+# hash; leave that to it rather than pinning a copy here that would drift.
+
+CMD ["bash", "-c", "echo '# tp-builder-nsis ready'; rustc -V; cargo xwin --version; makensis /VERSION; cargo tauri --version"]

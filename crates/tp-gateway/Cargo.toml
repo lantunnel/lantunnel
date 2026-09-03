@@ -1,0 +1,36 @@
+[package]
+name = "tp-gateway"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Gateway library for V2 Scope admission and exact-Peer relay routing."
+
+[dependencies]
+tp-core.workspace = true
+tp-host-filter.workspace = true
+tp-metrics.workspace = true
+tp-transport.workspace = true
+
+tokio.workspace = true
+tokio-util.workspace = true
+rand.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+governor.workspace = true
+nonzero_ext.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+tempfile = "3"

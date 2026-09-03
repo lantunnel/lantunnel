@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package transport;
+
+// TransportService defines the gRPC streaming service for proxy communication.
+// Byte-compatible with the Go `pkg/transport/grpc/transport.proto` definition.
+service TransportService {
+    rpc BiStream(stream StreamMessage) returns (stream StreamMessage);
+}
+
+message StreamMessage {
+    enum MessageType {
+        DATA = 0;
+        CONTROL = 2;
+    }
+
+    MessageType type = 1;
+    bytes data = 2;
+    string client_id = 3;
+    string group_id = 4;
+
+    map<string, string> metadata = 5;
+}
+
+message ClientInfo {
+    string client_id = 1;
+    string group_id = 2;
+    string username = 3;
+    string password = 4;
+}

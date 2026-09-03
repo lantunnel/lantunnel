@@ -1,0 +1,387 @@
+# Sprint 1 #8 / audit §6.2 — baseline Rust CI (fmt + clippy + test).
+# Sprint 2 #9 / audit §6.3 — adds cargo-deny as a second job so supply-chain
+# regressions (license changes / unpatched advisories / unknown source
+# registries) are caught per PR. cargo-audit is intentionally not run
+# here — see the `deny` job comment for the redundancy rationale.
+#
+# Matrix on `check` runs stable (tracks latest) and 1.89 (declared MSRV in
+# workspace Cargo.toml rust-version). RUSTUP_TOOLCHAIN is set per-job so the
+# repository-pinned rust-toolchain.toml does not override the matrix value.
+#
+# `deny` runs stable-only — it validates the source graph, not compiled
+# output, so MSRV doesn't change its result.
+#
+# `coverage` is intentionally non-blocking: it warns when crates fall below
+# 60% line coverage or apps fall below 40%, matching Sprint 4's "PR warning"
+# requirement without converting today's baseline into a merge blocker.
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: fmt + clippy + test (${{ matrix.toolchain }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, "1.89"]
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
+      PROTOC: /usr/bin/protoc
+    steps:
+      # The existing-release contract reads CHANGELOG.md out of the pinned
+      # release source commit, which a shallow clone does not carry.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: CI protoc source contract
+        run: bash tests/ci_protoc_source_test.sh
+
+      - name: Use a trusted temporary directory
+        run: bash .github/scripts/trusted-tmpdir.sh
+
+      - name: Free runner disk space
+        run: bash .github/scripts/free-disk.sh
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - name: Build lantunnel-client frontend
+        run: npm --prefix apps/lantunnel-client/frontend ci --no-audit --no-fund && npm --prefix apps/lantunnel-client/frontend run build
+
+      # Tauri Client (apps/lantunnel-client/src-tauri) is part of the workspace and
+      # links against webkit2gtk / appindicator / rsvg on Linux. cargo check /
+      # clippy / test all pull it in, so these -dev packages are required.
+      # ripgrep backs the source contract scripts below; the runner image has no
+      # `rg`, so they fail on a missing command instead of a real violation.
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler \
+            ripgrep
+          command -v rg
+          test -x "$PROTOC"
+          "$PROTOC" --version
+
+      - name: Install Rust ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.toolchain }}
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (warnings as errors)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: Windows secret ACL source contract
+        run: bash tests/v2_windows_secret_acl_source_test.sh
+
+      - name: V2 Relay hot-path source contract
+        run: bash tests/v2_relay_hotpath_source_test.sh
+
+      - name: V2-only operator authority source contract
+        run: bash tests/v2_operator_authority_source_test.sh
+
+      - name: V2-only Client source contract
+        run: bash tests/v2_client_only_source_test.sh
+
+      - name: Existing R2 release download contract
+        run: |
+          bash tests/download_existing_release_test.sh
+          bash tests/verify_github_release_test.sh
+
+      # The upload path publishes to the public bucket, and this is the test
+      # that stands over it — immutable create-only writes, no overwrite of a
+      # byte-identical object, the exact product-plus-metadata manifest. It ran
+      # nowhere until now, which is how it came to disagree with the release it
+      # guards for four versions running. It uses a stubbed aws and writes
+      # nothing outside its own temporary directory.
+      - name: R2 upload contract
+        run: bash tests/upload_script_test.sh
+
+      # Eight contracts that describe the AL acceptance harness, the Docker
+      # acceptance/perf entry points and Peer profile uniqueness. They are
+      # pure source and fixture checks — no real Gateway, no network — and
+      # every one passes on a clean checkout.
+      - name: Acceptance harness source contracts
+        run: |
+          bash tests/v2_docker_acceptance_source_test.sh
+          bash tests/v2_docker_perf_source_test.sh
+          bash tests/v2_peer_profile_uniqueness_behavior_test.sh
+
+      # Both mobile Clients embed the shared UI, and both tests below read it
+      # out of the staged copy. That copy is generated and gitignored, so on a
+      # clean checkout it is simply absent and the tests fail on a missing
+      # file — which is what they had been doing here, while passing on any
+      # machine that had built a release once.
+      - name: Stage the shared UI into the mobile Clients
+        run: make _stage-android-ui _stage-ios-ui
+
+      - name: Mobile V2-only source contracts
+        run: |
+          bash tests/v2_platform_api_only_source_test.sh
+          bash tests/android_mobile_source_test.sh
+          bash tests/ios_mobile_source_test.sh
+          # The desktop guard existed and was wired to nothing, which is how its
+          # assertions came to describe a UI that had been replaced.
+          bash tests/tunnel_proxy_app_frontend_source_test.sh
+          bash tests/client_log_levels_source_test.sh
+
+      # Compile-only check for the criterion benches so a
+      # regression that breaks them (e.g. signature change in the crate
+      # under bench) fails CI, without paying the full perf-gate cost.
+      # Scoped to the two bench-owning crates to keep the extra build time
+      # bounded; when more benches land we'll re-evaluate.
+      - name: cargo bench --no-run (compile-only)
+        run: cargo bench -p tp-core -p tp-gateway --no-run
+
+  android:
+    name: Android unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Deliberately not `free-disk.sh`: that script deletes
+      # /usr/local/lib/android to make room for the Rust link step, which is
+      # exactly the SDK this job needs. Running both in one job is why the
+      # Android suite could never pass.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      # The APK embeds the shared UI, so the bundle has to exist before Gradle
+      # reads the assets directory.
+      - name: Stage the shared UI into the Android Client
+        run: make _stage-android-ui
+
+      - name: Android unit tests
+        run: |
+          cd apps/android-proxy
+          ./gradlew --no-daemon :app:testDebugUnitTest
+
+  ios:
+    name: iOS unit tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # protobuf: tp-transport's build script runs protoc, and the macOS image
+      # ships none. The Rust job gets it from apt and pins PROTOC; here brew
+      # puts it on PATH, which is where prost-build looks.
+      - name: Install xcodegen and protoc
+        run: |
+          brew install xcodegen protobuf
+          protoc --version
+
+      # The app and extension targets link TpMobileFfi.xcframework and
+      # HevSocks5Tunnel.xcframework. Both are build output, both are
+      # gitignored, and neither exists on a clean checkout -- which is why
+      # this job had never once passed. Build them before generating.
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Build the iOS native libraries
+        # debug, not release: this job only runs simulator unit tests.
+        run: PROFILE=debug scripts/build-ios-mobile-libs.sh
+
+      # The app bundles the shared UI as a folder reference, so Xcode's
+      # CpResource step fails outright when it is missing -- as it is on any
+      # clean checkout, the bundle being gitignored build output.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - name: Stage the shared UI into the iOS Client
+        run: make _stage-ios-ui
+
+      - name: Run the iOS suite
+        run: |
+          cd apps/ios-proxy
+          xcodegen generate
+          # Pick whatever iPhone simulator the runner image actually has. A
+          # pinned device name breaks the moment the image rolls forward.
+          device="$(xcrun simctl list devices available | sed -n 's/^ *\(iPhone [^(]*\) (.*/\1/p' | sed 's/ *$//' | head -n 1)"
+          test -n "$device" || { echo 'no iPhone simulator available on this runner' >&2; exit 1; }
+          echo "using simulator: $device"
+          xcodebuild test -project TunnelProxyIOS.xcodeproj -scheme TunnelProxy \
+            -destination "platform=iOS Simulator,name=$device"
+
+  windows-secret-acl:
+    name: Windows secret ACL behavior
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - name: Build lantunnel-client frontend
+        run: npm --prefix apps/lantunnel-client/frontend ci --no-audit --no-fund && npm --prefix apps/lantunnel-client/frontend run build
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: windows-secret-acl
+
+      # tp-transport's build script needs protoc, which windows-latest does not
+      # preinstall. Chocolatey shims it onto the native PATH that the build
+      # script searches, so no PROTOC override is needed here.
+      - name: Install protobuf compiler
+        shell: pwsh
+        run: |
+          # The Chocolatey community feed returns 504s often enough to fail a
+          # release gate on its own, so give it bounded retries.
+          $ErrorActionPreference = 'Continue'
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            choco install protoc --no-progress -y
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -eq 3) { throw "choco install protoc failed after 3 attempts" }
+            Start-Sleep -Seconds 15
+          }
+          $ErrorActionPreference = 'Stop'
+          protoc --version
+
+      - name: Test actual Windows DACL and reparse behavior
+        shell: bash
+        run: |
+          cargo test -p lantunnel-admin --test cli
+          cargo test -p lantunnel-client --test peer_import --test private_json_store --test windows_acl
+
+  deny:
+    # Runs in parallel to `check` — license / advisory / source scans are
+    # independent of the build. Failure here blocks the PR.
+    #
+    # cargo-deny's `advisories` subcheck already pulls from
+    # rustsec/advisory-db — same feed cargo-audit uses — so we run only
+    # cargo-deny here and let its `ignore` list in deny.toml carry the
+    # documented accepted-risk entries. Running cargo-audit alongside
+    # would duplicate the DB fetch and require a second parallel ignore
+    # list (cargo-audit honours `.cargo/audit.toml`, not deny.toml) — two
+    # places to keep in sync for zero additional coverage.
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # cargo-deny's official action handles install + cache + run in one
+      # step. `all` runs advisories + licenses + bans + sources against
+      # the repo-root deny.toml.
+      - name: cargo-deny (advisories + licenses + bans + sources)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check all
+          manifest-path: ./Cargo.toml
+
+  coverage:
+    name: coverage warning (${{ matrix.group }})
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      PROTOC: /usr/bin/protoc
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: crates
+            threshold: 60
+            packages: >-
+              -p tp-core -p tp-metrics -p tp-ipc
+              -p tp-transport -p tp-proxy-socks5
+              -p tp-gateway -p tp-client
+          - group: apps
+            threshold: 40
+            packages: >-
+              -p lantunnel-gateway -p lantunnel-client -p lantunnel-admin
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Use a trusted temporary directory
+        run: bash .github/scripts/trusted-tmpdir.sh
+
+      - name: Install Node for app coverage
+        if: matrix.group == 'apps'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
+
+      - name: Build lantunnel-client frontend for coverage
+        if: matrix.group == 'apps'
+        run: npm --prefix apps/lantunnel-client/frontend ci --no-audit --no-fund && npm --prefix apps/lantunnel-client/frontend run build
+
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler
+          test -x "$PROTOC"
+          "$PROTOC" --version
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: coverage-${{ matrix.group }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@b1d53d4d726d74b5a950a5b3798a3c6ede4e0f64 # cargo-llvm-cov
+
+      - name: cargo llvm-cov (${{ matrix.group }})
+        run: >
+          cargo llvm-cov ${{ matrix.packages }} --all-targets --summary-only
+          --fail-under-lines ${{ matrix.threshold }}

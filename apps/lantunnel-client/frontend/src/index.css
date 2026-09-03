@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * The same design tokens as the Lantunnel web app, under the same names, so
+ * the desktop Client and the
+ * site read as one product and a brand change is one edit per surface rather
+ * than a hunt through utility classes.
+ */
+:root {
+  color-scheme: light;
+
+  --color-canvas: 248 250 252;
+  --color-surface: 255 255 255;
+  --color-surface-subdued: 241 245 249;
+  --color-border: 226 232 240;
+  --color-text-primary: 15 23 42;
+  --color-text-secondary: 71 85 105;
+  --color-text-muted: 100 116 139;
+  --color-text-inverse: 255 255 255;
+  --color-accent: 109 40 217;
+  --color-accent-soft: 245 243 255;
+  --color-focus: 124 58 237;
+  --color-success: 4 120 87;
+  --color-warning: 180 83 9;
+  --color-danger: 185 28 28;
+  --color-info: 29 78 216;
+
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: rgb(var(--color-canvas));
+  color: rgb(var(--color-text-primary));
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-height: 100vh;
+  background: rgb(var(--color-canvas));
+  color: rgb(var(--color-text-primary));
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  /* The window is 480px wide. 2rem on each side spent a seventh of it on
+     margin, which is what pushed the status card's own rows off the screen. */
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/*
+ * Was a translucent pane over a dark gradient. On a light canvas the same
+ * effect is an opaque card with a hairline border — the depth now comes from
+ * the border and a soft shadow rather than from blur.
+ */
+.glass {
+  background: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-border));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(15 23 42 / 0.04);
+}
+
+.glow {
+  box-shadow: 0 0 0 1px rgb(var(--color-accent) / 0.25), 0 8px 24px rgb(var(--color-accent) / 0.14);
+}
+
+input,
+select,
+textarea {
+  background: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: rgb(var(--color-text-primary));
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(var(--color-text-muted));
+}
+
+select {
+  appearance: none;
+}
+
+option {
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-text-primary));
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgb(var(--color-focus));
+  box-shadow: 0 0 0 3px rgb(var(--color-focus) / 0.18);
+}
+
+button {
+  padding: 0.55rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 3px solid rgb(var(--color-focus));
+  outline-offset: 3px;
+}

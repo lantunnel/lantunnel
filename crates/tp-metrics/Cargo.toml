@@ -1,0 +1,24 @@
+[package]
+name = "tp-metrics"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Lock-free(-ish) metrics registry (global + per-client + per-connection) — Prometheus counters and histograms."
+
+[dependencies]
+serde = { workspace = true }
+serde_json.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "metrics"
+harness = false

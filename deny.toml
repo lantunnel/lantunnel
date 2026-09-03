@@ -1,0 +1,139 @@
+# cargo-deny configuration
+# Docs: https://embarkstudios.github.io/cargo-deny/checks/cfg.html
+#
+# Runs as the `deny` job in .github/workflows/ci.yml; see that job's comment
+# for why cargo-audit is not run alongside it. Keep the ruleset strict but not
+# pedantic — prefer PRs over config churn.
+
+[graph]
+# Only evaluate targets we actually build for. Avoids dragging in
+# platform-only deps (e.g. winapi on Linux) that muddy the ban/license
+# check.
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+# Tauri pulls in platform-linked libs under features; keep feature graph
+# full so we catch license/advisory issues there too.
+all-features = false
+
+[advisories]
+# Advisory policy:
+# - Unpatched vulnerabilities / yanked releases NOT in the ignore list FAIL
+#   CI (default behaviour in schema v2).
+# - Every advisory in the ignore list must have a comment explaining WHY we
+#   accept the risk and under what condition we'd revisit. Any NEW advisory
+#   post-this-commit — or a new version of an ignored crate where the fix
+#   lands — will immediately trip CI and force the PR to re-evaluate.
+# - "Unmaintained" transitive advisories pulled in by Tauri's Linux path
+#   (gtk3 bindings, atk, proc-macro-error) are accepted until Tauri moves
+#   to gtk4-rs.
+version = 2
+yanked = "deny"
+ignore = [
+    # --- Unmaintained transitive via tauri (Linux desktop GUI path) ---
+    # Re-evaluate when tauri upstream migrates to gtk4-rs / rust-unic is
+    # replaced. We don't control these dep versions.
+    { id = "RUSTSEC-2024-0411", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0412", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0413", reason = "atk unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0414", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0415", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0416", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0417", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0418", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0419", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2024-0420", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    { id = "RUSTSEC-2025-0075", reason = "unic-char-range unmaintained; same rust-unic family as 0098" },
+    { id = "RUSTSEC-2025-0080", reason = "unic-common unmaintained; same rust-unic family as 0098" },
+    { id = "RUSTSEC-2025-0081", reason = "unic-char-property unmaintained; same rust-unic family as 0098" },
+    { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version unmaintained; transitive via tauri-utils → urlpattern; tracked at open-i18n/rust-unic" },
+    { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident unmaintained; same rust-unic family as 0098" },
+
+    # --- Other unmaintained transitive deps ---
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error unmaintained; transitive via older procedural-macro crates; no user-facing impact" },
+    { id = "RUSTSEC-2025-0057", reason = "fxhash unmaintained; transitive; no user-facing impact" },
+    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; transitive via rustls ecosystem; re-check when rustls upstream migrates" },
+
+    # --- Unsoundness GitHub's advisory database reports and cargo-audit files
+    #     as warnings. Listed explicitly so this repository has one reviewed
+    #     answer rather than a quiet gate and open Dependabot alerts. ---
+    { id = "RUSTSEC-2026-0097", reason = "rand 0.7.3 unsound with a custom logger. Build-dependency only: tauri-build -> tauri-utils -> kuchikiki -> selectors -> phf_codegen -> phf_generator. It never reaches a shipped binary and no Lantunnel code calls it. Upstream pins the chain; re-check when tauri-utils drops kuchikiki." },
+    { id = "RUSTSEC-2024-0429", reason = "glib 0.18 VariantStrIter iterator unsoundness. Linux desktop GUI path only, pinned by tauri -> webkit2gtk -> gtk 0.18. Same gtk3 family as the unmaintained advisories above and blocked on the same gtk4-rs migration." },
+
+    # --- Accepted vulnerabilities ---
+    # `rsa` has no patched release for the Marvin sidechannel, so this entry
+    # stays until the advisory is withdrawn or the dependency disappears.
+    # It reaches the graph only through lantunnel-gateway's dev-dependencies:
+    # `certificate_lifecycle` tests generate a throwaway RSA-2048 key to prove
+    # the Gateway accepts an operator-supplied RSA server identity in both
+    # PKCS#8 and PKCS#1 encodings. No shipped binary links `rsa`, and no
+    # Lantunnel code path performs an RSA private-key operation, which is what
+    # the sidechannel requires. If `rsa` ever appears as a normal dependency,
+    # this reason no longer holds — drop the path instead of widening the
+    # exception.
+    { id = "RUSTSEC-2023-0071", reason = "Marvin timing sidechannel in rsa v0.9.x — dev-dependency only (lantunnel-gateway RSA identity tests); no shipped binary links it and no runtime RSA private-key operation exists. Upstream has no fixed release." },
+]
+
+[licenses]
+version = 2
+# Every license encountered in the graph must be in this list. When a new
+# transitive dep lands with a novel license, the PR author decides:
+#   - Add it here (if reviewable OSS license), or
+#   - Pin/replace the dep.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "MPL-2.0",
+    "OpenSSL",
+    "0BSD",
+    # webpki-roots ships Mozilla's trust store under CDLA-Permissive-2.0.
+    # This is the licence the rustls ecosystem settled on for root-cert
+    # data bundles — cleared for embedding in OSS binaries.
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.93
+
+[[licenses.exceptions]]
+# `ring` is dual Apache-2.0/ISC/MIT but its source vendors BoringSSL code
+# under OpenSSL licence, so cargo-deny needs the explicit exception.
+allow = ["OpenSSL"]
+name = "ring"
+
+[bans]
+# Warn on duplicate major versions so we can see supply-chain bloat; not
+# deny, because transitive dep fights tend to resolve over time and we
+# don't want to block merges on them.
+multiple-versions = "warn"
+# Wildcards: every workspace crate uses `.workspace = true` inheritance
+# for internal deps, which cargo-deny flags as a wildcard against every
+# public crate (our monorepo crates don't set `publish = false`). The
+# real protection — pinning external registry versions — lives in the
+# root Cargo.toml's `[workspace.dependencies]` block, so the false
+# positives here have no security value. Set to "allow".
+wildcards = "allow"
+# No hand-maintained banlist yet. Add entries as specific CVEs or
+# abandoned forks appear.
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+# Every crate must come from crates.io unless its git source is explicitly
+# allowlisted here. Blocks a compromised/typosquatted repo from sneaking
+# in via a transitive `[patch.*]` entry.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

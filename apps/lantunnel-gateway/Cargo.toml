@@ -1,0 +1,57 @@
+[package]
+name = "lantunnel-gateway"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "V2-only Lantunnel rendezvous and encrypted-relay gateway."
+
+[[bin]]
+name = "lantunnel-gateway"
+path = "src/main.rs"
+
+[dependencies]
+tp-core.workspace = true
+tp-transport.workspace = true
+tp-gateway.workspace = true
+
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
+anyhow.workspace = true
+base64.workspace = true
+futures-util.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+rustls.workspace = true
+ring.workspace = true
+rcgen = { workspace = true, features = ["x509-parser"] }
+same-file = "1"
+hex.workspace = true
+sha2.workspace = true
+tempfile = "3"
+uuid.workspace = true
+x509-parser = { version = "0.16", features = ["verify"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+rand.workspace = true
+rsa = { version = "0.9", features = ["pem"] }

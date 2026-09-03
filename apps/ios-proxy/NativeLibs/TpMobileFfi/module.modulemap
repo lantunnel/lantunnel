@@ -1,0 +1,4 @@
+module TpMobileFfi {
+    umbrella header "include/tp_mobile_ffi.h"
+    export *
+}

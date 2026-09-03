@@ -1,0 +1,32 @@
+[package]
+name = "tp-proxy-tuic"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "TUIC v5 (over QUIC) frontend, Clash Meta / sing-box compatible. Not wired into the Lantunnel V2 runtime; retained for a possible future Gateway proxy listener."
+
+[dependencies]
+tp-transport.workspace = true
+
+tokio.workspace = true
+async-trait.workspace = true
+quinn.workspace = true
+socket2.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+rcgen.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
+uuid.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "packet_parse"
+harness = false

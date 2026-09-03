@@ -1,0 +1,21 @@
+[package]
+name = "tp-proxy-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP(S) CONNECT / forward proxy frontend. Not wired into the Lantunnel V2 runtime; retained for a possible future Gateway proxy listener."
+
+[dependencies]
+
+tokio.workspace = true
+async-trait.workspace = true
+tokio-rustls.workspace = true
+rustls.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+httparse.workspace = true
+bytes.workspace = true
+base64.workspace = true

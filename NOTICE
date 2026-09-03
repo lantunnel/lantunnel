@@ -1,0 +1,70 @@
+Lantunnel
+Copyright 2026 Lantunnel contributors
+
+This product includes software developed by the Lantunnel project
+(https://github.com/lantunnel/lantunnel).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file for the
+full license text.
+
+================================================================================
+Third-party components vendored in this repository
+================================================================================
+
+The following third-party source is redistributed inside this repository. Each
+component keeps its own license; those licenses are reproduced in full at the
+paths listed below.
+
+--------------------------------------------------------------------------------
+HevSocks5Tunnel
+Path:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/
+License: MIT
+Notice:  Copyright (c) 2019-2023 hev <r@hev.cc>
+Text:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/LICENSE
+         apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/src/core/LICENSE
+
+--------------------------------------------------------------------------------
+HevTaskSystem
+Path:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/hev-task-system/
+License: MIT
+Notice:  Copyright (c) 2022 hev <r@hev.cc>
+Text:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/hev-task-system/LICENSE
+
+--------------------------------------------------------------------------------
+lwIP - A Lightweight TCP/IP stack
+Path:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/lwip/
+License: BSD-3-Clause
+Notice:  Copyright (c) 2001, 2002 Swedish Institute of Computer Science.
+         All rights reserved.
+Text:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/lwip/LICENSE
+
+--------------------------------------------------------------------------------
+hev-yaml
+Path:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/yaml/
+License: MIT
+Notice:  Copyright (c) 2022 hev <r@hev.cc>
+Text:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/yaml/LICENSE
+
+--------------------------------------------------------------------------------
+Wintun (public header only; no binaries are redistributed)
+Path:    apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/wintun/include/wintun.h
+License: GPL-2.0 OR MIT (this project elects MIT)
+Notice:  Copyright (C) 2018-2021 WireGuard LLC. All Rights Reserved.
+Text:    SPDX-License-Identifier header in wintun.h
+
+         The "Prebuilt Binaries License" reproduced at
+         apps/android-proxy/app/src/main/jni/hev-socks5-tunnel/third-part/wintun/LICENSE.txt
+         applies only to the wintun.dll binaries distributed by WireGuard LLC.
+         No such binary is present in, built by, or shipped from this
+         repository, so that license does not attach to any Lantunnel artifact.
+
+================================================================================
+Third-party Rust and npm dependencies
+================================================================================
+
+Lantunnel links against third-party crates and npm packages that are fetched at
+build time and are not vendored here. Their licenses are enforced by the
+allowlist in deny.toml and can be regenerated with:
+
+    cargo deny check licenses
+    cargo tree --format '{p} {l}'

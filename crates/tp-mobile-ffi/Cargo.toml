@@ -1,0 +1,25 @@
+[package]
+name = "tp-mobile-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "C ABI boundary for Android foreground-service control of the tunnel proxy client."
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tp-client.workspace = true
+tp-core.workspace = true
+tp-proxy-socks5.workspace = true
+rustls.workspace = true
+base64.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+jni = "0.21.1"

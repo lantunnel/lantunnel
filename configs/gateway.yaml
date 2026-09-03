@@ -1,0 +1,72 @@
+# lantunnel-gateway example config
+#
+# This is a local/demo example. Production must provide an explicit config,
+# persistent TLS keypair, owner-only state path, and deliberate Scope source;
+# the release container does not bake any of them in.
+#
+# Run with:
+#   mkdir -p state/scopes.d
+#   ./target/release/lantunnel-gateway --config configs/gateway.yaml
+#
+# One process. The Gateway binds its own UDP mapping socket, so there is
+# nothing to start alongside it and no ordering to get right.
+
+log:
+  level: "info"
+  format: "text"
+  output: "stdout"
+  # file: "logs/gateway.log"
+  max_size: 100
+  max_backups: 3
+  max_age: 7
+  compress: true
+
+gateway:
+  # QUIC tunnel endpoint — clients dial this.
+  listen_addr: "0.0.0.0:8443"
+  transport_type: "quic"        # quic | websocket | grpc
+  tls_cert: "certs/server.crt"
+  tls_key: "certs/server.key"
+  # Static Lantunnel 2.0 Tunnel admission files. Managed scopes are replaced
+  # in memory by authoritative snapshots from outbound Platform control.
+  scopes_dir: "state/scopes.d"
+
+  # UDP mapping service. This Gateway binds it itself and probes it during
+  # startup. Clients are told this port and probe there, so it is a
+  # registration fact rather than a constant: several Gateways may share one
+  # host, each with its own data port and its own mapping port. A QUIC data
+  # listener cannot share this port.
+  mapping_probe_port: 8444
+
+  # QUIC tunnel keepalive/idle tuning.
+  transport:
+    congestion: "bbr"
+    keep_alive_secs: 10
+    max_idle_secs: 60
+
+  # Managed identity and the one-time onboarding claim
+  # belong only to the separate pairing artifact and config-derived durable
+  # state created by `lantunnel-gateway onboard`; never copy pairing fields
+  # into this runtime YAML.
+
+  # Passive relay usage ledger. The gateway writes relay usage to this WAL;
+  # outbound control sends snapshots to the Platform and receives durable acks.
+  usage_ledger:
+    wal_path: "state/relay-usage.wal"
+
+  # P2P signaling (Announce → Offer → Answer → PunchSync → Teardown).
+  # Empty / missing section → defaults shown below.
+  p2p:
+    # Process safety caps; these are not per-Tunnel commercial policy.
+    max_v2_attachments: 4096
+    max_replicas_per_peer: 8
+    enabled: true
+    # Peer-registry entry TTL. Authenticated clients keep their entry alive
+    # via P2pAnnounce; longer TTL reduces P2P/relay flapping under jitter.
+    peer_idle_secs: 120
+    # Signaling session table TTL. 60 s covers offer→answer→punch handshake
+    # at typical RTTs; expires abandoned sessions before they accumulate.
+    session_idle_secs: 60
+    # Gateway-stamped delta (ms) added to "now" when building P2pPunchSync.
+    # Both peers fire their burst at the same wall clock.
+    punch_sync_offset_ms: 250

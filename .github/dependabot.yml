@@ -1,0 +1,33 @@
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # Both are unreachable from a shipped artifact and both are pinned by a
+      # dependency we do not control, so Dependabot fails on every attempt.
+      # deny.toml carries the full reasoning for each.
+      #
+      # rand 0.7.3 — build-dependency only, via
+      # tauri-build -> tauri-utils -> kuchikiki -> selectors -> phf_codegen.
+      - dependency-name: rand
+        versions: ["0.7.x"]
+      # glib 0.18 — Linux gtk3 path pinned by tauri -> webkit2gtk -> gtk,
+      # blocked on the gtk4-rs migration.
+      - dependency-name: glib
+        versions: ["0.18.x"]
+
+  - package-ecosystem: npm
+    directory: /apps/lantunnel-client/frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

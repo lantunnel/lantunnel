@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>app.lantunnel.tun-helper</string>
+  <key>BundleProgram</key>
+  <string>Contents/Library/LaunchServices/app.lantunnel.tun-helper</string>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>KeepAlive</key>
+  <false/>
+  <key>Sockets</key>
+  <dict>
+    <key>TunHelperSocket</key>
+    <dict>
+      <key>SockPathName</key>
+      <string>/var/run/app.lantunnel.tun-helper.sock</string>
+      <key>SockPathMode</key>
+      <integer>438</integer>
+    </dict>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/var/log/app.lantunnel.tun-helper.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/log/app.lantunnel.tun-helper.err.log</string>
+</dict>
+</plist>

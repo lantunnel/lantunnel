@@ -1,0 +1,20 @@
+[Unit]
+Description=Lantunnel 2.0 Gateway
+After=network-online.target lantunnel-gateway-mapping.service
+Wants=network-online.target
+Requires=lantunnel-gateway-mapping.service
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=/root/lantunnel
+ExecStart=/root/lantunnel/lantunnel-gateway --config /root/lantunnel/configs/config.yaml
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

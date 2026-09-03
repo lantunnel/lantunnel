@@ -1,0 +1,138 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tp-core",
+    "crates/tp-host-filter",
+    "crates/tp-metrics",
+    "crates/tp-ipc",
+    "crates/tp-transport",
+    "crates/tp-proxy-http",
+    "crates/tp-proxy-socks5",
+    "crates/tp-proxy-tuic",
+    "crates/tp-gateway",
+    "crates/tp-client",
+    "crates/tp-mobile-ffi",
+    "apps/lantunnel-admin",
+    "apps/lantunnel-gateway",
+    "apps/lantunnel-client/src-tauri",
+    "tests/e2e/_fixtures/echo-services",
+    "tests/e2e/connectivity",
+    "tests/e2e/latency",
+    "tests/e2e/throughput",
+]
+# Each binary depends only on the crates it needs, so release binaries stay small.
+# Shared code lives in the crates/ workspace members.
+
+[workspace.package]
+version = "2.0.8"
+edition = "2021"
+rust-version = "1.89"
+license = "Apache-2.0"
+repository = "https://github.com/lantunnel/lantunnel"
+
+[workspace.dependencies]
+# Local crates
+tp-core = { path = "crates/tp-core" }
+tp-host-filter = { path = "crates/tp-host-filter" }
+tp-metrics = { path = "crates/tp-metrics" }
+tp-ipc = { path = "crates/tp-ipc" }
+tp-transport = { path = "crates/tp-transport" }
+tp-proxy-http = { path = "crates/tp-proxy-http" }
+tp-proxy-socks5 = { path = "crates/tp-proxy-socks5" }
+tp-proxy-tuic = { path = "crates/tp-proxy-tuic" }
+tp-gateway = { path = "crates/tp-gateway" }
+tp-client = { path = "crates/tp-client" }
+
+# Async runtime
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "signal", "fs"] }
+tokio-util = { version = "0.7", features = ["codec", "io", "rt"] }
+futures-util = "0.3"
+async-trait = "0.1"
+
+# QUIC transport
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+# Low-level UDP socket tuning (SO_RCVBUF/SO_SNDBUF) before handing to quinn.
+socket2 = { version = "0.5", features = ["all"] }
+
+# TLS
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rustls-pemfile = "2"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+webpki-roots = "0.26"
+rcgen = "0.13"
+sha2 = "0.10"
+hkdf = "0.12"
+ring = "0.17"
+subtle = "2.6"
+# Key material read off disk is wiped on drop rather than left in freed heap.
+zeroize = { version = "1", features = ["alloc", "serde"] }
+x25519-dalek = "2"
+chacha20poly1305 = "0.10"
+
+# HTTP (platform API client + HTTP proxy + gateway admin)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots", "stream"] }
+httparse = "1.9"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "time", "fmt", "registry", "std"] }
+tracing-appender = "0.2"
+# Size/age/compressed log rotation (tracing-appender only does time-based
+# rotation, so `max_size` / `compress` in LogConfig would otherwise be dead
+# knobs). See `tp_core::log::build_rolling_writer`.
+file-rotate = "0.8"
+
+# Rate limiting (bandwidth enforcement)
+governor = "0.7"
+nonzero_ext = "0.3"
+
+# Utilities
+bytes = "1.7"
+dashmap = "6.1"
+parking_lot = "0.12"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive", "env"] }
+dirs = "5.0"
+rand = "0.8"
+hex = "0.4"
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+
+# Web admin / client API
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "json", "query"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+tower-http = { version = "0.6", default-features = false, features = ["cors", "fs", "trace"] }
+base64 = "0.22"
+
+# WebSocket transport
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["rustls-tls-webpki-roots", "connect", "handshake"] }
+http = "1"
+
+# gRPC transport
+tonic = { version = "0.12", default-features = false, features = ["codegen", "prost", "transport", "tls", "tls-webpki-roots"] }
+prost = { version = "0.13", default-features = false, features = ["std", "derive"] }
+tonic-build = { version = "0.12", default-features = false, features = ["prost", "transport"] }
+
+# Benchmarks
+criterion = "0.8"
+
+[profile.release]
+opt-level = "z"       # Optimize for size
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"       # Smaller binary, drops unwinding tables
+
+[profile.release-perf]
+inherits = "release"
+opt-level = 3         # Opt-in profile if you prefer speed over size
+panic = "abort"

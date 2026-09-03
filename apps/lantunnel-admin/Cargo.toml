@@ -1,0 +1,35 @@
+[package]
+name = "lantunnel-admin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Offline Lantunnel 2.0 Tunnel and Peer provisioning"
+
+[[bin]]
+name = "lantunnel-admin"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+fs2 = "0.4"
+serde.workspace = true
+serde_yaml.workspace = true
+tempfile = "3"
+tp-core.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+] }
+
+[dev-dependencies]
+tempfile = "3"

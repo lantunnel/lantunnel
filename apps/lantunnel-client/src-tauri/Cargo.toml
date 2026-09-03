@@ -1,0 +1,67 @@
+[package]
+name = "lantunnel-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Lantunnel client with desktop UI and headless modes (Tauri v2 + React)."
+autobins = false
+default-run = "lantunnel-client"
+
+[[bin]]
+name = "lantunnel-client"
+path = "src/main.rs"
+
+[[bin]]
+name = "lantunnel-tun-helper"
+path = "src/bin/lantunnel-tun-helper.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tp-core.workspace = true
+tp-client.workspace = true
+tp-proxy-socks5.workspace = true
+tp-ipc.workspace = true
+
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-autostart = "2"
+
+tokio.workspace = true
+tokio-util.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true
+serde_yaml.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tempfile = "3"
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
+parking_lot.workspace = true
+dirs.workspace = true
+fs2 = "0.4"
+rustls.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+libc = "0.2"
+rfd = { version = "0.16", default-features = false, features = ["common-controls-v6"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_IO",
+] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

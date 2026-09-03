@@ -1,0 +1,47 @@
+[package]
+name = "tp-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Headless tunnel-client engine: connects to a gateway via QUIC and serves proxied dials locally. UI-agnostic — embedded by the Tauri GUI and by its headless mode."
+
+[dependencies]
+tp-core.workspace = true
+tp-host-filter.workspace = true
+tp-metrics.workspace = true
+tp-proxy-socks5.workspace = true
+tp-transport.workspace = true
+
+tokio.workspace = true
+tokio-util.workspace = true
+reqwest.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+futures-util.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+arc-swap = "1"
+chrono.workspace = true
+rustls.workspace = true
+rcgen.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+chacha20poly1305.workspace = true
+quinn.workspace = true
+socket2.workspace = true
+uuid.workspace = true
+x509-parser = { version = "0.16", features = ["verify"] }
+if-addrs = "0.13"
+# Keep this exact: 0.38 switched to Rust 2024 while the workspace MSRV is 1.82.
+netdev = { version = "=0.37.2", default-features = false, features = ["gateway"] }
+
+[dev-dependencies]
+tp-gateway.workspace = true
+serde_yaml.workspace = true

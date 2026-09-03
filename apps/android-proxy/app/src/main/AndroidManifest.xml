@@ -1,0 +1,68 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+  <application
+    android:allowBackup="false"
+    android:icon="@drawable/app_icon"
+    android:label="Lantunnel"
+    android:roundIcon="@drawable/app_icon"
+    android:supportsRtl="true"
+    android:theme="@style/AppTheme">
+    <activity
+      android:name=".MainActivity"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+
+      <!-- Tapping a .peer file in a file manager opens it here. A .peer file
+           has no registered MIME type, so providers hand it over as
+           octet-stream, text/plain or nothing; the pathPattern is what keeps
+           this filter from claiming every file on the device. -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="content" />
+        <data android:scheme="file" />
+        <data android:mimeType="*/*" />
+        <data android:host="*" />
+        <data android:pathPattern=".*\\.peer" />
+        <data android:pathPattern=".*\\..*\\.peer" />
+        <data android:pathPattern=".*\\..*\\..*\\.peer" />
+      </intent-filter>
+
+      <!-- Sharing a .peer file into the app from a chat or mail client. -->
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="application/octet-stream" />
+        <data android:mimeType="application/json" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+    </activity>
+
+    <activity
+      android:name=".QrCaptureActivity"
+      android:clearTaskOnLaunch="true"
+      android:exported="false"
+      android:screenOrientation="fullSensor"
+      android:stateNotNeeded="true"
+      android:theme="@style/AppTheme" />
+
+    <service
+      android:name=".TunnelVpnService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync"
+      android:permission="android.permission.BIND_VPN_SERVICE">
+      <intent-filter>
+        <action android:name="android.net.VpnService" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

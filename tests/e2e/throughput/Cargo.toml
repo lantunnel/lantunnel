@@ -1,0 +1,50 @@
+[package]
+name = "tp-e2e-p3-throughput"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "E2E Phase 3 throughput tests for Lantunnel."
+publish = false
+
+# Library surface mirrors the Phase 1/Phase 2 crate shape so individual
+# test bodies can be reused by both the bin runner and `cargo test`.
+[lib]
+name = "tp_e2e_p3_throughput"
+path = "src/lib.rs"
+
+# `tp-e2e-p3` is the stateless V2 throughput probe bin.
+[[bin]]
+name = "tp-e2e-p3"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+] }
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+# Reuse Phase 1 SOCKS5 / SOCKS5-UDP / IPv4-parse helpers instead of
+# duplicating them. Phase 1's `pub mod socks5`, `pub mod socks5_udp` and
+# top-level `parse_host_port` are already publicly exposed.
+tp-e2e-p1-connectivity = { path = "../connectivity" }
+
+# JSON metric reports emitted by every Phase 3 workload.
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# SHA-256 verification of the 1 GiB TCP large-download stream. Pinned to
+# 0.10 — same line as the echo-services crate that produces the digest.
+sha2 = "0.10"
+
+# UDP-burst P99 + multi-stream per-stream RTT histograms.
+hdrhistogram = "7"

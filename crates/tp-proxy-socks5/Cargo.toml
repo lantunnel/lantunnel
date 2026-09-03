@@ -1,0 +1,27 @@
+[package]
+name = "tp-proxy-socks5"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SOCKS5 (TCP CONNECT + UDP ASSOCIATE) frontend for Lantunnel."
+
+[dependencies]
+tp-core.workspace = true
+tp-transport.workspace = true
+
+tokio.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "udp_parse"
+harness = false
