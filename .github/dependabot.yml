@@ -32,6 +32,13 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: prost
         update-types: ["version-update:semver-major"]
+      # hkdf 0.13 — a pre-1.0 minor is a breaking change under Cargo's semver
+      # rules, and this one moves the RustCrypto trait bounds the provisioning
+      # and PeerLink key derivation are written against. It lands with the rest
+      # of that RustCrypto bump, not on its own.
+      - dependency-name: hkdf
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /apps/lantunnel-client/frontend
