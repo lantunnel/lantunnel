@@ -6432,7 +6432,7 @@ dependencies = [
  "tower-service",
  "tp-core",
  "tracing",
- "webpki-roots 0.26.11",
+ "webpki-roots 1.0.7",
  "windows-sys 0.61.2",
 ]
 
