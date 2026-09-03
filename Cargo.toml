@@ -58,7 +58,7 @@ socket2 = { version = "0.5", features = ["all"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = "2"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
-webpki-roots = "0.26"
+webpki-roots = "1.0"
 rcgen = "0.13"
 sha2 = "0.10"
 hkdf = "0.12"
