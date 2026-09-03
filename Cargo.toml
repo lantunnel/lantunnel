@@ -119,7 +119,7 @@ http = "1"
 
 # gRPC transport
 tonic = { version = "0.12", default-features = false, features = ["codegen", "prost", "transport", "tls", "tls-webpki-roots"] }
-prost = { version = "0.13", default-features = false, features = ["std", "derive"] }
+prost = { version = "0.14", default-features = false, features = ["std", "derive"] }
 tonic-build = { version = "0.12", default-features = false, features = ["prost", "transport"] }
 
 # Benchmarks
