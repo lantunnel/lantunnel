@@ -46,7 +46,7 @@ jobs:
     steps:
       # The existing-release contract reads CHANGELOG.md out of the pinned
       # release source commit, which a shallow clone does not carry.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -173,7 +173,7 @@ jobs:
     name: Android unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Deliberately not `free-disk.sh`: that script deletes
       # /usr/local/lib/android to make room for the Rust link step, which is
@@ -199,7 +199,7 @@ jobs:
     name: iOS unit tests
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # protobuf: tp-transport's build script runs protoc, and the macOS image
       # ships none. The Rust job gets it from apt and pins PROTOC; here brew
@@ -250,7 +250,7 @@ jobs:
     name: Windows secret ACL behavior
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -307,7 +307,7 @@ jobs:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # cargo-deny's official action handles install + cache + run in one
       # step. `all` runs advisories + licenses + bans + sources against
@@ -339,7 +339,7 @@ jobs:
             packages: >-
               -p lantunnel-gateway -p lantunnel-client -p lantunnel-admin
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Use a trusted temporary directory
         run: bash .github/scripts/trusted-tmpdir.sh
