@@ -9,8 +9,8 @@ settings:
     # Keep in step with the workspace version in Cargo.toml. The build number
     # follows the same major*10000 + minor*100 + patch encoding Android derives
     # in app/build.gradle.kts.
-    MARKETING_VERSION: "2.0.8"
-    CURRENT_PROJECT_VERSION: "20008"
+    MARKETING_VERSION: "2.0.9"
+    CURRENT_PROJECT_VERSION: "20009"
     # No DEVELOPMENT_TEAM here: xcodegen writes the key verbatim, so a
     # placeholder becomes a literal invalid team. Simulator builds and the
     # CI suite need no team. To sign for a device, select your team in

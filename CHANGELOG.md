@@ -10,6 +10,8 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-09-04
+
 ### Added
 
 - `lantunnel-gateway init --public-ip <PUBLIC_IP>` now prepares an independent Gateway in

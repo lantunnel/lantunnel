@@ -2649,7 +2649,7 @@ dependencies = [
 
 [[package]]
 name = "lantunnel-admin"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -2664,7 +2664,7 @@ dependencies = [
 
 [[package]]
 name = "lantunnel-client"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2700,7 +2700,7 @@ dependencies = [
 
 [[package]]
 name = "lantunnel-gateway"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6139,7 +6139,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tp-client"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -6178,7 +6178,7 @@ dependencies = [
 
 [[package]]
 name = "tp-core"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6207,7 +6207,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-echo-services"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "axum 0.8.9",
@@ -6221,7 +6221,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-p1-connectivity"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -6232,7 +6232,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-p2-latency"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -6247,7 +6247,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-p3-throughput"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -6263,7 +6263,7 @@ dependencies = [
 
 [[package]]
 name = "tp-gateway"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6292,7 +6292,7 @@ dependencies = [
 
 [[package]]
 name = "tp-host-filter"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "regex",
  "thiserror 2.0.18",
@@ -6300,7 +6300,7 @@ dependencies = [
 
 [[package]]
 name = "tp-ipc"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6317,7 +6317,7 @@ dependencies = [
 
 [[package]]
 name = "tp-metrics"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "chrono",
  "criterion",
@@ -6331,7 +6331,7 @@ dependencies = [
 
 [[package]]
 name = "tp-mobile-ffi"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6349,7 +6349,7 @@ dependencies = [
 
 [[package]]
 name = "tp-proxy-http"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6365,7 +6365,7 @@ dependencies = [
 
 [[package]]
 name = "tp-proxy-socks5"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6381,7 +6381,7 @@ dependencies = [
 
 [[package]]
 name = "tp-proxy-tuic"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6402,7 +6402,7 @@ dependencies = [
 
 [[package]]
 name = "tp-transport"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "anyhow",
  "async-trait",
