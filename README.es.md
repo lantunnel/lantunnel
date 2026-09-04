@@ -15,6 +15,11 @@
 </p>
 
 <p align="center">
+  <a href="https://qm.qq.com/q/A5LX4uUwzC"><img alt="Únete al grupo de QQ" src="https://img.shields.io/badge/QQ-%C3%9Anete%20al%20grupo-12B7F5?logo=tencentqq&amp;logoColor=white"></a>
+  <a href="https://discord.gg/HsQK9cj2kh"><img alt="Únete a Discord" src="https://img.shields.io/badge/Discord-%C3%9Anete%20al%20servidor-5865F2?logo=discord&amp;logoColor=white"></a>
+</p>
+
+<p align="center">
   <a href="https://lantunnel.app/">Web</a> ·
   <a href="https://lantunnel.app/download">Descargas</a> ·
   <a href="./docs/USAGE.es.md">Guía de uso</a> ·

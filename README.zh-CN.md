@@ -15,6 +15,11 @@
 </p>
 
 <p align="center">
+  <a href="https://qm.qq.com/q/A5LX4uUwzC"><img alt="加入 QQ 群" src="https://img.shields.io/badge/QQ-%E5%8A%A0%E5%85%A5%E7%BE%A4%E8%81%8A-12B7F5?logo=tencentqq&amp;logoColor=white"></a>
+  <a href="https://discord.gg/HsQK9cj2kh"><img alt="加入 Discord 社区" src="https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E7%A4%BE%E5%8C%BA-5865F2?logo=discord&amp;logoColor=white"></a>
+</p>
+
+<p align="center">
   <a href="https://lantunnel.app/">官网</a> ·
   <a href="https://lantunnel.app/download">下载</a> ·
   <a href="./docs/USAGE.zh-CN.md">使用指南</a> ·

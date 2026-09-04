@@ -15,6 +15,11 @@
 </p>
 
 <p align="center">
+  <a href="https://qm.qq.com/q/A5LX4uUwzC"><img alt="QQ グループに参加" src="https://img.shields.io/badge/QQ-%E3%82%B0%E3%83%AB%E3%83%BC%E3%83%97%E3%81%AB%E5%8F%82%E5%8A%A0-12B7F5?logo=tencentqq&amp;logoColor=white"></a>
+  <a href="https://discord.gg/HsQK9cj2kh"><img alt="Discord に参加" src="https://img.shields.io/badge/Discord-%E3%82%B5%E3%83%BC%E3%83%90%E3%83%BC%E3%81%AB%E5%8F%82%E5%8A%A0-5865F2?logo=discord&amp;logoColor=white"></a>
+</p>
+
+<p align="center">
   <a href="https://lantunnel.app/">公式サイト</a> ·
   <a href="https://lantunnel.app/download">ダウンロード</a> ·
   <a href="./docs/USAGE.ja.md">使い方ガイド</a> ·
