@@ -1080,26 +1080,26 @@ fn configure_no_follow(options: &mut OpenOptions, _create: bool) {
 }
 
 #[cfg(unix)]
-fn set_owner_only_file(file: &File, path: &Path) -> anyhow::Result<()> {
+fn set_owner_only_file(file: &File, _path: &Path) -> anyhow::Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
 
     #[cfg(target_os = "macos")]
-    macos_acl::clear_extended_acl_fd(file, "Gateway artifact", path)?;
+    macos_acl::clear_extended_acl_fd(file, "Gateway artifact", _path)?;
     file.set_permissions(fs::Permissions::from_mode(0o600))?;
     #[cfg(target_os = "macos")]
-    macos_acl::require_no_allow_acl_fd(file, "Gateway artifact", path)?;
+    macos_acl::require_no_allow_acl_fd(file, "Gateway artifact", _path)?;
     Ok(())
 }
 
 #[cfg(unix)]
-fn set_owner_only_directory(directory: &File, path: &Path) -> anyhow::Result<()> {
+fn set_owner_only_directory(directory: &File, _path: &Path) -> anyhow::Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
 
     #[cfg(target_os = "macos")]
-    macos_acl::clear_extended_acl_fd(directory, "Gateway runtime directory", path)?;
+    macos_acl::clear_extended_acl_fd(directory, "Gateway runtime directory", _path)?;
     directory.set_permissions(fs::Permissions::from_mode(0o700))?;
     #[cfg(target_os = "macos")]
-    macos_acl::require_no_allow_acl_fd(directory, "Gateway runtime directory", path)?;
+    macos_acl::require_no_allow_acl_fd(directory, "Gateway runtime directory", _path)?;
     Ok(())
 }
 
