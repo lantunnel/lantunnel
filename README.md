@@ -122,29 +122,47 @@ addresses directly.
 ### The self-hosted way — your Gateway, your rules
 
 ```bash
-# 1. Create the Tunnel offline. Nothing here touches the network.
+# 1. On the public Gateway host, initialize a fixed-IP independent Gateway.
+#    This creates configs/gateway.yaml, certs/server.crt, certs/server.key,
+#    and state/scopes.d without contacting lantunnel.app.
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+# Defaults: QUIC on UDP 8443 and mapping on UDP 8444.
+# To use another mapping port, append --mapping-port <PORT> here and pass
+# that same value to --gateway-mapping-port below.
+
+# 2. Copy only certs/server.crt to the trusted owner machine, then create
+#    the Tunnel there. The private key never leaves the Gateway host.
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
-  --gateway-port 8443
+  --gateway-ip <PUBLIC_IP> \
+  --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt
 #   → <tunnel-id>.tunnel   keep this secret, it is the Tunnel's signing key
 #   → <tunnel-id>.scope    public, this is all the Gateway ever needs
 
-# 2. Issue one profile per device.
+# 3. Issue one profile per device on the trusted owner machine.
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 3. Install the public scope on the Gateway host and run it.
+# 4. Copy only the public scope to the Gateway host, validate, and run.
 mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 
-# 4. On each device, import its own profile and connect.
+# 5. On each device, import its own profile and connect.
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client                          # desktop UI
 lantunnel-client connect '<tunnel_id>'    # same runtime, no window
 ```
 
-One profile per device — a `.peer` is not meant to be copied around.
+Running the same `init` command again preserves the existing config, certificate, and key.
+At the same config path, changed IP, transport, data-port, or mapping-port values are refused
+rather than replacing the Gateway identity. With the same `--config` file, exact replay,
+validation, and startup work from any directory.
+
+One profile per device — a `.peer` is not meant to be copied around. Hostnames and publicly
+trusted certificates remain available through the manual setup in the full usage guide.
 
 📘 **[Full usage guide — installation, LAN exports, access rules, servers, mobile, troubleshooting →](./docs/USAGE.md)**
 

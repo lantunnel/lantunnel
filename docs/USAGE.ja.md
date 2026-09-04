@@ -79,8 +79,8 @@
 ### 用意するもの
 
 - インターネットから到達できるマシン。月 5 ドルの VPS で十分です。Gateway の仕事はほとんどがシグナリングで、リレーが運ぶのは直結できなかった分だけです。
-- そのマシンで受信を許可する 2 つの経路：**データポート**（トランスポートに応じて TCP または UDP）と **UDP マッピングポート**（既定 `8444`）。
-- TLS 証明書。正規の証明書でも、自分でピン留めする自己署名証明書でも構いません。
+- そのマシンで受信を許可する 2 つの経路：**データポート**（トランスポートに応じて TCP または UDP）と選択した **UDP マッピングポート**（既定値 `8444`）。
+- 固定の公開 IPv4 または IPv6 アドレス。通常のセットアップでは TLS 身元も自動生成します。ホスト名と公開 CA 証明書は後述の上級手順で利用できます。
 
 ### 1. バイナリをビルド（または入手）
 
@@ -89,9 +89,29 @@ cargo build --release -p lantunnel-gateway
 cargo build --release -p lantunnel-admin
 ```
 
-### 2. Gateway に証明書を用意する
+### 2. Gateway ホストで固定 IP Gateway を初期化する
 
-ホスト名に対する正規の証明書はそのまま使えます。自己署名の場合は次のとおりです。
+Gateway ホスト上の永続ディレクトリで実行します。初期化はローカルだけで完了し、lantunnel.app には接続しません。
+
+```bash
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+```
+
+既定値は QUIC/UDP `8443`、マッピング UDP `8444`、`configs/gateway.yaml` です。`--transport`、`--data-port`、`--mapping-port`、`--config` でトランスポート、データポート、マッピングポート、設定パスを変更できます。
+
+このコマンドは `configs/gateway.yaml`、`certs/server.crt`、`certs/server.key`、`state/scopes.d` を作成します。Linux と macOS では、非公開ディレクトリは `0700`、設定、証明書、秘密鍵は `0600` になります。
+
+まったく同じコマンドを再実行すると、既存ファイルを検証してバイト単位で保持します。同じ `--config` ファイルを指定すれば、再実行・設定検証・起動は現在の作業ディレクトリに依存しません。同じ設定パスで IP、トランスポート、データポート、またはマッピングポートが異なる場合は拒否し、Peer がピン留めした Gateway 身元を置き換えません。同じデプロイルート内の別の設定ファイルなら、同じ一致する証明書を再利用できます。
+
+QUIC のデータポートには UDP、WebSocket と gRPC には TCP を開けます。選択したマッピングポート（既定値 `8444`）を UDP で開けてください。`server.key` は Gateway ホストから持ち出しません。
+
+#### 上級手順：ホスト名または公開 CA 証明書
+
+`lantunnel-gateway init` は固定公開 IP と証明書ピン留めの手順専用です。ホスト名、公開 CA、プライベート CA を使う場合は、[`configs/gateway.yaml`](../configs/gateway.yaml) を参照して証明書と設定を手動で用意します。
+
+公開 CA のホスト名証明書は `--gateway-cert` でピン留めする必要がありません。証明書チェーンと鍵は、シンボリックリンクではなく 2 つの通常ファイル `certs/server.crt` と `certs/server.key` にコピーし、更新後にコピーも入れ替えます。
+
+自己署名のホスト名証明書は次のように生成できます。
 
 ```bash
 mkdir -p certs
@@ -105,21 +125,26 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 chmod 0600 certs/server.crt certs/server.key
 ```
 
-ホスト名がない場合は、DNS SAN の代わりに **IP SAN**（`IP:203.0.113.10`）を使ってください。
+手動手順でも証明書と秘密鍵は所有者だけが読めるようにします。ピン留めが必要な場合、信頼済みオーナーマシンへコピーするのは公開 `server.crt` だけです。
 
 ### 3. Tunnel をオフラインで作成する
 
-`lantunnel-admin` はネットワークに一切アクセスしません。どのマシンで実行しても構いません。生成される `.tunnel` は、その Tunnel の署名鍵そのものなので、安全な場所に保管してください。
+`lantunnel-admin` はネットワークにアクセスしません。信頼済みオーナーマシンで実行してください。生成される `.tunnel` は Tunnel の署名秘密鍵なので、安全な場所に保管します。
+
+Gateway が生成した公開 `server.crt` だけをこのマシンへコピーし、`certs/server.crt` として保存します。秘密鍵は Gateway ホストに残します。次のコマンドでは、初期化時と同じ公開 IP、トランスポート、データポート、マッピングポートを指定します。
 
 ```bash
-mkdir -p provision
+mkdir -p certs provision
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
+  --gateway-ip <PUBLIC_IP> \
   --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
   --gateway-cert certs/server.crt \
   --output-dir ./provision
 ```
+
+上級のホスト名手順では `--gateway-host gw.example.com` を使います。公開 CA の証明書なら `--gateway-cert certs/server.crt` を省略すると、通常の証明書更新で Peer プロファイルを作り直す必要がありません。
 
 生成された Tunnel ID を名前に持つ 2 つのファイルが書き出されます。
 
@@ -132,6 +157,7 @@ lantunnel-admin init-tunnel \
 
 - `--gateway-transport quic | websocket | grpc` — 既定は QUIC で、フローごとのストリームを持つ唯一の選択肢です。WebSocket と gRPC は UDP がブロックされる環境向けです。
 - `--gateway-host` と `--gateway-ip`（片方または両方）— 両方を指定すると、接続先は IP、TLS サーバー名にはホスト名が使われます。
+- `--gateway-mapping-port` — Gateway の UDP マッピングポート。既定値は `8444` で、`lantunnel-gateway init --mapping-port` または `gateway.mapping_probe_port` と一致させます。
 - `--gateway-cert` — ピン留めする PEM。公的に信頼された証明書を使う Gateway なら省略できます。
 
 ### 4. デバイスごとにプロファイルを発行する
@@ -159,25 +185,40 @@ mkdir -p state/scopes.d
 cp ./provision/<tunnel-id>.scope state/scopes.d/
 ```
 
-[`configs/gateway.yaml`](../configs/gateway.yaml) をもとにした設定で起動します。
+自動生成された設定を検証してから Gateway を起動します。
 
 ```bash
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 ```
 
-重要な項目は次のとおりです。
+生成された設定では、実行時のファイル位置が絶対パスで保存されます。次の `<DEPLOYMENT_ROOT>` は、設定ファイル（またはその `configs/` ディレクトリ）と、生成された `certs/` および `state/` ディレクトリを含む永続デプロイディレクトリです。
 
 ```yaml
 gateway:
   listen_addr: "0.0.0.0:8443"     # --gateway-port と一致させること
   transport_type: "quic"          # --gateway-transport と一致させること
-  tls_cert: "certs/server.crt"
-  tls_key: "certs/server.key"
-  scopes_dir: "state/scopes.d"    # .scope はここに置く
-  mapping_probe_port: 8444        # UDP。Gateway 自身がバインドする
+  tls_cert: "<DEPLOYMENT_ROOT>/certs/server.crt"
+  tls_key: "<DEPLOYMENT_ROOT>/certs/server.key"
+  scopes_dir: "<DEPLOYMENT_ROOT>/state/scopes.d"  # .scope はここに置く
+  mapping_probe_port: 8444        # UDP。変更可能な既定値
 ```
 
-Gateway は自分でマッピング用ソケットをバインドします。別途起動するプロセスはありません。1 台のホストで複数の Gateway を動かす場合は、それぞれに専用のデータポート**と**専用のマッピングポートを与えてください。QUIC のデータリスナーがマッピングポートを共有することはできません。
+Gateway 自身が選択した UDP マッピングポートをバインドするため、別プロセスは不要です。QUIC データリスナーは UDP マッピングリスナーと同じポートを使用できません。WebSocket と gRPC のデータリスナーは TCP を使うため、同じポート番号を使用できます。
+
+`init` の後、Peer プロファイルを発行する前なら `gateway.mapping_probe_port` を編集できます。
+
+同じ値を `lantunnel-admin init-tunnel --gateway-mapping-port` に渡し、その UDP ポートをファイアウォールで開けてください。
+
+あとからポートを変更する場合は、新しい UDP ポートを開け、Gateway YAML の `gateway.mapping_probe_port` を更新して Gateway を再起動します。
+
+Gateway YAML だけを変更すると、既存の Peer プロファイルのマッピングプローブが壊れます。
+
+既存の `.tunnel` では `static_gateway.mapping_port` を、既存の各 `.peer` では `bootstrap.mapping_port` を更新します。その Peer プロファイルを再インポートし、Client を再接続してください。
+
+Tunnel ID、設置済みの `.scope`、Peer メンバーシップ署名はそのまま有効です。新しい Tunnel や Scope、再署名は必要ありません。
+
+元の `.peer` がない場合に限り、同じ `.tunnel` で `add-peer` を実行して新しい Peer アイデンティティを作成します。
 
 あとから Tunnel を追加するときは、`scopes_dir` にもう 1 つ `.scope` を置くだけです。systemd のユニット例は [`scripts/remote/`](../scripts/remote/) にあります。
 
@@ -366,6 +407,7 @@ lantunnel-client tunnel list              取り込み済みプロファイル�
 lantunnel-admin init-tunnel --gateway-transport <quic|websocket|grpc>
                             [--gateway-host <HOST>] [--gateway-ip <IP>]
                             --gateway-port <PORT>
+                            [--gateway-mapping-port <PORT>]
                             [--gateway-cert <PEM>]
                             [--output-dir <DIR>]
 
@@ -379,12 +421,18 @@ lantunnel-admin add-peer --tunnel <FILE.tunnel>
 ### `lantunnel-gateway`
 
 ```
-lantunnel-gateway [--config <FILE>]              Gateway を実行
-lantunnel-gateway onboard --pairing <FILE>       Platform 管理下の Gateway を登録
-lantunnel-gateway mapping serve                  単体の UDP マッピングリフレクター
+lantunnel-gateway [--config <FILE>] [--check-config]       Gateway を実行または検証
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+                        [--transport <quic|websocket|grpc>]
+                        [--data-port <PORT>] [--mapping-port <PORT>]
+                        [--config <FILE>]
+lantunnel-gateway onboard --pairing <FILE>                Platform 管理下の Gateway を登録
+lantunnel-gateway mapping serve                           単体の UDP マッピングリフレクター
 ```
 
-`--config` の既定値は `configs/gateway.yaml` です。`mapping serve` は特殊な構成のために用意されているもので、通常の Gateway は自分でマッピング用ソケットをバインドするため不要です。
+`init` はネットワークを使わず、独立した固定 IP Gateway を初期化します。既定は QUIC/8443、マッピングは UDP `8444`、設定は `configs/gateway.yaml` です。別のマッピングポートは `--mapping-port` で選択できます。同じコマンドの再実行では設定と身元を保持します。同じ設定ファイルを指定すれば、再実行・検証・起動は現在の作業ディレクトリに依存しません。同じ設定パスで IP、トランスポート、データポート、またはマッピングポートが異なる場合は拒否します。同じデプロイルート内の別の設定ファイルなら、同じ一致する証明書を再利用できます。
+
+ホスト名と公開 CA は前述の上級手動手順を使います。全モードで `--config` の既定値は `configs/gateway.yaml` です。`mapping serve` は特殊な構成専用で、通常は不要です。
 
 ---
 
@@ -435,7 +483,7 @@ Client の設定ディレクトリにある `settings.json`。すべてのキー
 2 つの Client が同じ `.peer` を使っています。`add-peer` で 2 つ目のプロファイルを発行してください。プロファイルは 1 台のデバイスの身元であって、共有する資格情報ではありません。
 
 **つながるが、いつもリレー経由になる。**
-UI のトラフィックカウンターを見てください。直結とリレーが分けて表示されます。両端が対称型 NAT だとホールパンチングは成立しません。2 つの Peer が同じ LAN にいるなら `--enable-lan-p2p` を付けてローカルアドレスを候補に加えます。UDP `8444` が Gateway に届いているかも確認してください。マッピングプローブがないと、どちらの Peer も自分の公開マッピングを知ることができません。
+UI のトラフィックカウンターを見てください。直結とリレーが分けて表示されます。両端が対称型 NAT だとホールパンチングは成立しません。2 つの Peer が同じ LAN にいるなら `--enable-lan-p2p` を付けてローカルアドレスを候補に加えます。設定した UDP マッピングポート（既定値 `8444`）が Gateway に届いているかも確認してください。マッピングプローブがないと、どちらの Peer も自分の公開マッピングを知ることができません。
 
 **直結は通るがリレーが通らない（あるいはその逆）。**
 両者は独立した経路です。リレーには Gateway のデータポートが、直結には Peer 間で UDP が流れることが必要です。一度に片方ずつ切り分けてください。

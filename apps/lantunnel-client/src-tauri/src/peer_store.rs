@@ -208,7 +208,7 @@ pub fn list_peer_profiles(
 }
 
 /// Verifies and stores one `.peer` file under `peers/<tunnel_id>.peer`.
-/// Existing destinations are never overwritten, including symlinks.
+/// Re-importing the same Tunnel atomically replaces its stored profile.
 pub fn import_peer_profile(
     source: &Path,
     client_config_root: &Path,

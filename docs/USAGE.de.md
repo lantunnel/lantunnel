@@ -79,8 +79,8 @@ Alles Folgende liegt unter Apache-2.0 in diesem Repository. Nichts davon nimmt K
 ### Was du brauchst
 
 - Eine aus dem Internet erreichbare Maschine — ein VPS für 5 Dollar reicht völlig. Das Gateway macht überwiegend Signalisierung, und das Relay trägt nur das, was direkt nicht geht.
-- Zwei eingehende Regeln darauf: deinen **Datenport** (TCP oder UDP, je nach Transport) und den **UDP-Mapping-Port** (Vorgabe `8444`).
-- Ein TLS-Zertifikat. Ein echtes oder ein selbst signiertes, das du anpinnst — beides funktioniert.
+- Zwei eingehende Regeln darauf: deinen **Datenport** (TCP oder UDP, je nach Transport) und den gewählten **UDP-Mapping-Port** (standardmäßig `8444`).
+- Eine feste öffentliche IPv4- oder IPv6-Adresse. Der primäre Ablauf erzeugt die TLS-Identität; Hostnamen und öffentlich vertrauenswürdige Zertifikate verwenden den manuellen erweiterten Pfad.
 
 ### 1. Binaries bauen (oder herunterladen)
 
@@ -89,9 +89,25 @@ cargo build --release -p lantunnel-gateway
 cargo build --release -p lantunnel-admin
 ```
 
-### 2. Dem Gateway ein Zertifikat geben
+### 2. Das unabhängige Gateway initialisieren
 
-Ein echtes Zertifikat für deinen Hostnamen funktioniert unverändert. Für ein selbst signiertes:
+Führe auf dem Gateway-Host den Offline-Initialisierer mit seiner festen öffentlichen IP aus:
+
+```bash
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+```
+
+Der Befehl kontaktiert weder lantunnel.app noch eine andere Plattform. Standardmäßig richtet er den QUIC-Datenlistener auf UDP `8443`, den Mapping-Listener auf UDP `8444` und `configs/gateway.yaml` ein. Mit `--transport`, `--data-port`, `--mapping-port` oder `--config` änderst du Transport, Datenport, Mapping-Port oder Konfigurationspfad.
+
+Er erzeugt `configs/gateway.yaml`, `certs/server.crt`, `certs/server.key` und `state/scopes.d`. Unter Linux und macOS gehören die Verzeichnisse nur dem Besitzer (Modus `0700`), Konfiguration, Zertifikat und Schlüssel erhalten Modus `0600`.
+
+Mit derselben `--config`-Datei funktionieren die exakte Wiederholung von `init`, Prüfung und Start aus jedem Arbeitsverzeichnis.
+
+`certs/server.crt` ist das öffentliche, selbst signierte Zertifikat mit exakt dieser IP als SAN. `certs/server.key` bleibt ausschließlich auf dem Gateway-Host. Ein exakt gleicher erneuter Aufruf behält Schlüssel, Zertifikat und Konfiguration bytegenau bei.
+
+Stimmen bei demselben Konfigurationspfad IP, Transport, Datenport oder Mapping-Port nicht mit dem vorhandenen Zustand überein, bricht `init` ab, statt etwas zu ersetzen. Eine andere Konfigurationsdatei in derselben Deployment-Wurzel kann dasselbe passende Zertifikat wiederverwenden.
+
+**Manueller erweiterter Pfad — Hostname oder öffentliches CA-Zertifikat.** `init --public-ip` verwaltet diesen Fall nicht. Lege Zertifikatskette und Schlüssel als zwei verschiedene reguläre Dateien (keine symbolischen Links) unter `certs/` ab, setze beide auf Modus `0600` und erstelle `configs/gateway.yaml` anhand von Schritt 5. Für ein selbst signiertes Hostname-Zertifikat kannst du weiterhin Folgendes verwenden:
 
 ```bash
 mkdir -p certs
@@ -105,19 +121,18 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 chmod 0600 certs/server.crt certs/server.key
 ```
 
-Ohne Hostnamen nimmst du statt eines DNS-SAN ein **IP-SAN** (`IP:203.0.113.10`).
-
 ### 3. Den Tunnel offline erzeugen
 
-`lantunnel-admin` spricht nie mit dem Netz. Führe es aus, wo du magst; die erzeugte `.tunnel`-Datei ist der Signaturschlüssel des Tunnels und gehört an einen sicheren Ort.
+Kopiere vom Gateway-Host ausschließlich das öffentliche `certs/server.crt` auf die vertrauenswürdige Besitzermaschine; kopiere niemals `certs/server.key`. Speichere die öffentliche Kopie dort als `./server.crt`. `lantunnel-admin` spricht nie mit dem Netz, und die erzeugte `.tunnel`-Datei ist der private Signaturschlüssel des Tunnels.
 
 ```bash
 mkdir -p provision
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
+  --gateway-ip <PUBLIC_IP> \
   --gateway-port 8443 \
-  --gateway-cert certs/server.crt \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt \
   --output-dir ./provision
 ```
 
@@ -132,7 +147,10 @@ Optionen von `init-tunnel`:
 
 - `--gateway-transport quic | websocket | grpc` — QUIC ist die Standardwahl und die einzige Variante mit eigenem Stream pro Flow. WebSocket und gRPC sind für Netze gedacht, die UDP blockieren.
 - `--gateway-host` und/oder `--gateway-ip` — mit beiden wird die IP angewählt und der Hostname als TLS-Servername verwendet.
+- `--gateway-mapping-port` — der UDP-Mapping-Port des Gateways. Standard ist `8444`; der Wert muss mit `lantunnel-gateway init --mapping-port` oder `gateway.mapping_probe_port` übereinstimmen.
 - `--gateway-cert` — das anzupinnende PEM. Bei einem öffentlich vertrauenswürdigen Zertifikat weglassen.
+
+Das Beispiel pinnt das von `init` erzeugte Zertifikat. Beim manuellen erweiterten Pfad mit einem öffentlich vertrauenswürdigen Hostname-Zertifikat verwendest du `--gateway-host` und lässt `--gateway-cert` weg, damit normale Zertifikatserneuerungen keine neuen Peer-Profile erfordern.
 
 ### 4. Pro Gerät ein Profil ausstellen
 
@@ -152,32 +170,44 @@ Nützliche Schalter: `--overlay-ip`, um eine Adresse festzulegen, und `--replica
 
 ### 5. Das Gateway starten
 
-Kopiere **nur den öffentlichen Scope** auf den Gateway-Host:
+Kopiere **nur den öffentlichen Scope** in das von `init` erzeugte Verzeichnis auf dem Gateway-Host:
 
 ```bash
-mkdir -p state/scopes.d
-cp ./provision/<tunnel-id>.scope state/scopes.d/
+cp /pfad/zu/<tunnel-id>.scope state/scopes.d/
 ```
 
-Starte es mit einer Konfiguration auf Basis von [`configs/gateway.yaml`](../configs/gateway.yaml):
+Validiere die erzeugte Konfiguration und starte danach das Gateway:
 
 ```bash
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 ```
 
-Worauf es ankommt:
+Die erzeugte Konfiguration speichert Laufzeitdateipfade absolut. `<DEPLOYMENT_ROOT>` bezeichnet hier das persistente Deployment-Verzeichnis mit der Konfigurationsdatei (oder ihrem `configs/`-Verzeichnis) sowie den erzeugten Verzeichnissen `certs/` und `state/`. Beim manuellen erweiterten Pfad müssen die Verbindungsdaten zu `init-tunnel` passen:
 
 ```yaml
 gateway:
   listen_addr: "0.0.0.0:8443"     # muss zu --gateway-port passen
   transport_type: "quic"          # muss zu --gateway-transport passen
-  tls_cert: "certs/server.crt"
-  tls_key: "certs/server.key"
-  scopes_dir: "state/scopes.d"    # hier landen die .scope-Dateien
-  mapping_probe_port: 8444        # UDP; das Gateway bindet ihn selbst
+  tls_cert: "<DEPLOYMENT_ROOT>/certs/server.crt"
+  tls_key: "<DEPLOYMENT_ROOT>/certs/server.key"
+  scopes_dir: "<DEPLOYMENT_ROOT>/state/scopes.d"    # hier landen die .scope-Dateien
+  mapping_probe_port: 8444        # UDP; Standardwert, konfigurierbar
 ```
 
-Das Gateway bindet seinen Mapping-Socket selbst — es gibt keinen zweiten Prozess zu starten. Betreibst du mehrere Gateways auf einem Host, gib jedem seinen eigenen Datenport *und* seinen eigenen Mapping-Port. Ein QUIC-Datenlistener kann den Mapping-Port nicht mitbenutzen.
+Das Gateway bindet den gewählten UDP-Mapping-Port selbst — es gibt keinen zweiten Prozess zu starten. Ein QUIC-Datenlistener darf nicht denselben Port wie der UDP-Mapping-Listener verwenden; WebSocket und gRPC dürfen dieselbe Portnummer verwenden, weil ihre Datenlistener TCP nutzen.
+
+Du kannst `gateway.mapping_probe_port` nach `init` und vor der Ausgabe von Peer-Profilen ändern. Übergib denselben Wert an `lantunnel-admin init-tunnel --gateway-mapping-port` und öffne diesen UDP-Port in der Firewall.
+
+Änderst du den Port später, öffne den neuen UDP-Port in der Firewall, setze `gateway.mapping_probe_port` in der Gateway-YAML und starte das Gateway neu.
+
+Nur die Gateway-YAML zu ändern, unterbricht die Mapping-Probes vorhandener Peer-Profile.
+
+Setze außerdem `static_gateway.mapping_port` in der vorhandenen `.tunnel`-Datei und `bootstrap.mapping_port` in jedem vorhandenen `.peer`-Profil. Importiere die Profile erneut und verbinde die Clients neu.
+
+Tunnel-ID, installierte `.scope` und Peer-Mitgliedschaftssignaturen bleiben gültig; ein neuer Tunnel, eine neue Scope oder neue Signaturen sind nicht nötig.
+
+Fehlt das ursprüngliche `.peer`, erzeuge mit `add-peer` und derselben `.tunnel` eine neue Peer-Identität.
 
 Einen weiteren Tunnel fügst du später hinzu, indem du eine weitere `.scope` in `scopes_dir` legst. Beispiel-Units für systemd liegen in [`scripts/remote/`](../scripts/remote/).
 
@@ -366,6 +396,7 @@ lantunnel-client tunnel list              Profile als JSON auflisten
 lantunnel-admin init-tunnel --gateway-transport <quic|websocket|grpc>
                             [--gateway-host <HOST>] [--gateway-ip <IP>]
                             --gateway-port <PORT>
+                            [--gateway-mapping-port <PORT>]
                             [--gateway-cert <PEM>]
                             [--output-dir <DIR>]
 
@@ -379,12 +410,16 @@ Bewusst offline. Es weist symbolische Links ab und überschreibt keine vorhanden
 ### `lantunnel-gateway`
 
 ```
-lantunnel-gateway [--config <FILE>]              Gateway ausführen
+lantunnel-gateway [--config <FILE>] [--check-config]       Gateway ausführen oder prüfen
+lantunnel-gateway init --public-ip <PUBLIC_IP>             Unabhängiges IP-Gateway offline initialisieren
+                       [--transport <quic|websocket|grpc>]
+                       [--data-port <PORT>] [--mapping-port <PORT>]
+                       [--config <FILE>]
 lantunnel-gateway onboard --pairing <FILE>       Ein Platform-verwaltetes Gateway anmelden
 lantunnel-gateway mapping serve                  Eigenständiger UDP-Mapping-Reflektor
 ```
 
-`--config` verwendet standardmäßig `configs/gateway.yaml`. `mapping serve` existiert für ungewöhnliche Aufbauten; ein normales Gateway bindet seinen Mapping-Socket selbst und braucht es nicht.
+`init` arbeitet offline und verwendet standardmäßig QUIC auf UDP `8443` sowie Mapping auf UDP `8444`; mit `--mapping-port` wählst du einen anderen Mapping-Port. `--config` verwendet standardmäßig `configs/gateway.yaml`. `mapping serve` existiert für ungewöhnliche Aufbauten; ein normales Gateway bindet seinen Mapping-Socket selbst und braucht es nicht.
 
 ---
 
@@ -435,7 +470,7 @@ Prüfe, ob das Gateway läuft und sein Datenport von außen erreichbar ist (`nc 
 Zwei Clients laufen mit demselben `.peer`. Stelle mit `add-peer` ein zweites Profil aus; ein Profil ist die Identität eines Geräts, kein geteiltes Zugangsdatum.
 
 **Alles funktioniert, aber immer über Relay.**
-Sieh dir die Verkehrszähler in der Oberfläche an — sie trennen Direkt von Relay. Symmetrisches NAT auf beiden Seiten kann Hole-Punching vereiteln. Sind beide Peers im selben LAN, ergänze `--enable-lan-p2p`, damit lokale Adressen als Kandidaten angeboten werden. Prüfe außerdem, ob UDP `8444` das Gateway erreicht; ohne die Mapping-Probe erfährt keiner der beiden Peers sein öffentliches Mapping.
+Sieh dir die Verkehrszähler in der Oberfläche an — sie trennen Direkt von Relay. Symmetrisches NAT auf beiden Seiten kann Hole-Punching vereiteln. Sind beide Peers im selben LAN, ergänze `--enable-lan-p2p`, damit lokale Adressen als Kandidaten angeboten werden. Prüfe außerdem, ob der konfigurierte UDP-Mapping-Port (standardmäßig `8444`) das Gateway erreicht; ohne die Mapping-Probe erfährt keiner der beiden Peers sein öffentliches Mapping.
 
 **Direkt geht, Relay nicht (oder umgekehrt).**
 Das sind unabhängige Pfade. Relay braucht den Datenport des Gateways, direkt braucht UDP zwischen den Peers. Teste eins nach dem anderen.

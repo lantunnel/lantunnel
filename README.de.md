@@ -101,27 +101,38 @@ Das war's. Richte eine Anwendung auf `127.0.0.1:1080`, oder aktiviere natives Ro
 ### Der eigene Weg — dein Gateway, deine Regeln
 
 ```bash
-# 1. Tunnel offline anlegen. Dieser Schritt fasst das Netz nicht an.
+# 1. Auf dem Gateway-Host ein unabhängiges Gateway offline initialisieren.
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+#   Standard: QUIC/8443 und UDP-Mapping/8444. Für einen anderen Port hier
+#   --mapping-port <PORT> anhängen und denselben Wert unten an --gateway-mapping-port übergeben.
+#   erzeugt configs/gateway.yaml, certs/server.crt, certs/server.key und state/scopes.d
+
+# 2. Nur server.crt als ./server.crt auf den vertrauenswürdigen Besitzerrechner kopieren und dort
+#    den Tunnel offline anlegen.
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
-  --gateway-port 8443
+  --gateway-ip <PUBLIC_IP> \
+  --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt
 #   → <tunnel-id>.tunnel   gut verwahren: der Signaturschlüssel des Tunnels
 #   → <tunnel-id>.scope    öffentlich; mehr braucht das Gateway nicht
 
-# 2. Pro Gerät ein Profil ausstellen.
+# 3. Pro Gerät ein Profil ausstellen.
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 3. Öffentlichen Scope auf den Gateway-Host legen und starten.
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+# 4. Öffentlichen Scope auf den Gateway-Host legen und starten.
+cp <tunnel-id>.scope state/scopes.d/
 lantunnel-gateway --config configs/gateway.yaml
 
-# 4. Auf jedem Gerät das eigene Profil importieren und verbinden.
+# 5. Auf jedem Gerät das eigene Profil importieren und verbinden.
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client                          # Desktop-Oberfläche
 lantunnel-client connect '<tunnel_id>'    # dieselbe Laufzeit, ohne Fenster
 ```
+
+`init` arbeitet vollständig offline und kontaktiert weder lantunnel.app noch eine andere Plattform. `certs/server.key` bleibt auf dem Gateway-Host. Ein exakt gleicher erneuter Aufruf behält den Schlüssel, das Zertifikat und die Konfiguration unverändert bei. Mit derselben `--config`-Datei funktionieren die exakte Wiederholung von `init`, Prüfung und Start aus jedem Arbeitsverzeichnis. Die Einrichtung mit einem Hostnamen oder einem öffentlich vertrauenswürdigen Zertifikat bleibt der manuellen erweiterten Anleitung vorbehalten.
 
 Ein Profil pro Gerät — ein `.peer` ist nicht zum Herumkopieren gedacht.
 

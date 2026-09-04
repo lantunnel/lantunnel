@@ -1,11 +1,15 @@
 # lantunnel-gateway example config
 #
-# This is a local/demo example. Production must provide an explicit config,
-# persistent TLS keypair, owner-only state path, and deliberate Scope source;
-# the release container does not bake any of them in.
+# `lantunnel-gateway init --public-ip <PUBLIC_IP>` writes the independent
+# fixed-IP production layout, including this config, a persistent self-signed
+# TLS keypair, and the Scope directory. This checked-in file remains a manual
+# example for local demos and advanced hostname or public-CA deployments; the
+# release container does not bake runtime state into its image.
 #
-# Run with:
-#   mkdir -p state/scopes.d
+# Primary independent setup and startup:
+#   ./target/release/lantunnel-gateway init --public-ip <PUBLIC_IP>
+#   cp /path/to/<tunnel-id>.scope state/scopes.d/
+#   ./target/release/lantunnel-gateway --config configs/gateway.yaml --check-config
 #   ./target/release/lantunnel-gateway --config configs/gateway.yaml
 #
 # One process. The Gateway binds its own UDP mapping socket, so there is
@@ -31,11 +35,11 @@ gateway:
   # in memory by authoritative snapshots from outbound Platform control.
   scopes_dir: "state/scopes.d"
 
-  # UDP mapping service. This Gateway binds it itself and probes it during
-  # startup. Clients are told this port and probe there, so it is a
-  # registration fact rather than a constant: several Gateways may share one
-  # host, each with its own data port and its own mapping port. A QUIC data
-  # listener cannot share this port.
+  # UDP mapping service. The Gateway binds it itself; 8444 is the default.
+  # `lantunnel-gateway init --mapping-port` writes the selected value. For an
+  # independent Tunnel, pass the same value to `lantunnel-admin init-tunnel
+  # --gateway-mapping-port` before issuing Peer profiles. A QUIC data listener
+  # cannot share the selected UDP mapping port.
   mapping_probe_port: 8444
 
   # QUIC tunnel keepalive/idle tuning.

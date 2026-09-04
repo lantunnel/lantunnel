@@ -101,27 +101,37 @@ flowchart LR
 ### 自己来 —— 你的 Gateway，你的规则
 
 ```bash
-# 1. 离线创建 Tunnel。这一步全程不联网。
+# 1. 在 Gateway 主机上离线初始化独立 Gateway。
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+#   默认：QUIC/8443、UDP mapping/8444。若使用其他端口，在这里追加
+#   --mapping-port <PORT>，并把同一个值传给下面的 --gateway-mapping-port
+#   生成 configs/gateway.yaml、certs/server.crt、certs/server.key 和 state/scopes.d
+
+# 2. 只把 server.crt 复制到可信的 owner 主机上的 ./server.crt，然后在那里离线创建 Tunnel。
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
-  --gateway-port 8443
+  --gateway-ip <PUBLIC_IP> \
+  --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt
 #   → <tunnel-id>.tunnel   这是 Tunnel 的签名私钥，要保管好
 #   → <tunnel-id>.scope    公开文件，Gateway 只需要这个
 
-# 2. 给每台设备签发一份配置。
+# 3. 给每台设备签发一份配置。
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 3. 把公开 scope 放到 Gateway 主机上，然后启动。
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+# 4. 把公开 scope 放到 Gateway 主机上，然后启动。
+cp <tunnel-id>.scope state/scopes.d/
 lantunnel-gateway --config configs/gateway.yaml
 
-# 4. 每台设备导入自己那份配置并连接。
+# 5. 每台设备导入自己那份配置并连接。
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client                          # 桌面界面
 lantunnel-client connect '<tunnel_id>'    # 同一套运行时，不开窗口
 ```
+
+`init` 全程离线运行，不会联系 lantunnel.app 或任何 Platform。`certs/server.key` 始终留在 Gateway 主机上。使用完全相同的命令再次运行时，会保留原有私钥、证书和配置，不会覆盖。只要指定同一个 `--config` 文件，重跑、配置校验和启动就不依赖当前工作目录。如需使用主机名或公开 CA 证书，请继续按完整指南中的手工高级流程配置。
 
 一台设备一份配置 —— `.peer` 不是拿来到处复制的。
 

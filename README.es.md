@@ -101,27 +101,38 @@ Ya está. Apunta una aplicación a `127.0.0.1:1080`, o activa el enrutado nativo
 ### La vía propia: tu Gateway, tus reglas
 
 ```bash
-# 1. Crea el Tunnel sin conexión. Este paso no toca la red.
+# 1. En el host del Gateway, inicializa un Gateway independiente sin conexión.
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+#   Predeterminados: QUIC/8443 y mapeo UDP/8444. Para usar otro puerto, añade aquí
+#   --mapping-port <PORT> y pasa el mismo valor a --gateway-mapping-port más abajo.
+#   crea configs/gateway.yaml, certs/server.crt, certs/server.key y state/scopes.d
+
+# 2. Copia solo server.crt como ./server.crt al equipo de confianza del propietario y crea allí
+#    el Tunnel sin conexión.
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
-  --gateway-port 8443
+  --gateway-ip <PUBLIC_IP> \
+  --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt
 #   → <tunnel-id>.tunnel   guárdalo bien: es la clave de firma del Tunnel
 #   → <tunnel-id>.scope    público; es todo lo que el Gateway necesita
 
-# 2. Emite un perfil por dispositivo.
+# 3. Emite un perfil por dispositivo.
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 3. Instala el scope público en el host del Gateway y arráncalo.
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+# 4. Instala el scope público en el host del Gateway y arráncalo.
+cp <tunnel-id>.scope state/scopes.d/
 lantunnel-gateway --config configs/gateway.yaml
 
-# 4. En cada dispositivo, importa su propio perfil y conecta.
+# 5. En cada dispositivo, importa su propio perfil y conecta.
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client                          # interfaz de escritorio
 lantunnel-client connect '<tunnel_id>'    # mismo runtime, sin ventana
 ```
+
+`init` se ejecuta totalmente sin conexión y no contacta con lantunnel.app ni con ninguna plataforma. `certs/server.key` permanece en el host del Gateway. Repetir exactamente el mismo comando conserva sin cambios la clave, el certificado y la configuración. Con el mismo archivo `--config`, la repetición exacta de `init`, la validación y el arranque funcionan desde cualquier directorio de trabajo. La configuración con un nombre de host o un certificado de una CA pública sigue el procedimiento manual avanzado de la guía completa.
 
 Un perfil por dispositivo: un `.peer` no está pensado para copiarse de un sitio a otro.
 

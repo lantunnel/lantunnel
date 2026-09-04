@@ -4,7 +4,9 @@ use lantunnel_client::peer_store::{
     import_peer_profile, list_peer_profiles, load_peer_profile, PeerBootstrapKindV2,
     PeerImportError,
 };
-use tp_core::provisioning::{GatewayBootstrapV2, PeerProfileV2, TunnelOwnerFileV2};
+use tp_core::provisioning::{
+    GatewayBootstrapV2, PeerBootstrapV2, PeerProfileV2, TunnelOwnerFileV2,
+};
 use uuid::Uuid;
 
 fn valid_peer_profile() -> PeerProfileV2 {
@@ -411,6 +413,42 @@ fn importing_the_same_tunnel_again_replaces_the_stored_profile() {
         1,
         "and must not leave two copies behind",
     );
+
+    fs::remove_dir_all(root).expect("remove test root");
+}
+
+#[test]
+fn reimporting_a_peer_updates_its_mapping_port_without_changing_its_identity() {
+    let root = std::env::temp_dir().join(format!("lantunnel-reimport-port-{}", Uuid::new_v4()));
+    let source = root.join("incoming.peer");
+    let config_root = root.join("client-config");
+    fs::create_dir_all(&root).expect("create test root");
+
+    let mut profile = valid_peer_profile();
+    let peer_id = profile.peer.peer_id.clone();
+    let membership_signature = profile.peer.membership_signature.clone();
+    fs::write(&source, serde_yaml::to_string(&profile).expect("serialize")).expect("write profile");
+    import_peer_profile(&source, &config_root).expect("first import");
+
+    match &mut profile.bootstrap {
+        PeerBootstrapV2::StaticGateway(gateway) => gateway.mapping_port = Some(10_444),
+        PeerBootstrapV2::ManagedPlatform { .. } => panic!("expected static Gateway bootstrap"),
+    }
+    fs::write(&source, serde_yaml::to_string(&profile).expect("serialize")).expect("write update");
+    import_peer_profile(&source, &config_root).expect("reimport updated profile");
+
+    let loaded = load_peer_profile(&config_root, &profile.tunnel_id).expect("load updated profile");
+    assert_eq!(loaded.profile().peer.peer_id, peer_id);
+    assert_eq!(
+        loaded.profile().peer.membership_signature,
+        membership_signature
+    );
+    match loaded.effective_bootstrap() {
+        PeerBootstrapV2::StaticGateway(gateway) => {
+            assert_eq!(gateway.mapping_port, Some(10_444));
+        }
+        PeerBootstrapV2::ManagedPlatform { .. } => panic!("expected static Gateway bootstrap"),
+    }
 
     fs::remove_dir_all(root).expect("remove test root");
 }

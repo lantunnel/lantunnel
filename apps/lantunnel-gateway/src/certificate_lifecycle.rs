@@ -26,9 +26,10 @@ pub(crate) struct SelfSignedIpIdentityOutcome {
     pub(crate) directory_durability_confirmed: bool,
 }
 
-/// Ensure the Managed Gateway has one persistent P-256 identity whose
-/// self-signed leaf names exactly its public IP. Existing material is validated
-/// and reused byte-for-byte; it is never silently replaced.
+/// Ensure a Gateway has one persistent P-256 identity whose self-signed leaf
+/// names exactly its public IP. Independent initialization and Managed
+/// onboarding share this machine-local lifecycle. Existing material is
+/// validated and reused byte-for-byte; it is never silently replaced.
 pub(crate) fn ensure_self_signed_ip_identity(
     config_path: &Path,
     public_ip: IpAddr,
@@ -36,21 +37,7 @@ pub(crate) fn ensure_self_signed_ip_identity(
     let (certificate_path, key_path) = configured_tls_paths(config_path)?;
     require_distinct_tls_targets(&certificate_path, &key_path)?;
 
-    let certificate_exists = match fs::symlink_metadata(&certificate_path) {
-        Ok(metadata) => {
-            reject_link_or_non_file(&certificate_path, &metadata)?;
-            true
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-        Err(error) => {
-            return Err(error).with_context(|| {
-                format!(
-                    "inspect Gateway certificate at {}",
-                    certificate_path.display()
-                )
-            })
-        }
-    };
+    let certificate_exists = existing_regular_target(&certificate_path, "Gateway certificate")?;
     let (key, key_directory_synced) = if certificate_exists {
         // A certificate without its original private key cannot be repaired
         // safely. Loading instead of creating preserves that failure mode.
@@ -102,6 +89,36 @@ pub(crate) fn ensure_self_signed_ip_identity(
         spki_sha256,
         directory_durability_confirmed: key_directory_synced && certificate_directory_synced,
     })
+}
+
+/// Validate any existing Independent Gateway identity before its runtime
+/// config is persisted. This keeps deterministic identity failures from
+/// leaving behind a new config that points at incompatible machine state.
+pub(crate) fn preflight_self_signed_ip_identity(
+    certificate_path: &Path,
+    key_path: &Path,
+    public_ip: IpAddr,
+) -> anyhow::Result<()> {
+    require_distinct_tls_targets(certificate_path, key_path)?;
+    let certificate_exists = existing_regular_target(certificate_path, "Gateway certificate")?;
+    let key_exists = existing_regular_target(key_path, "Gateway private key")?;
+    if !certificate_exists && !key_exists {
+        return Ok(());
+    }
+
+    let key = load_existing_key(key_path)?;
+    if !certificate_exists {
+        return Ok(());
+    }
+    let certificate_pem = read_required_owner_only_artifact_bounded(
+        certificate_path,
+        "Gateway self-signed certificate",
+        128 * 1024,
+    )?;
+    let certificate_pem = String::from_utf8(certificate_pem)
+        .context("Gateway self-signed certificate is not UTF-8 PEM")?;
+    validate_self_signed_ip_certificate(&certificate_pem, &key, public_ip)?;
+    Ok(())
 }
 
 pub(crate) fn load_self_signed_ip_identity(
@@ -275,6 +292,84 @@ pub(crate) fn create_owner_only_artifact_noclobber(
     Ok(())
 }
 
+/// Validate that a runtime directory is already owner-only or can be created
+/// below an existing trusted ancestor without following a link.
+pub(crate) fn validate_owner_only_directory_target(path: &Path) -> anyhow::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => {
+            let _directory_guard = require_safe_artifact_directory(path)?;
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            require_existing_trusted_directory_chain(path)
+        }
+        Err(error) => Err(error)
+            .with_context(|| format!("inspect Gateway runtime directory {}", path.display())),
+    }
+}
+
+/// Create a persistent owner-only runtime directory without modifying an
+/// existing directory. Missing ancestors are created one component at a time.
+pub(crate) fn create_owner_only_directory(path: &Path) -> anyhow::Result<()> {
+    validate_owner_only_directory_target(path)?;
+    match fs::symlink_metadata(path) {
+        Ok(_) => return validate_owner_only_directory_target(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("inspect Gateway runtime directory {}", path.display()))
+        }
+    }
+
+    let parent = parent_dir(path);
+    match fs::symlink_metadata(parent) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            create_owner_only_directory(parent)?;
+        }
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("inspect Gateway runtime parent {}", parent.display()))
+        }
+    }
+    let _parent_guard = require_trusted_artifact_directory(parent)?;
+
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt as _;
+
+        builder.mode(0o700);
+    }
+    builder
+        .create(path)
+        .with_context(|| format!("create Gateway runtime directory {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        let directory_guard = open_directory_guard(path)?;
+        set_owner_only_directory(&directory_guard, path)?;
+    }
+    #[cfg(windows)]
+    {
+        let metadata = fs::symlink_metadata(path)
+            .with_context(|| format!("inspect Gateway runtime directory {}", path.display()))?;
+        if metadata_is_link_or_reparse(&metadata) || !metadata.is_dir() {
+            bail!(
+                "Gateway runtime directory must be a real directory: {}",
+                path.display()
+            );
+        }
+        windows_security::set_owner_only(path, true)?;
+    }
+    let _directory_guard = require_safe_artifact_directory(path)?;
+    sync_parent(parent_dir(path)).with_context(|| {
+        format!(
+            "fsync Gateway runtime directory parent for {}",
+            path.display()
+        )
+    })
+}
+
 pub(crate) fn remove_owner_only_artifact(path: &Path, description: &str) -> anyhow::Result<()> {
     let parent = parent_dir(path);
     let _directory_guard = require_trusted_artifact_directory(parent)?;
@@ -334,6 +429,19 @@ fn require_distinct_tls_targets(certificate_path: &Path, key_path: &Path) -> any
     Ok(())
 }
 
+fn existing_regular_target(path: &Path, description: &str) -> anyhow::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            reject_link_or_non_file(path, &metadata)?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => {
+            Err(error).with_context(|| format!("inspect {description} at {}", path.display()))
+        }
+    }
+}
+
 fn lexical_absolute_path(path: &Path) -> anyhow::Result<PathBuf> {
     use std::path::Component;
 
@@ -387,6 +495,8 @@ fn load_existing_key(path: &Path) -> anyhow::Result<KeyPair> {
         .with_context(|| format!("inspect Gateway private key at {}", path.display()))?;
     reject_link_or_non_file(path, &metadata)?;
     require_owner_only_file(path, &metadata, "existing Gateway private key")?;
+    require_single_file_link(path, &metadata, "existing Gateway private key")?;
+    require_exact_private_key_mode(path, &metadata)?;
     let pem = read_regular_file(path)
         .with_context(|| format!("read existing Gateway private key at {}", path.display()))?;
     let pem = String::from_utf8(pem).context("Gateway private key is not UTF-8 PEM")?;
@@ -419,6 +529,17 @@ fn load_server_identity_key_pem(path: &Path) -> anyhow::Result<Vec<u8>> {
 
         let effective_uid = unsafe { libc::geteuid() };
         let (mut file, directory_chain) = open_server_identity_key_without_links(path)?;
+        #[cfg(target_os = "macos")]
+        {
+            macos_acl::require_no_allow_acl_fd(&file, "Gateway private key", path)?;
+            for (ancestor_path, ancestor) in &directory_chain {
+                macos_acl::require_no_allow_acl_fd(
+                    ancestor,
+                    "Gateway private key path ancestor",
+                    ancestor_path,
+                )?;
+            }
+        }
         let metadata = file.metadata()?;
         if !metadata.is_file() {
             bail!("expected safe regular file: {}", path.display());
@@ -690,6 +811,24 @@ fn require_single_file_link(
     Ok(())
 }
 
+#[cfg(unix)]
+fn require_exact_private_key_mode(path: &Path, metadata: &fs::Metadata) -> anyhow::Result<()> {
+    use std::os::unix::fs::MetadataExt as _;
+
+    if metadata.mode() & 0o7777 != 0o600 {
+        bail!(
+            "Gateway private key is not owner-only: permissions must be exactly 0600: {}",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn require_exact_private_key_mode(_path: &Path, _metadata: &fs::Metadata) -> anyhow::Result<()> {
+    Ok(())
+}
+
 #[cfg(not(unix))]
 fn require_single_file_link(
     _path: &Path,
@@ -783,6 +922,55 @@ fn require_no_link_directory_chain(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn require_existing_trusted_directory_chain(path: &Path) -> anyhow::Result<()> {
+    use std::path::Component;
+
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .context("resolve current directory")?
+            .join(path)
+    };
+    let mut current = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+            Component::RootDir => current.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                bail!(
+                    "unsafe parent-directory component in path: {}",
+                    path.display()
+                )
+            }
+            Component::Normal(segment) => {
+                current.push(segment);
+                let metadata = match fs::symlink_metadata(&current) {
+                    Ok(metadata) => metadata,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                    Err(error) => {
+                        return Err(error).with_context(|| {
+                            format!("inspect path ancestor {}", current.display())
+                        })
+                    }
+                };
+                if metadata_is_link_or_reparse(&metadata) {
+                    bail!(
+                        "refusing link or reparse-point ancestor: {}",
+                        current.display()
+                    );
+                }
+                if !metadata.is_dir() {
+                    bail!("path ancestor is not a directory: {}", current.display());
+                }
+                require_trusted_ancestor(&current, &metadata)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(unix)]
 fn require_trusted_ancestor(path: &Path, metadata: &fs::Metadata) -> anyhow::Result<()> {
     use std::os::unix::fs::MetadataExt as _;
@@ -794,6 +982,8 @@ fn require_trusted_ancestor(path: &Path, metadata: &fs::Metadata) -> anyhow::Res
             path.display()
         );
     }
+    #[cfg(target_os = "macos")]
+    macos_acl::require_no_allow_acl_path(path, "path ancestor")?;
     Ok(())
 }
 
@@ -820,6 +1010,8 @@ fn require_owner_only_file(
     if metadata.uid() != unsafe { libc::geteuid() } || metadata.mode() & 0o077 != 0 {
         bail!("{description} is not owner-only: {}", path.display());
     }
+    #[cfg(target_os = "macos")]
+    macos_acl::require_no_allow_acl_path(path, description)?;
     Ok(())
 }
 
@@ -843,6 +1035,8 @@ fn require_owner_only_directory(path: &Path, metadata: &fs::Metadata) -> anyhow:
     if metadata.mode() & 0o077 != 0 {
         bail!("artifact directory is not owner-only: {}", path.display());
     }
+    #[cfg(target_os = "macos")]
+    macos_acl::require_no_allow_acl_path(path, "artifact directory")?;
     Ok(())
 }
 
@@ -886,10 +1080,26 @@ fn configure_no_follow(options: &mut OpenOptions, _create: bool) {
 }
 
 #[cfg(unix)]
-fn set_owner_only_file(file: &File, _path: &Path) -> anyhow::Result<()> {
+fn set_owner_only_file(file: &File, path: &Path) -> anyhow::Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
 
+    #[cfg(target_os = "macos")]
+    macos_acl::clear_extended_acl_fd(file, "Gateway artifact", path)?;
     file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    #[cfg(target_os = "macos")]
+    macos_acl::require_no_allow_acl_fd(file, "Gateway artifact", path)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_owner_only_directory(directory: &File, path: &Path) -> anyhow::Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    #[cfg(target_os = "macos")]
+    macos_acl::clear_extended_acl_fd(directory, "Gateway runtime directory", path)?;
+    directory.set_permissions(fs::Permissions::from_mode(0o700))?;
+    #[cfg(target_os = "macos")]
+    macos_acl::require_no_allow_acl_fd(directory, "Gateway runtime directory", path)?;
     Ok(())
 }
 
@@ -918,6 +1128,155 @@ fn sync_parent(parent: &Path) -> std::io::Result<()> {
 #[cfg(not(unix))]
 fn sync_parent(_parent: &Path) -> std::io::Result<()> {
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+mod macos_acl {
+    use std::ffi::{c_char, c_int, c_void, CString};
+    use std::fs::File;
+    use std::os::fd::AsRawFd as _;
+    use std::os::unix::ffi::OsStrExt as _;
+    use std::path::Path;
+    use std::ptr;
+
+    use anyhow::{bail, Context as _};
+
+    const ACL_TYPE_EXTENDED: c_int = 0x0000_0100;
+    const ACL_FIRST_ENTRY: c_int = 0;
+    const ACL_NEXT_ENTRY: c_int = -1;
+    const ACL_EXTENDED_ALLOW: c_int = 1;
+
+    type Acl = *mut c_void;
+    type AclEntry = *mut c_void;
+
+    unsafe extern "C" {
+        fn acl_free(object: *mut c_void) -> c_int;
+        fn acl_get_entry(acl: Acl, entry_id: c_int, entry: *mut AclEntry) -> c_int;
+        fn acl_get_fd_np(fd: c_int, acl_type: c_int) -> Acl;
+        fn acl_get_link_np(path: *const c_char, acl_type: c_int) -> Acl;
+        fn acl_get_tag_type(entry: AclEntry, tag_type: *mut c_int) -> c_int;
+        fn acl_init(count: c_int) -> Acl;
+        fn acl_set_fd_np(fd: c_int, acl: Acl, acl_type: c_int) -> c_int;
+        fn acl_valid(acl: Acl) -> c_int;
+    }
+
+    struct OwnedAcl(Acl);
+
+    impl OwnedAcl {
+        fn from_read(acl: Acl, description: &str, path: &Path) -> anyhow::Result<Option<Self>> {
+            if acl.is_null() {
+                let error = std::io::Error::last_os_error();
+                if matches!(
+                    error.raw_os_error(),
+                    Some(libc::ENOENT) | Some(libc::EOPNOTSUPP)
+                ) {
+                    return Ok(None);
+                }
+                return Err(error)
+                    .with_context(|| format!("read {description} ACL at {}", path.display()));
+            }
+            Ok(Some(Self(acl)))
+        }
+
+        fn from_allocation(acl: Acl, description: &str, path: &Path) -> anyhow::Result<Self> {
+            if acl.is_null() {
+                return Err(std::io::Error::last_os_error()).with_context(|| {
+                    format!("allocate empty {description} ACL at {}", path.display())
+                });
+            }
+            Ok(Self(acl))
+        }
+    }
+
+    impl Drop for OwnedAcl {
+        fn drop(&mut self) {
+            unsafe {
+                acl_free(self.0);
+            }
+        }
+    }
+
+    pub(super) fn require_no_allow_acl_path(path: &Path, description: &str) -> anyhow::Result<()> {
+        let path_bytes = CString::new(path.as_os_str().as_bytes())
+            .with_context(|| format!("{description} path contains NUL"))?;
+        let Some(acl) = OwnedAcl::from_read(
+            unsafe { acl_get_link_np(path_bytes.as_ptr(), ACL_TYPE_EXTENDED) },
+            description,
+            path,
+        )?
+        else {
+            return Ok(());
+        };
+        require_no_allow_entries(&acl, description, path)
+    }
+
+    pub(super) fn require_no_allow_acl_fd(
+        file: &File,
+        description: &str,
+        path: &Path,
+    ) -> anyhow::Result<()> {
+        let Some(acl) = OwnedAcl::from_read(
+            unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) },
+            description,
+            path,
+        )?
+        else {
+            return Ok(());
+        };
+        require_no_allow_entries(&acl, description, path)
+    }
+
+    pub(super) fn clear_extended_acl_fd(
+        file: &File,
+        description: &str,
+        path: &Path,
+    ) -> anyhow::Result<()> {
+        let empty = OwnedAcl::from_allocation(unsafe { acl_init(0) }, description, path)?;
+        if unsafe { acl_set_fd_np(file.as_raw_fd(), empty.0, ACL_TYPE_EXTENDED) } != 0 {
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::EOPNOTSUPP) {
+                return Err(error)
+                    .with_context(|| format!("clear {description} ACL at {}", path.display()));
+            }
+        }
+        Ok(())
+    }
+
+    fn require_no_allow_entries(
+        acl: &OwnedAcl,
+        description: &str,
+        path: &Path,
+    ) -> anyhow::Result<()> {
+        if unsafe { acl_valid(acl.0) } != 0 {
+            return Err(std::io::Error::last_os_error())
+                .with_context(|| format!("validate {description} ACL at {}", path.display()));
+        }
+        let mut entry = ptr::null_mut();
+        let mut entry_id = ACL_FIRST_ENTRY;
+        loop {
+            if unsafe { acl_get_entry(acl.0, entry_id, &mut entry) } != 0 {
+                let error = std::io::Error::last_os_error();
+                if error.raw_os_error() == Some(libc::EINVAL) {
+                    return Ok(());
+                }
+                return Err(error)
+                    .with_context(|| format!("inspect {description} ACL at {}", path.display()));
+            }
+            let mut tag_type = 0;
+            if unsafe { acl_get_tag_type(entry, &mut tag_type) } != 0 {
+                return Err(std::io::Error::last_os_error()).with_context(|| {
+                    format!("inspect {description} ACL entry at {}", path.display())
+                });
+            }
+            if tag_type == ACL_EXTENDED_ALLOW {
+                bail!(
+                    "{description} has an extended ACL allow entry: {}",
+                    path.display()
+                );
+            }
+            entry_id = ACL_NEXT_ENTRY;
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -1170,6 +1529,58 @@ mod windows_security {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn owner_only_setup_removes_macos_allow_acls() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let temporary_root = fs::canonicalize(std::env::temp_dir()).unwrap();
+        let temporary = tempfile::Builder::new()
+            .prefix("lantunnel-gateway-owner-only-acl-")
+            .tempdir_in(temporary_root)
+            .unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let file_path = temporary.path().join("secret");
+        fs::write(&file_path, b"secret").unwrap();
+        fs::set_permissions(&file_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        for path in [temporary.path(), file_path.as_path()] {
+            let status = std::process::Command::new("chmod")
+                .args(["+a", "everyone allow read"])
+                .arg(path)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
+        assert!(require_owner_only_file(
+            &file_path,
+            &fs::symlink_metadata(&file_path).unwrap(),
+            "test artifact",
+        )
+        .is_err());
+
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&file_path)
+            .unwrap();
+        set_owner_only_file(&file, &file_path).unwrap();
+        let directory = File::open(temporary.path()).unwrap();
+        set_owner_only_directory(&directory, temporary.path()).unwrap();
+
+        require_owner_only_file(
+            &file_path,
+            &fs::symlink_metadata(&file_path).unwrap(),
+            "test artifact",
+        )
+        .unwrap();
+        require_owner_only_directory(
+            temporary.path(),
+            &fs::symlink_metadata(temporary.path()).unwrap(),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn self_signed_ip_identity_is_valid_and_reused_byte_for_byte() {

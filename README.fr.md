@@ -101,27 +101,38 @@ C'est fait. Pointez une application vers `127.0.0.1:1080`, ou activez le routage
 ### La voie autonome — votre Gateway, vos règles
 
 ```bash
-# 1. Créez le Tunnel hors ligne. Cette étape ne touche pas au réseau.
+# 1. Sur l'hôte de la Gateway, initialisez une Gateway indépendante hors ligne.
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+#   Par défaut : QUIC/8443 et mapping UDP/8444. Pour changer le port, ajoutez ici
+#   --mapping-port <PORT> et transmettez la même valeur à --gateway-mapping-port ci-dessous.
+#   crée configs/gateway.yaml, certs/server.crt, certs/server.key et state/scopes.d
+
+# 2. Copiez uniquement server.crt sous ./server.crt sur la machine de confiance du propriétaire,
+#    puis créez-y le Tunnel hors ligne.
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
-  --gateway-port 8443
+  --gateway-ip <PUBLIC_IP> \
+  --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt
 #   → <tunnel-id>.tunnel   à garder précieusement : la clé de signature du Tunnel
 #   → <tunnel-id>.scope    public ; la Gateway n'a besoin que de ce fichier
 
-# 2. Émettez un profil par appareil.
+# 3. Émettez un profil par appareil.
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 3. Installez le scope public sur l'hôte de la Gateway, puis démarrez-la.
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+# 4. Installez le scope public sur l'hôte de la Gateway, puis démarrez-la.
+cp <tunnel-id>.scope state/scopes.d/
 lantunnel-gateway --config configs/gateway.yaml
 
-# 4. Sur chaque appareil, importez son propre profil et connectez-vous.
+# 5. Sur chaque appareil, importez son propre profil et connectez-vous.
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client                          # interface graphique
 lantunnel-client connect '<tunnel_id>'    # même runtime, sans fenêtre
 ```
+
+`init` s'exécute entièrement hors ligne et ne contacte ni lantunnel.app ni aucune plateforme. `certs/server.key` reste sur l'hôte de la Gateway. La réexécution strictement identique de la commande conserve la clé, le certificat et la configuration sans les modifier. Avec le même fichier `--config`, la répétition exacte d'`init`, la validation et le démarrage fonctionnent depuis n'importe quel répertoire de travail. La configuration avec un nom d'hôte ou un certificat d'une AC publique reste une procédure manuelle avancée décrite dans le guide complet.
 
 Un profil par appareil — un `.peer` n'est pas fait pour être recopié d'une machine à l'autre.
 

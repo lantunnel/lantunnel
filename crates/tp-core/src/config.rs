@@ -84,9 +84,8 @@ pub struct GatewayConfig {
     pub proxy: ProxyConfig,
     /// UDP endpoint this Gateway's mapping service listens on. P2P clients probe
     /// it to discover the public mapping of the exact socket they will later use
-    /// for hole punching. Every Gateway runs its own mapping service on its own
-    /// registered port; the Gateway process probes that service rather than
-    /// binding its socket.
+    /// for hole punching. Every Gateway binds its own mapping service on its own
+    /// registered port.
     #[serde(default = "default_gateway_mapping_probe_port")]
     pub mapping_probe_port: u16,
     /// QUIC transport tuning (congestion control, keepalive, idle timeout).

@@ -101,27 +101,38 @@ flowchart LR
 ### 自分で運用する — 自分の Gateway、自分のルール
 
 ```bash
-# 1. Tunnel をオフラインで作成。この手順はネットワークに触れません。
+# 1. Gateway ホストで独立 Gateway をオフライン初期化。
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+#   デフォルト：QUIC/8443、UDP マッピング/8444。別のポートを使う場合は、ここに
+#   --mapping-port <PORT> を追加し、下の --gateway-mapping-port に同じ値を渡す
+#   configs/gateway.yaml、certs/server.crt、certs/server.key、state/scopes.d を生成
+
+# 2. server.crt だけを ./server.crt として信頼できるオーナーマシンにコピーし、そこで Tunnel を
+#    オフライン作成。
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
-  --gateway-port 8443
+  --gateway-ip <PUBLIC_IP> \
+  --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt
 #   → <tunnel-id>.tunnel   Tunnel の署名鍵。厳重に保管してください
 #   → <tunnel-id>.scope    公開ファイル。Gateway が必要とするのはこれだけ
 
-# 2. デバイスごとにプロファイルを発行。
+# 3. デバイスごとにプロファイルを発行。
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 3. 公開 scope を Gateway ホストに置いて起動。
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+# 4. 公開 scope を Gateway ホストに置いて起動。
+cp <tunnel-id>.scope state/scopes.d/
 lantunnel-gateway --config configs/gateway.yaml
 
-# 4. 各デバイスで自分のプロファイルを取り込んで接続。
+# 5. 各デバイスで自分のプロファイルを取り込んで接続。
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client                          # デスクトップ UI
 lantunnel-client connect '<tunnel_id>'    # 同じランタイム、ウィンドウなし
 ```
+
+`init` は完全にオフラインで実行され、lantunnel.app などのプラットフォームには接続しません。`certs/server.key` は Gateway ホストから出しません。まったく同じコマンドを再実行しても、鍵・証明書・設定は変更されません。同じ `--config` ファイルを指定すれば、再実行・設定検証・起動は現在の作業ディレクトリに依存しません。ホスト名または公開 CA 証明書を使う場合は、完全なガイドの手動上級手順を使ってください。
 
 プロファイルは 1 デバイスにつき 1 つ。`.peer` は使い回すものではありません。
 

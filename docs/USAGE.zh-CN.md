@@ -79,8 +79,8 @@
 ### 你需要准备
 
 - 一台公网能访问到的机器 —— 5 美元的 VPS 完全够用；Gateway 主要做信令，中继只承载直连打不通的那部分流量。
-- 上面开两条入站规则：**数据端口**（TCP 还是 UDP 取决于传输方式）和 **UDP 映射端口**（默认 `8444`）。
-- 一张 TLS 证书。正式签发的，或者你自己签发并固定指纹的自签名证书，都行。
+- 上面开两条入站规则：**数据端口**（TCP 还是 UDP 取决于传输方式）和选定的 **UDP 映射端口**（默认 `8444`）。
+- 一个固定公网 IPv4 或 IPv6 地址。主路径会自动生成 TLS 身份；域名和公信 CA 证书属于后面的高级手工路径。
 
 ### 1. 构建（或下载）二进制
 
@@ -89,9 +89,29 @@ cargo build --release -p lantunnel-gateway
 cargo build --release -p lantunnel-admin
 ```
 
-### 2. 给 Gateway 配证书
+### 2. 在 Gateway 主机上初始化固定 IP Gateway
 
-有域名的正式证书直接用即可。自签名的话：
+在 Gateway 主机的持久目录里运行。初始化完全在本机完成，不会联系 lantunnel.app：
+
+```bash
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+```
+
+默认使用 QUIC/UDP `8443`、映射端口 UDP `8444` 和 `configs/gateway.yaml`。可用 `--transport`、`--data-port`、`--mapping-port`、`--config` 更改传输、数据端口、映射端口和配置路径。
+
+命令会创建 `configs/gateway.yaml`、`certs/server.crt`、`certs/server.key` 和 `state/scopes.d`。Linux 和 macOS 上，私有目录权限为 `0700`，配置、证书和私钥为 `0600`。
+
+完全相同的命令重跑时只校验并原样保留已有文件。只要指定同一个 `--config` 文件，重跑、配置校验和启动就不依赖当前工作目录。在同一个配置路径下，IP、传输、数据端口或映射端口不同则拒绝执行，不会替换 Peer 已固定的 Gateway 身份。同一部署根目录内的另一个配置文件可以复用同一份匹配的证书。
+
+QUIC 的数据端口开放 UDP，WebSocket 和 gRPC 开放 TCP；选定的映射端口开放 UDP（默认 `8444`）。`server.key` 永远留在 Gateway 主机上。
+
+#### 高级路径：域名或公信 CA 证书
+
+`lantunnel-gateway init` 只负责固定公网 IP 与固定证书的路径。域名、公信 CA 或私有 CA 部署需参照 [`configs/gateway.yaml`](../configs/gateway.yaml) 手工准备证书和配置。
+
+公信 CA 的域名证书无需用 `--gateway-cert` 固定。证书链和私钥必须复制成 `certs/server.crt` 与 `certs/server.key` 两个普通文件，不能是符号链接；续期后要刷新这两个副本。
+
+自签域名证书可这样生成：
 
 ```bash
 mkdir -p certs
@@ -105,21 +125,26 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 chmod 0600 certs/server.crt certs/server.key
 ```
 
-没有域名的话，把 DNS SAN 换成 **IP SAN**（`IP:203.0.113.10`）。
+手工使用哪种证书，都要把证书和私钥设为仅所有者可读。需要固定证书时，只把公开的 `server.crt` 复制到可信 owner 机器。
 
 ### 3. 离线创建 Tunnel
 
-`lantunnel-admin` 全程不联网，在哪台机器上跑都行。它生成的 `.tunnel` 文件是这条 Tunnel 的签名私钥，请妥善保管。
+`lantunnel-admin` 全程不联网。请在可信 owner 机器上运行；它生成的 `.tunnel` 是 Tunnel 的签名私钥，必须留在安全位置。
+
+只把 Gateway 生成的公开 `server.crt` 复制到这台机器，并保存为 `certs/server.crt`。私钥仍留在 Gateway 主机。下面的命令会固定该证书，并使用与初始化一致的公网 IP、传输、数据端口和映射端口。
 
 ```bash
-mkdir -p provision
+mkdir -p certs provision
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
-  --gateway-host gw.example.com \
+  --gateway-ip <PUBLIC_IP> \
   --gateway-port 8443 \
+  --gateway-mapping-port 8444 \
   --gateway-cert certs/server.crt \
   --output-dir ./provision
 ```
+
+高级域名路径请改用 `--gateway-host gw.example.com`。如果域名证书由公信 CA 签发，请省略 `--gateway-cert certs/server.crt`，这样正常续期不需要重新生成 Peer 配置。
 
 它会写出两个以 Tunnel ID 命名的文件：
 
@@ -132,6 +157,7 @@ lantunnel-admin init-tunnel \
 
 - `--gateway-transport quic | websocket | grpc` —— QUIC 是首选，也是唯一支持每条流独立通道的。WebSocket 和 gRPC 用于封锁 UDP 的网络环境。
 - `--gateway-host` 和/或 `--gateway-ip` —— 两个都给的话，拨号用 IP，域名用作 TLS 服务器名。
+- `--gateway-mapping-port` —— Gateway 的 UDP 映射端口，默认 `8444`；必须和 `lantunnel-gateway init --mapping-port` 或 `gateway.mapping_probe_port` 一致。
 - `--gateway-cert` —— 要固定的 PEM 证书。Gateway 用的是公信 CA 证书时可以省略。
 
 ### 4. 每台设备签发一份配置
@@ -159,25 +185,34 @@ mkdir -p state/scopes.d
 cp ./provision/<tunnel-id>.scope state/scopes.d/
 ```
 
-用一份基于 [`configs/gateway.yaml`](../configs/gateway.yaml) 的配置启动：
+先校验自动生成的配置，再启动 Gateway：
 
 ```bash
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 ```
 
-关键几项：
+生成的配置会把运行时文件位置保存为绝对路径。下面的 `<DEPLOYMENT_ROOT>` 是持久部署目录，其中包含配置文件（或它所在的 `configs/` 目录）以及生成的 `certs/` 和 `state/` 目录：
 
 ```yaml
 gateway:
   listen_addr: "0.0.0.0:8443"     # 必须和 --gateway-port 一致
   transport_type: "quic"          # 必须和 --gateway-transport 一致
-  tls_cert: "certs/server.crt"
-  tls_key: "certs/server.key"
-  scopes_dir: "state/scopes.d"    # .scope 文件放这里
-  mapping_probe_port: 8444        # UDP；Gateway 自己绑定
+  tls_cert: "<DEPLOYMENT_ROOT>/certs/server.crt"
+  tls_key: "<DEPLOYMENT_ROOT>/certs/server.key"
+  scopes_dir: "<DEPLOYMENT_ROOT>/state/scopes.d"  # .scope 文件放这里
+  mapping_probe_port: 8444        # UDP；可修改的默认值
 ```
 
-Gateway 自己绑定映射端口 —— 没有第二个进程要启动。同一台主机上跑多个 Gateway 的话，每个都要有自己的数据端口**和**自己的映射端口。QUIC 数据监听不能和映射端口共用。
+Gateway 自己绑定选定的 UDP 映射端口，无需启动第二个进程。QUIC 数据监听不能和 UDP 映射监听使用同一个端口；WebSocket 和 gRPC 的数据监听使用 TCP，所以可以使用相同的端口号。
+
+可以在执行 `init` 后、签发 Peer 配置前修改 `gateway.mapping_probe_port`。随后必须把同一个值传给 `lantunnel-admin init-tunnel --gateway-mapping-port`，并在防火墙中开放这个 UDP 端口。
+
+以后若修改端口，先在防火墙中开放新的 UDP 端口，修改 Gateway YAML 中的 `gateway.mapping_probe_port`，然后重启 Gateway。只改 Gateway YAML 会导致已有 Peer 配置的映射探测失败。
+
+同时把现有 `.tunnel` 中的 `static_gateway.mapping_port` 以及每份现有 `.peer` 中的 `bootstrap.mapping_port` 更新为同一值，然后重新导入 Peer 配置并重连 Client。
+
+Tunnel ID、已安装的 `.scope` 和 Peer 成员身份签名仍然有效，无需新建 Tunnel、更换 Scope 或重新签名。只有原 `.peer` 已遗失时，才需要用同一个 `.tunnel` 执行 `add-peer` 创建新的 Peer 身份。
 
 以后要加新的 Tunnel，往 `scopes_dir` 里再丢一个 `.scope` 就行。systemd 示例单元在 [`scripts/remote/`](../scripts/remote/)。
 
@@ -366,6 +401,7 @@ lantunnel-client tunnel list              以 JSON 列出已导入的配置
 lantunnel-admin init-tunnel --gateway-transport <quic|websocket|grpc>
                             [--gateway-host <HOST>] [--gateway-ip <IP>]
                             --gateway-port <PORT>
+                            [--gateway-mapping-port <PORT>]
                             [--gateway-cert <PEM>]
                             [--output-dir <DIR>]
 
@@ -379,12 +415,18 @@ lantunnel-admin add-peer --tunnel <FILE.tunnel>
 ### `lantunnel-gateway`
 
 ```
-lantunnel-gateway [--config <FILE>]              运行 Gateway
-lantunnel-gateway onboard --pairing <FILE>       接入平台托管的 Gateway
-lantunnel-gateway mapping serve                  独立的 UDP 映射反射器
+lantunnel-gateway [--config <FILE>] [--check-config]       运行或校验 Gateway
+lantunnel-gateway init --public-ip <PUBLIC_IP>
+                        [--transport <quic|websocket|grpc>]
+                        [--data-port <PORT>] [--mapping-port <PORT>]
+                        [--config <FILE>]
+lantunnel-gateway onboard --pairing <FILE>                接入平台托管的 Gateway
+lantunnel-gateway mapping serve                           独立的 UDP 映射反射器
 ```
 
-`--config` 默认是 `configs/gateway.yaml`。`mapping serve` 是给特殊部署结构准备的；正常的 Gateway 自己绑定映射端口，用不到它。
+`init` 不联网，用于初始化独立的固定 IP Gateway。默认使用 QUIC/8443、映射 UDP `8444`，并写入 `configs/gateway.yaml`；可用 `--mapping-port` 选择其他映射端口。完全相同的命令会保留现有配置和身份；只要指定同一个配置文件，重跑、校验和启动就不依赖当前工作目录。在同一个配置路径下，IP、传输、数据端口或映射端口变化则拒绝执行。同一部署根目录内的另一个配置文件可以复用同一份匹配的证书。
+
+域名和公信 CA 部署使用上面的高级手工路径。所有模式的 `--config` 都默认是 `configs/gateway.yaml`。`mapping serve` 只用于特殊部署；正常 Gateway 会自己绑定映射端口。
 
 ---
 
@@ -435,7 +477,7 @@ Client 配置目录下的 `settings.json`。每一项都是可选的。
 两个 Client 在用同一份 `.peer`。用 `add-peer` 再签一份；配置文件是一台设备的身份，不是共享凭据。
 
 **能通，但一直走中继。**
-看界面上的流量计数器 —— 它把直连和中继分开统计。两端都是对称 NAT 时打洞会失败。如果两个 Peer 在同一个内网里，加上 `--enable-lan-p2p` 让本地地址也作为候选。另外确认 UDP `8444` 能到达 Gateway；没有映射探测，两边都学不到自己的公网映射。
+看界面上的流量计数器 —— 它把直连和中继分开统计。两端都是对称 NAT 时打洞会失败。如果两个 Peer 在同一个内网里，加上 `--enable-lan-p2p` 让本地地址也作为候选。另外确认配置的 UDP 映射端口（默认 `8444`）能到达 Gateway；没有映射探测，两边都学不到自己的公网映射。
 
 **直连能用但中继不行（或者反过来）。**
 这是两条互相独立的路径。中继依赖 Gateway 的数据端口；直连依赖 UDP 能在两个 Peer 之间打通。一次只测一条。

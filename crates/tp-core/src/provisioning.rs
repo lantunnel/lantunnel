@@ -18,6 +18,8 @@ use thiserror::Error;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
+use crate::config::DEFAULT_GATEWAY_MAPPING_PROBE_PORT;
+
 pub const PROVISIONING_VERSION_V2: u16 = 2;
 pub const MAX_REPLICA_HINT_V2: u16 = 8;
 pub const OVERLAY_NETWORK_V2: Ipv4Addr = Ipv4Addr::new(198, 18, 0, 0);
@@ -55,6 +57,12 @@ impl GatewayBootstrapV2 {
             _ => return Err(ProvisioningError::UnsupportedTransport),
         }
         if self.dial_address.trim().is_empty() || self.port == 0 {
+            return Err(ProvisioningError::InvalidGatewayAddress);
+        }
+        let mapping_port = self
+            .mapping_port
+            .unwrap_or(DEFAULT_GATEWAY_MAPPING_PROBE_PORT);
+        if mapping_port == 0 || (self.transport == "quic" && mapping_port == self.port) {
             return Err(ProvisioningError::InvalidGatewayAddress);
         }
         if self

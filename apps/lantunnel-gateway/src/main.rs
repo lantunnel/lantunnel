@@ -2,6 +2,7 @@
 
 mod certificate_lifecycle;
 mod gateway_control;
+mod initialization;
 mod managed_identity;
 mod onboarding;
 
@@ -21,7 +22,8 @@ use tp_transport::{tls, GrpcServer, QuicServer, QuicTuning, WsServer};
 #[derive(Parser)]
 #[command(name = "lantunnel-gateway", version)]
 struct Cli {
-    /// Path to YAML config. Defaults to the path onboarding writes.
+    /// Path to YAML config when running the Gateway. Defaults to the path init
+    /// and onboard write.
     #[arg(short, long)]
     config: Option<String>,
     /// Validate the complete V2-only Gateway configuration without binding
@@ -34,6 +36,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum GatewayCommand {
+    /// Initialize an independent Gateway on this machine without contacting
+    /// lantunnel.app.
+    Init(initialization::InitArgs),
     /// Generate this machine's self-signed identity and register the claim in
     /// its pairing artifact. The artifact names the kind; Fleet and BYOG are the
     /// same command.
@@ -71,6 +76,14 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     if let Some(command) = cli.command {
+        if cli.config.is_some() {
+            anyhow::bail!(
+                "--config before a subcommand is ambiguous; place it after init or onboard"
+            );
+        }
+        if cli.check_config {
+            anyhow::bail!("--check-config cannot be combined with a subcommand");
+        }
         return run_gateway_command(command).await;
     }
 
@@ -341,6 +354,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run_gateway_command(command: GatewayCommand) -> anyhow::Result<()> {
     match command {
+        GatewayCommand::Init(args) => initialization::run(args),
         GatewayCommand::Onboard(args) => onboarding::run(args).await,
         GatewayCommand::Mapping(MappingCommand {
             command: MappingSubcommand::Serve(args),

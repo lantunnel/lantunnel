@@ -164,6 +164,58 @@ fn init_tunnel_creates_verifiable_yaml_artifacts() {
     assert_eq!(scope.tunnel_id, owner.tunnel_id);
     assert_eq!(owner.static_gateway.dial_address, "gateway.example.com");
     assert_eq!(owner.static_gateway.tls_server_name, None);
+    assert_eq!(owner.static_gateway.mapping_port, None);
+}
+
+#[test]
+fn init_tunnel_records_a_nondefault_mapping_port_in_owner_and_peer_artifacts() {
+    let temp = TempDir::new().expect("temp dir");
+    let output = admin(
+        &[
+            OsStr::new("init-tunnel"),
+            OsStr::new("--gateway-transport"),
+            OsStr::new("quic"),
+            OsStr::new("--gateway-host"),
+            OsStr::new("gateway.example.com"),
+            OsStr::new("--gateway-port"),
+            OsStr::new("443"),
+            OsStr::new("--gateway-mapping-port"),
+            OsStr::new("10444"),
+            OsStr::new("--output-dir"),
+            temp.path().as_os_str(),
+        ],
+        temp.path(),
+    );
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let tunnel_path = one_file_with_extension(temp.path(), "tunnel");
+    let owner: TunnelOwnerFileV2 =
+        serde_yaml::from_str(&fs::read_to_string(&tunnel_path).unwrap()).unwrap();
+    assert_eq!(owner.static_gateway.mapping_port, Some(10_444));
+
+    let peer_path = temp.path().join("custom-mapping.peer");
+    let add = admin(
+        &[
+            OsStr::new("add-peer"),
+            OsStr::new("--tunnel"),
+            tunnel_path.as_os_str(),
+            OsStr::new("--output"),
+            peer_path.as_os_str(),
+        ],
+        temp.path(),
+    );
+    assert!(add.status.success());
+    let peer: PeerProfileV2 =
+        serde_yaml::from_str(&fs::read_to_string(peer_path).unwrap()).unwrap();
+    match peer.bootstrap {
+        PeerBootstrapV2::StaticGateway(gateway) => {
+            assert_eq!(gateway.mapping_port, Some(10_444));
+        }
+        PeerBootstrapV2::ManagedPlatform { .. } => panic!("expected static Gateway bootstrap"),
+    }
 }
 
 #[test]

@@ -35,6 +35,60 @@ fn owner_creates_scope_and_importable_peer() {
 }
 
 #[test]
+fn static_gateway_mapping_port_must_be_nonzero_and_not_collide_with_quic_data() {
+    let mut zero = gateway();
+    zero.mapping_port = Some(0);
+    assert_eq!(
+        zero.validate(),
+        Err(ProvisioningError::InvalidGatewayAddress)
+    );
+
+    let mut collision = gateway();
+    collision.mapping_port = Some(collision.port);
+    assert_eq!(
+        collision.validate(),
+        Err(ProvisioningError::InvalidGatewayAddress)
+    );
+
+    collision.transport = "websocket".into();
+    collision
+        .validate()
+        .expect("TCP data may share the UDP port");
+
+    let mut default_collision = gateway();
+    default_collision.port = tp_core::config::DEFAULT_GATEWAY_MAPPING_PROBE_PORT;
+    assert_eq!(
+        default_collision.validate(),
+        Err(ProvisioningError::InvalidGatewayAddress)
+    );
+}
+
+#[test]
+fn mapping_port_changes_preserve_the_tunnel_scope_and_peer_membership() {
+    let mut owner = TunnelOwnerFileV2::generate(gateway()).expect("generate tunnel");
+    let scope_before = owner.scope().expect("derive public scope");
+    let mut peer = owner.add_peer(None, 1, None).expect("add peer");
+    let membership_signature_before = peer.peer.membership_signature.clone();
+
+    owner.static_gateway.mapping_port = Some(10_444);
+    owner.verify().expect("updated owner must remain valid");
+    let scope_after = owner.scope().expect("derive unchanged public scope");
+    assert_eq!(scope_after.tunnel_id, scope_before.tunnel_id);
+    assert_eq!(
+        scope_after.tunnel_signing_public_key,
+        scope_before.tunnel_signing_public_key
+    );
+
+    match &mut peer.bootstrap {
+        PeerBootstrapV2::StaticGateway(gateway) => gateway.mapping_port = Some(10_444),
+        PeerBootstrapV2::ManagedPlatform { .. } => panic!("expected static Gateway bootstrap"),
+    }
+    peer.verify()
+        .expect("mapping port is not part of the Peer membership signature");
+    assert_eq!(peer.peer.membership_signature, membership_signature_before);
+}
+
+#[test]
 fn artifacts_round_trip_without_leaking_owner_key_to_scope() {
     let mut owner = TunnelOwnerFileV2::generate(gateway()).expect("generate tunnel");
     let scope = owner.scope().expect("scope");

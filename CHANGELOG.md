@@ -10,6 +10,17 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+### Added
+
+- `lantunnel-gateway init --public-ip <PUBLIC_IP>` now prepares an independent Gateway in
+  one local command. It writes the runtime config, a persistent self-signed certificate and
+  key, and the Scope directory without contacting lantunnel.app.
+- The command defaults to QUIC on UDP 8443 with mapping on UDP 8444; `--mapping-port` selects
+  another mapping port, and `lantunnel-admin init-tunnel --gateway-mapping-port` records the
+  same fact in independent Peer profiles. Repeating the same command preserves the existing
+  identity; changed listener facts at the same config path are refused instead of replacing
+  a certificate already pinned by Peer profiles. Hostname and public-CA setups remain manual.
+
 ### Fixed
 
 - A settings file the Client could not read no longer leaves this machine open

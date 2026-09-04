@@ -127,18 +127,21 @@ pub(crate) fn validate_canonical_public_ip(value: &str) -> anyhow::Result<IpAddr
 }
 
 fn validate_public_ip(address: IpAddr) -> anyhow::Result<()> {
-    let public = match address {
-        IpAddr::V4(address) => is_public_ipv4(address),
-        IpAddr::V6(address) => is_public_ipv6(address),
-    };
-    if !public {
+    if !is_public_ip(address) {
         bail!("Managed Gateway public address is not a public IP");
     }
     Ok(())
 }
 
+pub(crate) fn is_public_ip(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(address) => is_public_ipv4(address),
+        IpAddr::V6(address) => is_public_ipv6(address),
+    }
+}
+
 fn is_public_ipv4(address: Ipv4Addr) -> bool {
-    let [a, b, _, _] = address.octets();
+    let [a, b, c, d] = address.octets();
     !(a == 0
         || address.is_private()
         || address.is_loopback()
@@ -147,21 +150,73 @@ fn is_public_ipv4(address: Ipv4Addr) -> bool {
         || address.is_documentation()
         || address.is_multicast()
         || (a == 100 && (64..=127).contains(&b))
+        || (a == 192 && b == 0 && c == 0 && d != 9 && d != 10)
+        || (a == 192 && b == 88 && c == 99)
         || (a == 198 && (18..=19).contains(&b))
         || a >= 240)
 }
 
 fn is_public_ipv6(address: Ipv6Addr) -> bool {
-    if let Some(mapped) = address.to_ipv4_mapped() {
-        return is_public_ipv4(mapped);
+    if address.to_ipv4_mapped().is_some() {
+        return false;
     }
-    let first = address.segments()[0];
-    !(address.is_unspecified()
-        || address.is_loopback()
-        || address.is_multicast()
-        || address.is_unicast_link_local()
-        || first & 0xfe00 == 0xfc00
-        || (address.segments()[0] == 0x2001 && address.segments()[1] == 0x0db8))
+    if matches!(address.segments(), [0x2001, 0x0db8, ..])
+        || ipv6_has_prefix(
+            address,
+            Ipv6Addr::new(0x2620, 0x004f, 0x8000, 0, 0, 0, 0, 0),
+            48,
+        )
+    {
+        return false;
+    }
+    // Independent and Managed Gateways need an ordinary host address, not a
+    // protocol anycast/translation prefix. These are the current IANA
+    // allocations to regional registries; unallocated and special-purpose
+    // Global Unicast space is rejected until it becomes a host allocation.
+    // Source: IANA IPv6 Global Unicast Address Space registry.
+    PUBLIC_GATEWAY_IPV6_PREFIXES
+        .iter()
+        .any(|(network, prefix_len)| ipv6_has_prefix(address, *network, *prefix_len))
+}
+
+const PUBLIC_GATEWAY_IPV6_PREFIXES: &[(Ipv6Addr, u32)] = &[
+    (Ipv6Addr::new(0x2001, 0x0200, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x0400, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x0600, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x0800, 0, 0, 0, 0, 0, 0), 22),
+    (Ipv6Addr::new(0x2001, 0x0c00, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x0e00, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x1200, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x1400, 0, 0, 0, 0, 0, 0), 22),
+    (Ipv6Addr::new(0x2001, 0x1800, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x1a00, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x1c00, 0, 0, 0, 0, 0, 0), 22),
+    (Ipv6Addr::new(0x2001, 0x2000, 0, 0, 0, 0, 0, 0), 19),
+    (Ipv6Addr::new(0x2001, 0x4000, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x4200, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x4400, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x4600, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x4800, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x4a00, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x4c00, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2001, 0x5000, 0, 0, 0, 0, 0, 0), 20),
+    (Ipv6Addr::new(0x2001, 0x8000, 0, 0, 0, 0, 0, 0), 19),
+    (Ipv6Addr::new(0x2001, 0xa000, 0, 0, 0, 0, 0, 0), 20),
+    (Ipv6Addr::new(0x2001, 0xb000, 0, 0, 0, 0, 0, 0), 20),
+    (Ipv6Addr::new(0x2003, 0, 0, 0, 0, 0, 0, 0), 18),
+    (Ipv6Addr::new(0x2400, 0, 0, 0, 0, 0, 0, 0), 11),
+    (Ipv6Addr::new(0x2600, 0, 0, 0, 0, 0, 0, 0), 12),
+    (Ipv6Addr::new(0x2610, 0, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2620, 0, 0, 0, 0, 0, 0, 0), 23),
+    (Ipv6Addr::new(0x2630, 0, 0, 0, 0, 0, 0, 0), 12),
+    (Ipv6Addr::new(0x2800, 0, 0, 0, 0, 0, 0, 0), 12),
+    (Ipv6Addr::new(0x2a00, 0, 0, 0, 0, 0, 0, 0), 11),
+    (Ipv6Addr::new(0x2c00, 0, 0, 0, 0, 0, 0, 0), 12),
+];
+
+fn ipv6_has_prefix(address: Ipv6Addr, network: Ipv6Addr, prefix_len: u32) -> bool {
+    let shift = Ipv6Addr::BITS - prefix_len;
+    u128::from_be_bytes(address.octets()) >> shift == u128::from_be_bytes(network.octets()) >> shift
 }
 
 #[cfg(test)]
@@ -172,6 +227,41 @@ mod tests {
     use crate::gateway_control::GatewayControlKind;
 
     use super::*;
+
+    #[test]
+    fn public_ip_classification_accepts_only_ordinary_public_host_addresses() {
+        let cases = [
+            ("2606:4700:4700::1111", true),
+            ("2001:4860:4860::8888", true),
+            ("240e::1", true),
+            ("2a01::1", true),
+            ("::ffff:8.8.8.8", false),
+            ("::", false),
+            ("::1", false),
+            ("::2", false),
+            ("fe80::1", false),
+            ("fc00::1", false),
+            ("fec0::1", false),
+            ("ff02::1", false),
+            ("2001:db8::1", false),
+            ("2001:2::1", false),
+            ("2620:4f:8000::1", false),
+            ("3fff::1", false),
+            ("2420::1", false),
+            ("2a20::1", false),
+            ("64:ff9b::808:808", false),
+            ("::ffff:10.0.0.1", false),
+            ("::ffff:192.0.2.1", false),
+            ("192.0.0.1", false),
+            ("192.0.0.9", true),
+            ("192.88.99.1", false),
+        ];
+
+        for (address, expected) in cases {
+            let address: IpAddr = address.parse().unwrap();
+            assert_eq!(is_public_ip(address), expected, "address: {address}");
+        }
+    }
 
     #[test]
     fn durable_managed_identity_is_secret_free_and_exact_replay_is_idempotent() {

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use fs2::FileExt as _;
+use tp_core::config::DEFAULT_GATEWAY_MAPPING_PROBE_PORT;
 use tp_core::provisioning::{normalize_certificate_pem, GatewayBootstrapV2, TunnelOwnerFileV2};
 
 #[derive(Parser)]
@@ -40,6 +41,9 @@ struct InitTunnelArgs {
     gateway_ip: Option<IpAddr>,
     #[arg(long)]
     gateway_port: u16,
+    /// Public UDP port the Gateway uses for NAT mapping probes.
+    #[arg(long, default_value_t = DEFAULT_GATEWAY_MAPPING_PROBE_PORT)]
+    gateway_mapping_port: u16,
     /// Certificate-only PEM trust anchor for a self-signed or private-CA Gateway.
     #[arg(long)]
     gateway_cert: Option<PathBuf>,
@@ -138,7 +142,8 @@ fn init_tunnel(args: InitTunnelArgs) -> Result<()> {
         transport: args.gateway_transport.as_str().to_owned(),
         dial_address,
         port: args.gateway_port,
-        mapping_port: None,
+        mapping_port: (args.gateway_mapping_port != DEFAULT_GATEWAY_MAPPING_PROBE_PORT)
+            .then_some(args.gateway_mapping_port),
         tls_server_name,
         trusted_certificate_pem,
     })
