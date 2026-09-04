@@ -49,9 +49,6 @@ CONFIG_DIR      := configs
 CERT_DIR        := certs
 CERT_FILE       := $(CERT_DIR)/server.crt
 CERT_KEY        := $(CERT_DIR)/server.key
-UPLOAD_ENV      ?= upload.env
-PLATFORM_DIR    ?=
-UPLOAD_DIRECT   ?= 1
 
 # Docker builder image used for linux/windows cross-compiles.
 #
@@ -182,7 +179,7 @@ TRIPLE_LINUX_AMD64_GNU   := x86_64-unknown-linux-gnu
 TRIPLE_LINUX_ARM64_GNU   := aarch64-unknown-linux-gnu
 TRIPLE_WINDOWS_AMD64     := x86_64-pc-windows-msvc
 
-R2_RELEASE_FILES := \
+PUBLIC_RELEASE_FILES := \
 	lantunnel-client-$(UI_VERSION)-windows-amd64.exe \
 	lantunnel-client-$(UI_VERSION)-macos-amd64.dmg \
 	lantunnel-client-$(UI_VERSION)-macos-arm64.dmg \
@@ -193,7 +190,7 @@ R2_RELEASE_FILES := \
 	lantunnel-admin-$(VERSION)-aarch64-apple-darwin \
 	lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl
 
-CHECKSUM_FILES ?= $(R2_RELEASE_FILES)
+CHECKSUM_FILES ?= $(PUBLIC_RELEASE_FILES)
 
 REAL_TEST_GATEWAY_ARTIFACT ?= $(RELEASE_DIR)/lantunnel-gateway-$(VERSION)-$(TRIPLE_LINUX_AMD64_MUSL)
 REAL_TEST_CLIENT_ARTIFACT ?= target/$(TRIPLE_LINUX_AMD64_GNU)/release/lantunnel-client
@@ -292,7 +289,7 @@ check-release-surface:  ## Verify release help exposes only product/platform rel
 	@awk '/^release-fast:/{in_fast=1; next} /^$$/{in_fast=0} in_fast && /release-lantunnel-gateway-linux-amd64/ {gw=1} in_fast && /release-lantunnel-admin-linux-amd64/ {admin=1} in_fast && /release-lantunnel-client-windows-amd64/ {win=1} in_fast && /release-android-proxy-apk|release-ios-proxy-app/ {mobile=1} in_fast && /&/ {bg=1} in_fast && /wait/ {wait=1} END{exit (gw && admin && win && !mobile && bg && wait) ? 0 : 1}' Makefile
 	@awk '/^release-mobile:/{in_mobile=1; next} /^$$/{in_mobile=0} in_mobile && /_release-android-proxy-apk/ {android=1} in_mobile && /_release-ios-proxy-app/ {ios=1} in_mobile && /checksums/ {checksums=1} END{exit (android && ios && checksums) ? 0 : 1}' Makefile
 	@awk '/^release-real-test:/{in_rt=1; next} /^$$/{in_rt=0} in_rt && /_release-lantunnel-gateway-linux-amd64/ {gw=1} in_rt && /_release-lantunnel-client-raw-linux-amd64/ {client=1} in_rt && /&/ {bg=1} in_rt && /wait/ {wait=1} END{exit (gw && client && bg && wait) ? 0 : 1}' Makefile
-	@awk '/^release-all:/{in_all=1} /^$$/{in_all=0} in_all && /pre-aggregated/ {aggregated=1} in_all && /_release-/ {build=1} in_all && /checksums/ {checksums=1} in_all && /upload\.sh.*check/ {check=1} END{exit (aggregated && !build && checksums && check) ? 0 : 1}' Makefile
+	@awk '/^release-all:/{in_all=1} /^$$/{in_all=0} in_all && /pre-aggregated/ {aggregated=1} in_all && /_release-/ {build=1} in_all && /checksums/ {checksums=1} in_all && /verify_release_bundle\.sh/ {check=1} END{exit (aggregated && !build && checksums && check) ? 0 : 1}' Makefile
 
 # ------------------------------ release ------------------------------------
 ## == release ==
@@ -651,72 +648,13 @@ release-desktop:  ## Release all lantunnel-client desktop artifacts shown on the
 	@echo "Desktop release $(UI_VERSION) ready under $(DOWNLOAD_DIR)/"
 	@ls -la $(DOWNLOAD_DIR)/
 
-.PHONY: release-desktop-remote
-release-desktop-remote: release-all  ## Validate and upload a pre-aggregated public V2 release to remote R2
-	@if [ "$(UPLOAD_DIRECT)" = "1" ]; then \
-	    echo "→ uploading the public V2 release to R2 without local proxy env"; \
-	    HTTP_PROXY= HTTPS_PROXY= ALL_PROXY= NO_PROXY=* $(MAKE) --no-print-directory upload-remote; \
-	else \
-	    $(MAKE) --no-print-directory upload-remote; \
-	fi
-	@echo "Public V2 remote release $(UI_VERSION) complete"
-
 .PHONY: release-all
 release-all:  ## Validate a complete pre-aggregated cross-OS public V2 release; does not build
 	@echo "→ validating pre-aggregated public V2 release $(UI_VERSION) in $(DOWNLOAD_DIR)/"
 	@$(MAKE) --no-print-directory checksums
-	@DIST_DIR="$(DIST_DIR)" RELEASE_DIR="$(RELEASE_DIR)" DOWNLOAD_DIR="$(DOWNLOAD_DIR)" \
-	    ./scripts/upload.sh "$(UI_VERSION)" check
+	@./scripts/verify_release_bundle.sh "$(UI_VERSION)" "$(RELEASE_DIR)"
 	@echo "Pre-aggregated release $(VERSION) verified under $(RELEASE_DIR)/"
 	@ls -la $(RELEASE_DIR)/
-
-.PHONY: upload
-upload: upload-remote  ## Upload the complete public V2 release to remote R2
-
-.PHONY: upload-local
-upload-local:  ## Upload the complete public V2 release to local wrangler R2
-	@echo "Uploading the public V2 release $(UI_VERSION) to local R2..."
-	@DIST_DIR="$(DIST_DIR)" RELEASE_DIR="$(RELEASE_DIR)" DOWNLOAD_DIR="$(DOWNLOAD_DIR)" PLATFORM_DIR="$(PLATFORM_DIR)" \
-	    ./scripts/upload.sh "$(UI_VERSION)" local
-
-.PHONY: upload-remote
-upload-remote:  ## Upload the complete public V2 release to remote Cloudflare R2
-	@if [ ! -f "$(UPLOAD_ENV)" ]; then \
-	    echo "Error: $(UPLOAD_ENV) not found. Create it with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME."; \
-	    exit 1; \
-	fi
-	@echo "Loading $(UPLOAD_ENV) and uploading the public V2 release $(UI_VERSION) to remote R2..."
-	@bash -c 'set -a; source "$(UPLOAD_ENV)"; set +a; \
-	    DIST_DIR="$(DIST_DIR)" RELEASE_DIR="$(RELEASE_DIR)" DOWNLOAD_DIR="$(DOWNLOAD_DIR)" PLATFORM_DIR="$(PLATFORM_DIR)" \
-	    ./scripts/upload.sh "$(UI_VERSION)" remote'
-
-.PHONY: upload-all
-upload-all:  ## Upload the complete public V2 release to both local and remote R2
-	@if [ ! -f "$(UPLOAD_ENV)" ]; then \
-	    echo "Error: $(UPLOAD_ENV) not found. Create it with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME."; \
-	    exit 1; \
-	fi
-	@echo "Loading $(UPLOAD_ENV) and uploading the public V2 release $(UI_VERSION) to local + remote R2..."
-	@bash -c 'set -a; source "$(UPLOAD_ENV)"; set +a; \
-	    DIST_DIR="$(DIST_DIR)" RELEASE_DIR="$(RELEASE_DIR)" DOWNLOAD_DIR="$(DOWNLOAD_DIR)" PLATFORM_DIR="$(PLATFORM_DIR)" \
-	    ./scripts/upload.sh "$(UI_VERSION)" all'
-
-.PHONY: upload-changelog
-upload-changelog:  ## Verify CHANGELOG.md matches the immutable remote R2 release
-	@if [ ! -f "$(UPLOAD_ENV)" ]; then \
-	    echo "Error: $(UPLOAD_ENV) not found. Create it with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME."; \
-	    exit 1; \
-	fi
-	@echo "Loading $(UPLOAD_ENV) and verifying CHANGELOG.md for $(UI_VERSION)..."
-	@bash -c 'set -a; source "$(UPLOAD_ENV)"; set +a; ./scripts/upload.sh "$(UI_VERSION)" changelog'
-
-.PHONY: full-release
-full-release: release-all upload-remote  ## Validate and upload a pre-aggregated public V2 release to remote R2
-	@echo "Lantunnel public release $(UI_VERSION) complete"
-
-.PHONY: local-release
-local-release: release-all upload-local  ## Validate and upload a pre-aggregated public V2 release to local R2
-	@echo "Lantunnel public local release $(UI_VERSION) complete"
 
 # ---- internal: CLI build dispatcher ----------------------------------------
 # Args: PKG (cargo -p), BIN (binary name), TRIPLES (space-separated)

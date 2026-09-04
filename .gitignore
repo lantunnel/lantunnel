@@ -54,6 +54,8 @@ release.local.mk
 !.env.*.example
 .env.local
 .env.*.local
+# Legacy release credentials may still exist on maintainer machines. Keep
+# them ignored even though the active release path no longer reads this file.
 upload.env
 
 # ── Secrets / TLS material — users supply their own at runtime ──────

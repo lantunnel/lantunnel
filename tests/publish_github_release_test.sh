@@ -47,6 +47,18 @@ assets=(
 for asset in "${assets[@]}"; do
   printf 'accepted bytes for %s\n' "$asset" > "$release_dir/$asset"
 done
+(
+  cd "$release_dir"
+  shasum -a 256 "${assets[@]:0:9}" > checksums.txt
+)
+printf '%s\n' '# Changelog' '' '## [2.0.0] - 2026-09-04' '' '- Accepted.' \
+  > "$release_dir/CHANGELOG.md"
+expected_body="$TEST_DIR/expected-release-body.md"
+printf '%s\n' \
+  '# Lantunnel v2.0.0' \
+  '' \
+  'Rendered release guidance, deliberately different from CHANGELOG.md.' \
+  > "$expected_body"
 
 write_release_state() {
   local draft="$1"
@@ -66,7 +78,7 @@ write_release_state() {
   jq -n \
     --argjson draft "$draft" \
     --argjson assets "$assets_json" \
-    --rawfile body "$release_dir/CHANGELOG.md" \
+    --rawfile body "$expected_body" \
     '{id: 42, tag_name: "v2.0.0", name: "v2.0.0", draft: $draft,
       prerelease: false, body: $body, assets: $assets}' \
     > "$state_json"
@@ -279,7 +291,8 @@ publish() {
     MOCK_AFTER_DRAFT_VERIFY_RACE="${MOCK_AFTER_DRAFT_VERIFY_RACE:-}" \
     GITHUB_REPOSITORY=example/lantunnel \
     PATH="$mock_bin:$PATH" \
-    "$PUBLISH_RELEASE" v2.0.0 "$expected_commit" "$release_dir" "$work_dir"
+    "$PUBLISH_RELEASE" \
+      v2.0.0 "$expected_commit" "$release_dir" "$expected_body" "$work_dir"
 }
 
 expect_failure() {
