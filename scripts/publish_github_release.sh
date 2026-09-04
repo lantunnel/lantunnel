@@ -3,22 +3,25 @@
 
 set -euo pipefail
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <vX.Y.Z-tag> <expected-source-commit> <release-dir> <empty-work-dir>" >&2
+if [ "$#" -ne 5 ]; then
+    echo "Usage: $0 <vX.Y.Z-tag> <expected-source-commit> <release-dir> <expected-body-file> <empty-work-dir>" >&2
     exit 1
 fi
 
 tag="$1"
 expected_commit="$2"
 release_dir="$3"
-work_dir="$4"
+expected_body_file="$4"
+work_dir="$5"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verify_release="$root_dir/scripts/verify_github_release.sh"
+verify_bundle="$root_dir/scripts/verify_release_bundle.sh"
 
 if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
     echo "Error: GitHub release tag must be stable SemVer with a v prefix: ${tag}" >&2
     exit 1
 fi
+version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
 if [[ ! "$expected_commit" =~ ^[0-9a-f]{40}$ ]]; then
     echo "Error: expected source commit must be an exact lowercase 40-hex commit" >&2
     exit 1
@@ -26,6 +29,8 @@ fi
 : "${GITHUB_REPOSITORY:?missing GITHUB_REPOSITORY}"
 api_repo="repos/${GITHUB_REPOSITORY}"
 test -d "$release_dir"
+test -s "$expected_body_file"
+"$verify_bundle" "$version" "$release_dir" >/dev/null
 
 if [ -e "$work_dir" ]; then
     test -d "$work_dir"
@@ -79,7 +84,7 @@ assert_expected_draft() {
     if ! jq -e \
         --arg id "$release_id" \
         --arg tag "$tag" \
-        --rawfile body "$release_dir/CHANGELOG.md" \
+        --rawfile body "$expected_body_file" \
         '((.id | type) == "number")
           and ((.id | tostring) == $id)
           and (.tag_name == $tag)
@@ -118,7 +123,7 @@ case "$release_count" in
     0)
         jq -n \
             --arg tag "$tag" \
-            --rawfile body "$release_dir/CHANGELOG.md" \
+            --rawfile body "$expected_body_file" \
             '{tag_name: $tag, name: $tag, body: $body, draft: true, prerelease: false}' \
             > "$work_dir/create-request.json"
         assert_remote_tag_commit
@@ -155,13 +160,14 @@ if ! jq -e \
     exit 1
 fi
 jq -jr '.body' "$release_json" > "$work_dir/release-notes.md"
-cmp "$release_dir/CHANGELOG.md" "$work_dir/release-notes.md"
+cmp "$expected_body_file" "$work_dir/release-notes.md"
 
 draft="$(jq -r '.draft' "$release_json")"
 if [ "$draft" = false ]; then
     mkdir "$work_dir/verify-published"
     "$verify_release" \
-        "$release_id" "$tag" false "$release_dir" "$work_dir/verify-published"
+        "$release_id" "$tag" false "$release_dir" "$expected_body_file" \
+        "$work_dir/verify-published"
     assert_remote_tag_commit
     echo "GitHub release ${tag} is already published with the accepted bytes."
     exit 0
@@ -225,7 +231,8 @@ fi
 
 mkdir "$work_dir/verify-draft"
 "$verify_release" \
-    "$release_id" "$tag" true "$release_dir" "$work_dir/verify-draft"
+    "$release_id" "$tag" true "$release_dir" "$expected_body_file" \
+    "$work_dir/verify-draft"
 
 jq -n '{draft: false}' > "$work_dir/publish-request.json"
 assert_write_preconditions
@@ -236,7 +243,8 @@ gh api --method PATCH \
 
 mkdir "$work_dir/verify-published"
 "$verify_release" \
-    "$release_id" "$tag" false "$release_dir" "$work_dir/verify-published"
+    "$release_id" "$tag" false "$release_dir" "$expected_body_file" \
+    "$work_dir/verify-published"
 assert_remote_tag_commit
 
 echo "Published verified GitHub release ${tag}."

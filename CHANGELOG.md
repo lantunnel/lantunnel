@@ -10,6 +10,12 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Stable version tags now publish GitHub Releases as the authoritative download
+  source, with direct package links, signature and checksum guidance,
+  installation modes, a managed quick start, and only that version's changes.
+
 ## [2.0.9] - 2026-09-04
 
 ### Added

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAKEFILE="$ROOT_DIR/Makefile"
 RELEASE_WORKFLOW="$ROOT_DIR/.github/workflows/release.yml"
+VERIFY_BUNDLE="$ROOT_DIR/scripts/verify_release_bundle.sh"
 
 while IFS= read -r workflow; do
   if grep -q -- 'anyproxy-client' "$workflow"; then
@@ -38,7 +39,7 @@ fi
 release_all="$({ sed -n '/^release-all:/,/^$/p' "$MAKEFILE"; } || true)"
 grep -q 'pre-aggregated' <<<"$release_all"
 grep -q 'checksums' <<<"$release_all"
-grep -q './scripts/upload.sh "$(UI_VERSION)" check' <<<"$release_all"
+grep -q './scripts/verify_release_bundle.sh "$(UI_VERSION)" "$(RELEASE_DIR)"' <<<"$release_all"
 for forbidden in _release- _ensure-builder _build-ui anyproxy-client android ios; do
   if grep -q "$forbidden" <<<"$release_all"; then
     echo "release-all must only validate a pre-aggregated cross-OS bundle: $forbidden" >&2
@@ -46,7 +47,7 @@ for forbidden in _release- _ensure-builder _build-ui anyproxy-client android ios
   fi
 done
 
-r2_manifest="$({ sed -n '/^R2_RELEASE_FILES :=/,/^$/p' "$MAKEFILE"; } || true)"
+public_manifest="$({ sed -n '/^PUBLIC_RELEASE_FILES :=/,/^$/p' "$MAKEFILE"; } || true)"
 for artifact in \
   'lantunnel-client-$(UI_VERSION)-windows-amd64.exe' \
   'lantunnel-client-$(UI_VERSION)-macos-amd64.dmg' \
@@ -58,13 +59,13 @@ for artifact in \
   'lantunnel-admin-$(VERSION)-aarch64-apple-darwin' \
   'lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl'
 do
-  grep -Fq "$artifact" <<<"$r2_manifest"
+  grep -Fq "$artifact" <<<"$public_manifest"
 done
 # Mobile Clients ship on their own cadence, and the Legacy Client is gone, so
 # none belongs in this native desktop/CLI manifest.
 for forbidden in android ios anyproxy; do
-  if grep -qi "$forbidden" <<<"$r2_manifest"; then
-    echo "R2 manifest contains a non-V2 public artifact: $forbidden" >&2
+  if grep -qi "$forbidden" <<<"$public_manifest"; then
+    echo "public manifest contains a non-V2 public artifact: $forbidden" >&2
     exit 1
   fi
 done
@@ -72,7 +73,7 @@ done
 checksums_recipe="$({ sed -n '/^checksums:/,/^$/p' "$MAKEFILE"; } || true)"
 grep -q 'CHECKSUM_FILES' <<<"$checksums_recipe"
 grep -q 'checksums.txt' <<<"$checksums_recipe"
-grep -Fq 'CHECKSUM_FILES ?= $(R2_RELEASE_FILES)' "$MAKEFILE"
+grep -Fq 'CHECKSUM_FILES ?= $(PUBLIC_RELEASE_FILES)' "$MAKEFILE"
 for forbidden in SHA256SUMS android ios anyproxy; do
   if grep -qi "$forbidden" <<<"$checksums_recipe"; then
     echo "V2 checksum recipe contains a non-public manifest: $forbidden" >&2
@@ -80,9 +81,24 @@ for forbidden in SHA256SUMS android ios anyproxy; do
   fi
 done
 
-grep -q '^release-desktop-remote: release-all.*pre-aggregated' "$MAKEFILE"
-grep -q '^full-release: release-all upload-remote.*pre-aggregated' "$MAKEFILE"
-grep -q '^local-release: release-all upload-local.*pre-aggregated' "$MAKEFILE"
+test -x "$VERIFY_BUNDLE"
+test ! -e "$ROOT_DIR/scripts/upload.sh"
+test ! -e "$ROOT_DIR/tests/upload_script_test.sh"
+test ! -e "$ROOT_DIR/tests/download_existing_release_test.sh"
+for retired_target in \
+  release-desktop-remote upload upload-local upload-remote upload-all \
+  upload-changelog full-release local-release
+do
+  if grep -Eq "^${retired_target}:" "$MAKEFILE"; then
+    echo "Makefile still exposes retired R2 target: ${retired_target}" >&2
+    exit 1
+  fi
+done
+if grep -Eq 'UPLOAD_ENV|R2_RELEASE_FILES|scripts/upload\.sh|R2_|Cloudflare R2' \
+    "$MAKEFILE" "$RELEASE_WORKFLOW"; then
+  echo 'active release configuration still contains an R2 publishing path' >&2
+  exit 1
+fi
 
 grep -q 'product: lantunnel-gateway' "$RELEASE_WORKFLOW"
 grep -q 'build-client-linux:' "$RELEASE_WORKFLOW"

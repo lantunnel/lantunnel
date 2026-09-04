@@ -8,6 +8,9 @@ CI_WORKFLOW="$ROOT_DIR/.github/workflows/ci.yml"
 RELEASE_WORKFLOW="$ROOT_DIR/.github/workflows/release.yml"
 PUBLISH_GITHUB_RELEASE="$ROOT_DIR/scripts/publish_github_release.sh"
 PUBLISH_GITHUB_RELEASE_TEST="$ROOT_DIR/tests/publish_github_release_test.sh"
+VERIFY_GITHUB_RELEASE="$ROOT_DIR/scripts/verify_github_release.sh"
+VERIFY_RELEASE_BUNDLE="$ROOT_DIR/scripts/verify_release_bundle.sh"
+RENDER_GITHUB_RELEASE_NOTES="$ROOT_DIR/scripts/render_github_release_notes.sh"
 
 # A manual candidate is identified by an immutable source commit, so it can be
 # built and accepted before the formal release tag exists.
@@ -35,6 +38,9 @@ for generated_path in \
 do
   git -C "$ROOT_DIR" check-ignore -q -- "$generated_path"
 done
+# A retired local publisher may have left credentials on maintainer machines;
+# keep its conventional file ignored even though no active script reads it.
+git -C "$ROOT_DIR" check-ignore -q -- upload.env
 
 # Manual candidates and new stable tags pass through the same workspace gates
 # and native build matrix. The prepare job is the only event boundary.
@@ -296,9 +302,9 @@ grep -q 'refusing incomplete or extra public release artifacts' "$RELEASE_WORKFL
 # least-privileged publisher.
 manual_bundle="$(sed -n '/^  manual-build-bundle:/,/^  publish-github-release:/p' "$RELEASE_WORKFLOW")"
 grep -Fq 'sha256sum "${expected[@]}" > checksums.txt' <<<"$manual_bundle"
-grep -Fq './scripts/upload.sh "$VERSION" check' <<<"$manual_bundle"
+grep -Fq './scripts/verify_release_bundle.sh "$VERSION" dist/release' <<<"$manual_bundle"
 grep -Eq 'uses: actions/upload-artifact@[0-9a-f]{40} # v4' <<<"$manual_bundle"
-if grep -Eq 'github\.event_name|upload\.sh.*remote|publish_github_release|gh (api|release)|contents: write|R2_' <<<"$manual_bundle"; then
+if grep -Eq 'github\.event_name|publish_github_release|gh (api|release)|contents: write|R2_|upload\.sh' <<<"$manual_bundle"; then
   echo 'manual candidate build can overwrite the accepted formal release' >&2
   exit 1
 fi
@@ -320,11 +326,15 @@ test "$(grep -c '^[[:space:]]*contents: write$' "$RELEASE_WORKFLOW")" -eq 1
 grep -Fq 'name: manual-release-candidate-${{ needs.manual-build-prepare.outputs.version }}' <<<"$publisher"
 grep -Fq 'test "$(git rev-parse "refs/tags/${TAG}^{commit}")" = "$SOURCE_COMMIT"' <<<"$publisher"
 grep -Fq 'git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main' <<<"$publisher"
-grep -Fq './scripts/upload.sh "$VERSION" check' <<<"$publisher"
+grep -Fq './scripts/verify_release_bundle.sh "$VERSION" dist/release' <<<"$publisher"
+grep -Fq './scripts/render_github_release_notes.sh' <<<"$publisher"
+grep -Fq '"$TAG" "$SOURCE_COMMIT" "$GITHUB_REPOSITORY"' <<<"$publisher"
+grep -Fq 'dist/release "$RUNNER_TEMP/github-release-notes.md"' <<<"$publisher"
 grep -Fq './scripts/publish_github_release.sh' <<<"$publisher"
 grep -Fq 'SOURCE_COMMIT: ${{ needs.manual-build-prepare.outputs.commit }}' <<<"$publisher"
-grep -Fq '"$TAG" "$SOURCE_COMMIT" dist/release "$RUNNER_TEMP/github-release"' <<<"$publisher"
-if grep -Eq 'upload\.sh.*remote|R2_|aws s3|wrangler' <<<"$publisher"; then
+grep -Fq 'dist/release "$RUNNER_TEMP/github-release-notes.md"' <<<"$publisher"
+grep -Fq '"$RUNNER_TEMP/github-release"' <<<"$publisher"
+if grep -Eq 'R2_|aws s3|wrangler|upload\.sh' <<<"$publisher"; then
   echo 'GitHub Release publisher reads or writes the R2 release store' >&2
   exit 1
 fi
@@ -332,7 +342,12 @@ fi
 # Publishing resumes an exact draft by database ID. It verifies before and
 # after publication and contains no destructive recovery path.
 test -x "$PUBLISH_GITHUB_RELEASE"
+test -x "$VERIFY_GITHUB_RELEASE"
+test -x "$VERIFY_RELEASE_BUNDLE"
+test -x "$RENDER_GITHUB_RELEASE_NOTES"
 grep -Fq '<expected-source-commit>' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '<expected-body-file>' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '<expected-body-file>' "$VERIFY_GITHUB_RELEASE"
 grep -Fq '^[0-9a-f]{40}$' "$PUBLISH_GITHUB_RELEASE"
 grep -Fq 'releases?per_page=100' "$PUBLISH_GITHUB_RELEASE"
 grep -Fq 'select(.tag_name == $tag)' "$PUBLISH_GITHUB_RELEASE"
@@ -359,29 +374,35 @@ if [ "$draft_verify_line" -ge "$publish_line" ] || [ "$publish_line" -ge "$publi
   echo 'GitHub Release publisher does not verify draft, publish, then verify again' >&2
   exit 1
 fi
-if grep -Eq -- '--clobber|release delete|--method DELETE|upload\.sh.*remote|R2_|aws s3|wrangler' \
+if grep -Eq -- '--clobber|release delete|--method DELETE|upload\.sh|R2_|aws s3|wrangler' \
     "$PUBLISH_GITHUB_RELEASE"; then
   echo 'GitHub Release publisher contains an overwrite, delete, or R2 path' >&2
   exit 1
 fi
 grep -Fq 'bash tests/publish_github_release_test.sh' "$CI_WORKFLOW"
+grep -Fq 'bash tests/verify_release_bundle_test.sh' "$CI_WORKFLOW"
+grep -Fq 'bash tests/render_github_release_notes_test.sh' "$CI_WORKFLOW"
 grep -Fq 'annotated tag moved during uploads' "$PUBLISH_GITHUB_RELEASE_TEST"
 grep -Fq 'annotated tag deleted before publish' "$PUBLISH_GITHUB_RELEASE_TEST"
 grep -Fq 'draft published concurrently' "$PUBLISH_GITHUB_RELEASE_TEST"
 grep -Fq 'lightweight release tag resolves directly' "$PUBLISH_GITHUB_RELEASE_TEST"
 
-# R2 permits only an interrupted-release subset before write, and demands the
-# full product-plus-fixed-metadata set afterward. It never silently falls back
-# to a legacy bucket or hides a failed remote listing.
-grep -Fq 'R2_BUCKET_NAME="${R2_BUCKET_NAME:-}"' "$ROOT_DIR/scripts/upload.sh"
-grep -Fq 'verify_remote_manifest subset' "$ROOT_DIR/scripts/upload.sh"
-grep -Fq 'verify_remote_manifest exact' "$ROOT_DIR/scripts/upload.sh"
-grep -Fq 'remote_manifest_keys' "$ROOT_DIR/scripts/upload.sh"
-grep -Fq 'download_payload_remote' "$ROOT_DIR/scripts/upload.sh"
-if grep -Fq '|| true' <(sed -n '/^list_remote()/,/^}/p' "$ROOT_DIR/scripts/upload.sh"); then
-  echo 'R2 listing must fail closed' >&2
-  exit 1
-fi
+# The public release pipeline has one local bundle contract and one GitHub
+# destination. The former R2 publisher and its remote-store tests are gone.
+test ! -e "$ROOT_DIR/scripts/upload.sh"
+test ! -e "$ROOT_DIR/tests/upload_script_test.sh"
+test ! -e "$ROOT_DIR/tests/download_existing_release_test.sh"
+grep -Fq 'expected exactly 11 local release files' "$VERIFY_RELEASE_BUNDLE"
+grep -Fq 'checksums.txt must contain exactly one entry' "$VERIFY_RELEASE_BUNDLE"
+grep -Fq 'changelog must contain exactly one version section' "$VERIFY_RELEASE_BUNDLE"
+grep -Fq 'https://lantunnel.app/docs/installation' "$RENDER_GITHUB_RELEASE_NOTES"
+grep -Fq 'https://lantunnel.app/docs/quickstart' "$RENDER_GITHUB_RELEASE_NOTES"
+for mode_anchor in own-independent friend-independent platform-connected lantunnel-provided; do
+  grep -Fq "https://lantunnel.app/docs/installation#${mode_anchor}" \
+    "$RENDER_GITHUB_RELEASE_NOTES"
+done
+grep -Fq 'GitHub Releases are the sole authoritative destination for new public releases.' \
+  "$ROOT_DIR/CONTRIBUTING.md"
 
 # macOS publish still requires its signing identity. Windows TUN inputs are
 # reproducible: HEV is built from this checkout and Wintun is pinned to the

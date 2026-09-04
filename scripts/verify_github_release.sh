@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-if [ "$#" -ne 5 ]; then
-    echo "Usage: $0 <release-id> <tag> <expected-draft:true|false> <release-dir> <fresh-verify-dir>" >&2
+if [ "$#" -ne 6 ]; then
+    echo "Usage: $0 <release-id> <tag> <expected-draft:true|false> <release-dir> <expected-body-file> <fresh-verify-dir>" >&2
     exit 1
 fi
 
@@ -12,7 +12,9 @@ release_id="$1"
 tag="$2"
 expected_draft="$3"
 release_dir="$4"
-verify_dir="$5"
+expected_body_file="$5"
+verify_dir="$6"
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$release_id" in
     '' | *[!0-9]*)
@@ -27,14 +29,21 @@ case "$expected_draft" in
         exit 1
         ;;
 esac
+if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+    echo "Error: GitHub release tag must be stable SemVer with a v prefix: ${tag}" >&2
+    exit 1
+fi
+version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
 
 : "${GITHUB_REPOSITORY:?missing GITHUB_REPOSITORY}"
 test -d "$release_dir"
+test -s "$expected_body_file"
 test -d "$verify_dir"
 if find "$verify_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
     echo "Error: GitHub release verification directory must be empty: ${verify_dir}" >&2
     exit 1
 fi
+"$root_dir/scripts/verify_release_bundle.sh" "$version" "$release_dir" >/dev/null
 
 release_json="$verify_dir/release.json"
 gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" > "$release_json"
@@ -64,7 +73,7 @@ jq -S '[.[].name] | sort' "$assets_json" > "$verify_dir/github-asset-names.json"
 diff -u "$verify_dir/desired-assets.json" "$verify_dir/github-asset-names.json"
 
 jq -jr '.body' "$release_json" > "$verify_dir/release-notes.md"
-cmp "$release_dir/CHANGELOG.md" "$verify_dir/release-notes.md"
+cmp "$expected_body_file" "$verify_dir/release-notes.md"
 
 mkdir "$verify_dir/assets"
 for asset in "${desired[@]}"; do
@@ -96,7 +105,7 @@ jq -S '[.[] | {id, name}] | sort_by(.name)' "$assets_json" > "$verify_dir/asset-
 jq -S '[.[] | {id, name}] | sort_by(.name)' "$current_assets_json" > "$verify_dir/current-asset-identities.json"
 cmp "$verify_dir/asset-identities.json" "$verify_dir/current-asset-identities.json"
 jq -jr '.body' "$current_release_json" > "$verify_dir/current-release-notes.md"
-cmp "$release_dir/CHANGELOG.md" "$verify_dir/current-release-notes.md"
+cmp "$expected_body_file" "$verify_dir/current-release-notes.md"
 
 if ! jq -e \
     --arg id "$release_id" \

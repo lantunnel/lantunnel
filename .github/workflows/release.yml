@@ -625,11 +625,7 @@ jobs:
           sha256sum "${expected[@]}" > checksums.txt
           cp ../../CHANGELOG.md CHANGELOG.md
           cd ../..
-          DIST_DIR=dist \
-            RELEASE_DIR=dist/release \
-            DOWNLOAD_DIR=dist/release \
-            CHANGELOG_FILE=dist/release/CHANGELOG.md \
-            ./scripts/upload.sh "$VERSION" check
+          ./scripts/verify_release_bundle.sh "$VERSION" dist/release
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -681,11 +677,7 @@ jobs:
           git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main
           test "$(git rev-parse "${SOURCE_COMMIT}:.github/workflows")" = \
             "$(git rev-parse 'refs/remotes/origin/main:.github/workflows')"
-          DIST_DIR=dist \
-            RELEASE_DIR=dist/release \
-            DOWNLOAD_DIR=dist/release \
-            CHANGELOG_FILE=dist/release/CHANGELOG.md \
-            ./scripts/upload.sh "$VERSION" check
+          ./scripts/verify_release_bundle.sh "$VERSION" dist/release
 
       - name: Publish through a verified, resumable draft
         shell: bash
@@ -695,5 +687,10 @@ jobs:
           SOURCE_COMMIT: ${{ needs.manual-build-prepare.outputs.commit }}
         run: |
           set -euo pipefail
+          ./scripts/render_github_release_notes.sh \
+            "$TAG" "$SOURCE_COMMIT" "$GITHUB_REPOSITORY" \
+            dist/release "$RUNNER_TEMP/github-release-notes.md"
           ./scripts/publish_github_release.sh \
-            "$TAG" "$SOURCE_COMMIT" dist/release "$RUNNER_TEMP/github-release"
+            "$TAG" "$SOURCE_COMMIT" dist/release \
+            "$RUNNER_TEMP/github-release-notes.md" \
+            "$RUNNER_TEMP/github-release"

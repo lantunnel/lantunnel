@@ -27,8 +27,22 @@ assets=(
 
 for asset in "${assets[@]}"; do
   printf 'accepted bytes for %s\n' "$asset" > "$release_dir/$asset"
+done
+(
+  cd "$release_dir"
+  shasum -a 256 "${assets[@]:0:9}" > checksums.txt
+)
+printf '%s\n' '# Changelog' '' '## [2.0.0] - 2026-09-04' '' '- Accepted.' \
+  > "$release_dir/CHANGELOG.md"
+for asset in "${assets[@]}"; do
   cp "$release_dir/$asset" "$asset_dir/$asset"
 done
+expected_body="$TEST_DIR/expected-release-body.md"
+printf '%s\n' \
+  '# Lantunnel v2.0.0' \
+  '' \
+  'Rendered release guidance, deliberately different from CHANGELOG.md.' \
+  > "$expected_body"
 
 assets_json='[]'
 asset_id=100
@@ -44,7 +58,7 @@ done
 
 jq -n \
   --argjson assets "$assets_json" \
-  --rawfile body "$release_dir/CHANGELOG.md" \
+  --rawfile body "$expected_body" \
   '{id: 42, tag_name: "v2.0.0", name: "v2.0.0", draft: true,
     prerelease: false, body: $body, assets: $assets}' \
   > "$TEST_DIR/draft.json"
@@ -107,7 +121,8 @@ verify() {
     GITHUB_REPOSITORY=example/lantunnel \
     PATH="$mock_bin:$PATH" \
     "$VERIFY_RELEASE" \
-      "$release_id" v2.0.0 "$expected_draft" "$release_dir" "$verify_dir"
+      "$release_id" v2.0.0 "$expected_draft" "$release_dir" \
+      "$expected_body" "$verify_dir"
 }
 
 expect_failure() {

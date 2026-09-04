@@ -95,6 +95,12 @@ The Release workflow has two deliberately separate entry points:
   `.github/workflows` tree, and publishes those bytes as a GitHub Release. Tag
   updates and deletions do not publish.
 
+GitHub Releases are the sole authoritative destination for new public releases.
+Do not upload new release bundles to R2 or another parallel download store.
+Every candidate is validated locally with
+`scripts/verify_release_bundle.sh X.Y.Z dist/release`; the exact bundle is nine
+native packages, `checksums.txt`, and `CHANGELOG.md`.
+
 Before creating a release tag, set `[workspace.package].version` in
 `Cargo.toml` to `X.Y.Z` and add the matching `## [X.Y.Z]` entry to
 `CHANGELOG.md`. The tag, Cargo version, and changelog entry must agree. Do not
@@ -109,8 +115,13 @@ each asset upload and the final publication, it confirms that the remote tag
 still resolves to the accepted source commit and that the same numeric release
 record remains the expected draft. A rerun accepts an identical partial draft
 or already-published release; unexpected metadata, assets, or bytes fail
-without overwriting or deleting anything. GitHub uses the job-scoped
-`GITHUB_TOKEN`; no personal token or R2 credentials are part of this path.
+without overwriting or deleting anything. Before publishing, the workflow
+renders a deterministic Release body from the accepted tag, source commit,
+bundle, and only that version's `CHANGELOG.md` section. It includes direct
+package links, signature status, install and system requirements, checksum
+verification, and links to all four installation modes. GitHub uses the
+job-scoped `GITHUB_TOKEN`; no personal release token or storage credentials are
+required.
 
 The macOS matrix requires these repository secrets:
 `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`,

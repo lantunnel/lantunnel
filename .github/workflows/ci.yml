@@ -44,8 +44,8 @@ jobs:
       RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
       PROTOC: /usr/bin/protoc
     steps:
-      # The existing-release contract reads CHANGELOG.md out of the pinned
-      # release source commit, which a shallow clone does not carry.
+      # Release provenance and rendered notes read CHANGELOG.md out of the
+      # pinned release source commit, which a shallow clone does not carry.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -119,22 +119,12 @@ jobs:
       - name: V2-only Client source contract
         run: bash tests/v2_client_only_source_test.sh
 
-      - name: Existing R2 release download contract
-        run: bash tests/download_existing_release_test.sh
-
       - name: GitHub Release contracts
         run: |
+          bash tests/verify_release_bundle_test.sh
+          bash tests/render_github_release_notes_test.sh
           bash tests/verify_github_release_test.sh
           bash tests/publish_github_release_test.sh
-
-      # The upload path publishes to the public bucket, and this is the test
-      # that stands over it — immutable create-only writes, no overwrite of a
-      # byte-identical object, the exact product-plus-metadata manifest. It ran
-      # nowhere until now, which is how it came to disagree with the release it
-      # guards for four versions running. It uses a stubbed aws and writes
-      # nothing outside its own temporary directory.
-      - name: R2 upload contract
-        run: bash tests/upload_script_test.sh
 
       # Eight contracts that describe the AL acceptance harness, the Docker
       # acceptance/perf entry points and Peer profile uniqueness. They are
