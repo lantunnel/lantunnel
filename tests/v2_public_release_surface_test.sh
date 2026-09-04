@@ -53,7 +53,6 @@ for artifact in \
   'lantunnel-client-$(UI_VERSION)-macos-arm64.dmg' \
   'lantunnel-client-$(UI_VERSION)-linux-amd64.AppImage' \
   'lantunnel-client-$(UI_VERSION)-linux-arm64.AppImage' \
-  'lantunnel-client-$(VERSION)-android-arm64.apk' \
   'lantunnel-gateway-$(VERSION)-aarch64-apple-darwin' \
   'lantunnel-gateway-$(VERSION)-x86_64-unknown-linux-musl' \
   'lantunnel-admin-$(VERSION)-aarch64-apple-darwin' \
@@ -61,9 +60,9 @@ for artifact in \
 do
   grep -Fq "$artifact" <<<"$r2_manifest"
 done
-# The Android Client ships with the rest of the release. iOS goes to the App
-# Store, and the Legacy Client is gone, so neither belongs in this manifest.
-for forbidden in ios anyproxy; do
+# Mobile Clients ship on their own cadence, and the Legacy Client is gone, so
+# none belongs in this native desktop/CLI manifest.
+for forbidden in android ios anyproxy; do
   if grep -qi "$forbidden" <<<"$r2_manifest"; then
     echo "R2 manifest contains a non-V2 public artifact: $forbidden" >&2
     exit 1
@@ -71,8 +70,9 @@ for forbidden in ios anyproxy; do
 done
 
 checksums_recipe="$({ sed -n '/^checksums:/,/^$/p' "$MAKEFILE"; } || true)"
-grep -q 'R2_RELEASE_FILES' <<<"$checksums_recipe"
+grep -q 'CHECKSUM_FILES' <<<"$checksums_recipe"
 grep -q 'checksums.txt' <<<"$checksums_recipe"
+grep -Fq 'CHECKSUM_FILES ?= $(R2_RELEASE_FILES)' "$MAKEFILE"
 for forbidden in SHA256SUMS android ios anyproxy; do
   if grep -qi "$forbidden" <<<"$checksums_recipe"; then
     echo "V2 checksum recipe contains a non-public manifest: $forbidden" >&2

@@ -27,7 +27,6 @@ artifacts=(
   "lantunnel-client-${version}-macos-arm64.dmg"
   "lantunnel-client-${version}-linux-amd64.AppImage"
   "lantunnel-client-${version}-linux-arm64.AppImage"
-  "lantunnel-client-${version}-android-arm64.apk"
   "lantunnel-gateway-${version}-aarch64-apple-darwin"
   "lantunnel-gateway-${version}-x86_64-unknown-linux-musl"
   "lantunnel-admin-${version}-aarch64-apple-darwin"

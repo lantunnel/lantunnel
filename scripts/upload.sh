@@ -48,7 +48,6 @@ CLIENT_SUFFIXES=(
     "macos-arm64.dmg"
     "linux-amd64.AppImage"
     "linux-arm64.AppImage"
-    "android-arm64.apk"
 )
 
 CLI_SUFFIXES=(
@@ -515,33 +514,6 @@ upload_payload_remote() {
     fi
     verify_remote_manifest exact
     verify_release_sources_unchanged
-    publish_android_remote
-}
-
-# The download page finds the Android build under its own `mobile/<version>/`
-# prefix, not in `releases/`, because the APK ships on its own cadence and
-# without the desktop companions. Publishing it only to `releases/` left the
-# page advertising whatever old APK was the last one anybody copied across by
-# hand — 2.0.4 never appeared there at all.
-publish_android_remote() {
-    local name key file endpoint
-    name="lantunnel-client-${VERSION}-android-arm64.apk"
-    key="mobile/${VERSION}/${name}"
-    file="${DOWNLOAD_DIR}/${name}"
-    endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-
-    if [ ! -f "$file" ]; then
-        echo "Error: missing Android artifact for the mobile prefix: ${file}" >&2
-        return 1
-    fi
-    if AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}" \
-       AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}" \
-       aws s3api head-object --bucket "${R2_BUCKET_NAME}" --key "$key" \
-           --endpoint-url "$endpoint" --region auto >/dev/null 2>&1; then
-        echo "Android build already published: R2://${R2_BUCKET_NAME}/${key}"
-        return 0
-    fi
-    upload_local_file_remote "$file" "$key"
 }
 
 upload_payload_local() {

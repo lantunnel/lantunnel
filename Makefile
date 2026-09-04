@@ -188,11 +188,12 @@ R2_RELEASE_FILES := \
 	lantunnel-client-$(UI_VERSION)-macos-arm64.dmg \
 	lantunnel-client-$(UI_VERSION)-linux-amd64.AppImage \
 	lantunnel-client-$(UI_VERSION)-linux-arm64.AppImage \
-	lantunnel-client-$(VERSION)-android-arm64.apk \
 	lantunnel-gateway-$(VERSION)-aarch64-apple-darwin \
 	lantunnel-gateway-$(VERSION)-x86_64-unknown-linux-musl \
 	lantunnel-admin-$(VERSION)-aarch64-apple-darwin \
 	lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl
+
+CHECKSUM_FILES ?= $(R2_RELEASE_FILES)
 
 REAL_TEST_GATEWAY_ARTIFACT ?= $(RELEASE_DIR)/lantunnel-gateway-$(VERSION)-$(TRIPLE_LINUX_AMD64_MUSL)
 REAL_TEST_CLIENT_ARTIFACT ?= target/$(TRIPLE_LINUX_AMD64_GNU)/release/lantunnel-client
@@ -302,11 +303,11 @@ clean-release:  ## Remove dist/ release artifacts without touching target/
 	@echo "  ✓ cleaned $(DIST_DIR)/"
 
 .PHONY: checksums
-checksums:  ## Generate one checksum manifest for available public V2 artifacts
+checksums:  ## Generate one checksum manifest for the requested release artifacts
 	@mkdir -p "$(DOWNLOAD_DIR)"
 	@set -e; \
 	  files=""; \
-	  for file in $(R2_RELEASE_FILES); do \
+	  for file in $(CHECKSUM_FILES); do \
 	    if [ -f "$(DOWNLOAD_DIR)/$$file" ]; then files="$$files $$file"; fi; \
 	  done; \
 	  if [ -z "$$files" ]; then \
@@ -512,7 +513,7 @@ _release-android-proxy-apk:
 # Non-public pre-2.0 mobile experiment. Not part of the V2 release surface.
 release-android-proxy-apk:
 	@$(MAKE) --no-print-directory _release-android-proxy-apk
-	@$(MAKE) --no-print-directory checksums
+	@$(MAKE) --no-print-directory checksums CHECKSUM_FILES="$(ANDROID_APK_NAME)"
 
 .PHONY: release-android-proxy-aab
 # Non-public pre-2.0 mobile experiment. Not part of the V2 release surface.
@@ -530,7 +531,7 @@ release-android-proxy-aab:
 	  if [ ! -f "$$src" ]; then echo "Error: release AAB not found: $$src"; exit 1; fi; \
 	  cp "$$src" "$(RELEASE_DIR)/$(ANDROID_AAB_NAME)"; \
 	  echo "  ✓ $(RELEASE_DIR)/$(ANDROID_AAB_NAME)"
-	@$(MAKE) --no-print-directory checksums
+	@$(MAKE) --no-print-directory checksums CHECKSUM_FILES="$(ANDROID_AAB_NAME)"
 
 # The iOS Client is the shared UI in a WKWebView, so the bundle is part of the
 # app. Staging it here is what stops a release shipping yesterday's screens.
@@ -575,14 +576,14 @@ _release-ios-proxy-app:
 # Non-public pre-2.0 mobile experiment. Not part of the V2 release surface.
 release-ios-proxy-app:
 	@$(MAKE) --no-print-directory _release-ios-proxy-app
-	@$(MAKE) --no-print-directory checksums
+	@$(MAKE) --no-print-directory checksums CHECKSUM_FILES="$(IOS_APP_ZIP_NAME) $(IOS_IPA_NAME)"
 
 .PHONY: release-mobile
 # Non-public pre-2.0 mobile experiment. Not part of the V2 release surface.
 release-mobile:
 	@$(MAKE) --no-print-directory _release-android-proxy-apk
 	@$(MAKE) --no-print-directory _release-ios-proxy-app
-	@$(MAKE) --no-print-directory checksums
+	@$(MAKE) --no-print-directory checksums CHECKSUM_FILES="$(ANDROID_APK_NAME) $(IOS_APP_ZIP_NAME) $(IOS_IPA_NAME)"
 	@echo "Mobile release $(VERSION) ready under $(RELEASE_DIR)/"
 	@ls -la $(RELEASE_DIR)/
 

@@ -26,18 +26,16 @@ touch "$release_dir/lantunnel-gateway-${version}-aarch64-apple-darwin"
 touch "$release_dir/lantunnel-gateway-${version}-x86_64-unknown-linux-musl"
 touch "$release_dir/lantunnel-admin-${version}-aarch64-apple-darwin"
 touch "$release_dir/lantunnel-admin-${version}-x86_64-unknown-linux-musl"
-touch "$release_dir/lantunnel-client-${version}-android-arm64.apk"
 touch "$release_dir/SHA256SUMS"
 make -s checksums \
   VERSION="$version" \
   UI_VERSION="$version" \
   RELEASE_DIR="$release_dir" \
   DOWNLOAD_DIR="$release_dir" >/dev/null
-# Six client artifacts and two each for the Gateway and the Admin tool. The
-# APK became a published artifact when the download page started serving it,
-# and upload.sh requires exactly one checksum line per artifact it uploads.
-test "$(wc -l < "$release_dir/checksums.txt" | tr -d ' ')" -eq 10
-if grep -Eq 'ios|anyproxy' "$release_dir/checksums.txt"; then
+# Five desktop Client artifacts and two each for the Gateway and Admin tool.
+# Android has an independent mobile release prefix and cadence.
+test "$(wc -l < "$release_dir/checksums.txt" | tr -d ' ')" -eq 9
+if grep -Eq 'android|ios|anyproxy' "$release_dir/checksums.txt"; then
   echo 'V2 checksums include a non-public artifact' >&2
   exit 1
 fi
@@ -222,8 +220,8 @@ if grep -q '^s3 cp [^ ]* s3://' "$log_file"; then
   echo 'missing R2 objects were created with an unconditional upload' >&2
   exit 1
 fi
-# Ten release artifacts plus checksums.txt and CHANGELOG.md.
-if [ "$(grep -Ec '^s3api put-object .*--if-none-match \*([[:space:]]|$)' "$log_file" || true)" -ne 12 ]; then
+# Nine release artifacts plus checksums.txt and CHANGELOG.md.
+if [ "$(grep -Ec '^s3api put-object .*--if-none-match \*([[:space:]]|$)' "$log_file" || true)" -ne 11 ]; then
   echo 'missing R2 objects were not all created with an atomic create-only condition' >&2
   exit 1
 fi
@@ -234,10 +232,10 @@ grep -q -- "--key releases/${version}/lantunnel-gateway-${version}-aarch64-apple
 grep -q -- "--key releases/${version}/lantunnel-gateway-${version}-x86_64-unknown-linux-musl" "$log_file"
 grep -q -- "--key releases/${version}/lantunnel-admin-${version}-aarch64-apple-darwin" "$log_file"
 grep -q -- "--key releases/${version}/lantunnel-admin-${version}-x86_64-unknown-linux-musl" "$log_file"
-# The Android build ships with the rest of the release. It is published again
-# under the mobile/<version>/ prefix the download page reads, which this stub
-# reports as already present rather than writing a second time.
-grep -q -- "--key releases/${version}/lantunnel-client-${version}-android-arm64.apk" "$log_file"
+if grep -Eq -- "--key (releases|mobile)/${version}/lantunnel-client-${version}-android-arm64\.apk" "$log_file"; then
+  echo 'native release upload must not publish an independently versioned Android build' >&2
+  exit 1
+fi
 grep -q -- "--key releases/${version}/checksums.txt" "$log_file"
 if grep -q -- "--key releases/${version}/SHA256SUMS" "$log_file"; then
   echo 'desktop upload must not publish the CLI archive checksum manifest' >&2
@@ -493,7 +491,6 @@ lantunnel-client-${version}-macos-amd64.dmg
 lantunnel-client-${version}-macos-arm64.dmg
 lantunnel-client-${version}-linux-amd64.AppImage
 lantunnel-client-${version}-linux-arm64.AppImage
-lantunnel-client-${version}-android-arm64.apk
 lantunnel-gateway-${version}-aarch64-apple-darwin
 lantunnel-gateway-${version}-x86_64-unknown-linux-musl
 lantunnel-admin-${version}-aarch64-apple-darwin
