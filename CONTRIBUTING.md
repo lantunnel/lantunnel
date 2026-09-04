@@ -82,6 +82,42 @@ the one that runs without special hardware:
 tests/e2e/v2_docker/run.sh
 ```
 
+## Release candidates and releases
+
+The Release workflow has two deliberately separate entry points:
+
+- A manual run on `main` takes the exact lowercase 40-character commit from
+  `source_commit`, rebuilds the complete native matrix, and stores only a
+  `manual-release-candidate-X.Y.Z` Actions artifact. It never creates or
+  changes a GitHub Release.
+- Creating and pushing a new tag whose name is exactly `vX.Y.Z` rebuilds the
+  same matrix, verifies that the tag points into `main` and carries the current
+  `.github/workflows` tree, and publishes those bytes as a GitHub Release. Tag
+  updates and deletions do not publish.
+
+Before creating a release tag, set `[workspace.package].version` in
+`Cargo.toml` to `X.Y.Z` and add the matching `## [X.Y.Z]` entry to
+`CHANGELOG.md`. The tag, Cargo version, and changelog entry must agree. Do not
+move or reuse a release tag after pushing it. Repository administrators should
+restrict `v*` tag creation to release maintainers and block tag updates and
+deletions with a tag ruleset. Lightweight and annotated tags are both
+supported; annotated tags are recommended for an explicit release message.
+
+The publisher creates a draft, uploads only missing assets, verifies every
+remote byte, publishes the draft, and verifies it again. Immediately before
+each asset upload and the final publication, it confirms that the remote tag
+still resolves to the accepted source commit and that the same numeric release
+record remains the expected draft. A rerun accepts an identical partial draft
+or already-published release; unexpected metadata, assets, or bytes fail
+without overwriting or deleting anything. GitHub uses the job-scoped
+`GITHUB_TOKEN`; no personal token or R2 credentials are part of this path.
+
+The macOS matrix requires these repository secrets:
+`MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`,
+`MACOS_CODESIGN_IDENTITY`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and
+`ASC_PRIVATE_KEY_P8_BASE64`. The Windows installer remains the canonical
+unsigned preview described by the existing packaging contract.
+
 ## Supply chain
 
 `cargo deny check` gates advisories, licenses, sources, and bans, and runs on

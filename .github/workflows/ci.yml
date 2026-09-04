@@ -120,9 +120,12 @@ jobs:
         run: bash tests/v2_client_only_source_test.sh
 
       - name: Existing R2 release download contract
+        run: bash tests/download_existing_release_test.sh
+
+      - name: GitHub Release contracts
         run: |
-          bash tests/download_existing_release_test.sh
           bash tests/verify_github_release_test.sh
+          bash tests/publish_github_release_test.sh
 
       # The upload path publishes to the public bucket, and this is the test
       # that stands over it — immutable create-only writes, no overwrite of a
