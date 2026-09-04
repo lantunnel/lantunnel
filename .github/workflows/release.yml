@@ -269,7 +269,7 @@ jobs:
           artifact="${artifact//\$\{version\}/$VERSION}"
           test -f "dist/release/${artifact}"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-${{ matrix.product }}-${{ matrix.platform }}
           path: dist/release/${{ matrix.product }}-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.rust_target }}
@@ -323,7 +323,7 @@ jobs:
           artifact="${artifact//\$\{version\}/$VERSION}"
           test -f "dist/release/${artifact}"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-lantunnel-client-${{ matrix.platform }}
           path: dist/release/lantunnel-client-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.platform }}.AppImage
@@ -428,7 +428,7 @@ jobs:
           xcrun stapler validate "dist/release/${artifact}"
           spctl -a -vv --type open --context context:primary-signature "dist/release/${artifact}"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-lantunnel-client-${{ matrix.platform }}
           path: dist/release/lantunnel-client-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.platform }}.dmg
@@ -548,7 +548,7 @@ jobs:
             throw "expected unsigned Windows preview installer ${artifact}, got: $($signature.Status)"
           }
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-lantunnel-client-windows-amd64
           path: dist/release/lantunnel-client-${{ needs.manual-build-prepare.outputs.version }}-windows-amd64.exe
@@ -627,7 +627,7 @@ jobs:
           cd ../..
           ./scripts/verify_release_bundle.sh "$VERSION" dist/release
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: manual-release-candidate-${{ needs.manual-build-prepare.outputs.version }}
           path: dist/release/*
