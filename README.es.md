@@ -69,20 +69,21 @@ Lantunnel reúne esas máquinas en una pequeña malla privada —un **Tunnel**�
 ## Cómo funciona
 
 ```
-        ┌──────────────────── un Tunnel ──────────────────────┐
-        │                                                      │
-   ┌────┴─────┐                                          ┌─────┴────┐
-   │  Peer A  │◀──────── QUIC directo (preferido) ──────▶│  Peer B  │
-   │  portátil│                                          │ NAS casa │
-   └────┬─────┘                                          └─────┬────┘
-        │                                                      │
-        │              ┌───────────────────────┐               │
-        └─────────────▶│      Gateway          │◀──────────────┘
-        Relay          │  encuentro +          │      Relay
-        cifrado        │  señalización NAT +   │      cifrado
-        (plan B)       │  reenvío opaco        │      (plan B)
-                       └───────────────────────┘
-                        solo ve texto cifrado
+┌───────────────────── un Tunnel ──────────────────────┐
+│                                                      │
+│  ┌────────────┐                      ┌────────────┐  │
+│  │   Peer A   │◀─── QUIC directo ───▶│   Peer B   │  │
+│  │  portátil  │     (preferido)      │  NAS casa  │  │
+│  └──────┬─────┘                      └──────┬─────┘  │
+│         │                                   │        │
+└─────────┼───────────────────────────────────┼────────┘
+          │    ┌────────────────────────┐     │
+          └───▶│        Gateway         │◀────┘
+       Relay   │  encuentro +           │  Relay
+     cifrado   │  señalización NAT +    │  cifrado
+    (plan B)   │  reenvío opaco         │  (plan B)
+               └────────────────────────┘
+                 solo ve texto cifrado
 ```
 
 Tres piezas, y con eso está todo el sistema:

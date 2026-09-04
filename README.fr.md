@@ -69,20 +69,21 @@ Lantunnel réunit ces machines dans un petit maillage privé — un **Tunnel** �
 ## Comment ça marche
 
 ```
-        ┌──────────────────── un Tunnel ──────────────────────┐
-        │                                                      │
-   ┌────┴─────┐                                          ┌─────┴────┐
-   │  Peer A  │◀────── QUIC direct (préféré) ───────────▶│  Peer B  │
-   │ portable │                                          │NAS maison│
-   └────┬─────┘                                          └─────┬────┘
-        │                                                      │
-        │              ┌───────────────────────┐               │
-        └─────────────▶│      Gateway          │◀──────────────┘
-        Relais         │  rendez-vous +        │      Relais
-        chiffré        │  signalisation NAT +  │      chiffré
-        (repli)        │  relais opaque        │      (repli)
-                       └───────────────────────┘
-                        ne voit que du chiffré
+┌─────────────────────── un Tunnel ───────────────────────┐
+│                                                         │
+│  ┌──────────────┐                     ┌──────────────┐  │
+│  │    Peer A    │◀─── QUIC direct ───▶│    Peer B    │  │
+│  │   portable   │      (préféré)      │  NAS maison  │  │
+│  └───────┬──────┘                     └───────┬──────┘  │
+│          │                                    │         │
+└──────────┼────────────────────────────────────┼─────────┘
+           │    ┌─────────────────────────┐     │
+           └───▶│         Gateway         │◀────┘
+       Relais   │  rendez-vous +          │  Relais
+      chiffré   │  signalisation NAT +    │  chiffré
+      (repli)   │  relais opaque          │  (repli)
+                └─────────────────────────┘
+                  ne voit que du chiffré
 ```
 
 Trois composants, et c'est tout le système :

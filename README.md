@@ -80,20 +80,21 @@ port is opened, and no traffic is decrypted in the middle.
 ## How it works
 
 ```
-        ┌──────────────────────── one Tunnel ────────────────────────┐
-        │                                                            │
-   ┌────┴─────┐                                                ┌─────┴────┐
-   │  Peer A  │◀───────── Direct QUIC (preferred) ────────────▶│  Peer B  │
-   │  laptop  │                                                │ home NAS │
-   └────┬─────┘                                                └─────┬────┘
-        │                                                            │
-        │              ┌───────────────────────┐                     │
-        └─────────────▶│    Gateway            │◀────────────────────┘
-        Encrypted      │  rendezvous +         │      Encrypted
-        Relay          │  NAT signaling +      │      Relay
-        (fallback)     │  opaque relay         │      (fallback)
-                       └───────────────────────┘
-                        sees ciphertext only
+┌──────────────────── one Tunnel ─────────────────────┐
+│                                                     │
+│  ┌────────────┐                     ┌────────────┐  │
+│  │   Peer A   │◀─── Direct QUIC ───▶│   Peer B   │  │
+│  │   laptop   │     (preferred)     │  home NAS  │  │
+│  └──────┬─────┘                     └──────┬─────┘  │
+│         │                                  │        │
+└─────────┼──────────────────────────────────┼────────┘
+          │     ┌─────────────────────┐      │
+          └────▶│       Gateway       │◀─────┘
+    Encrypted   │  rendezvous +       │  Encrypted
+        Relay   │  NAT signaling +    │  Relay
+   (fallback)   │  opaque relay       │  (fallback)
+                └─────────────────────┘
+                 sees ciphertext only
 ```
 
 Three pieces, and that is the whole system:

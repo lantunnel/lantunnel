@@ -69,21 +69,22 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
 ## Wie es funktioniert
 
 ```
-        ┌──────────────────── ein Tunnel ─────────────────────┐
-        │                                                      │
-   ┌────┴─────┐                                          ┌─────┴────┐
-   │  Peer A  │◀────── QUIC direkt (bevorzugt) ─────────▶│  Peer B  │
-   │  Laptop  │                                          │ NAS      │
-   └────┬─────┘                                          └─────┬────┘
-        │                                                      │
-        │              ┌───────────────────────┐               │
-        └─────────────▶│      Gateway          │◀──────────────┘
-        Verschlüsseltes│  Rendezvous +         │  Verschlüsseltes
-        Relay          │  NAT-Signalisierung + │  Relay
-        (Rückfall)     │  undurchsichtiges     │  (Rückfall)
-                       │  Weiterleiten         │
-                       └───────────────────────┘
-                        sieht nur Chiffrat
+     ┌──────────────────── ein Tunnel ────────────────────┐
+     │                                                    │
+     │  ┌──────────┐                        ┌──────────┐  │
+     │  │  Peer A  │◀──── QUIC direkt ─────▶│  Peer B  │  │
+     │  │  Laptop  │      (bevorzugt)       │   NAS    │  │
+     │  └─────┬────┘                        └─────┬────┘  │
+     │        │                                   │       │
+     └────────┼───────────────────────────────────┼───────┘
+              │   ┌──────────────────────────┐    │
+              └──▶│         Gateway          │◀───┘
+Verschlüsseltes   │  Rendezvous +            │  Verschlüsseltes
+          Relay   │  NAT-Signalisierung +    │  Relay
+     (Rückfall)   │  undurchsichtiges        │  (Rückfall)
+                  │  Weiterleiten            │
+                  └──────────────────────────┘
+                       sieht nur Chiffrat
 ```
 
 Drei Bausteine — und das ist das ganze System:
