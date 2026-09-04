@@ -62,6 +62,16 @@ grep -Fq 'cargo test --workspace' <<<"$prepare_job"
 grep -Fq 'name: cargo-deny (advisories + licenses + bans + sources)' <<<"$prepare_job"
 grep -Eq 'uses: EmbarkStudios/cargo-deny-action@[0-9a-f]{40} # v2' <<<"$prepare_job"
 grep -Fq 'command: check all' <<<"$prepare_job"
+
+# Mobile source contracts inspect the generated bundles, so a clean release
+# checkout must stage them before running those contracts.
+mobile_ui_stage_line="$(grep -nF 'run: make _stage-android-ui _stage-ios-ui' <<<"$prepare_job" | head -n 1 | cut -d: -f1)"
+mobile_contract_line="$(grep -nF 'bash tests/android_mobile_source_test.sh' <<<"$prepare_job" | head -n 1 | cut -d: -f1)"
+if [ -z "$mobile_ui_stage_line" ] || [ -z "$mobile_contract_line" ] || [ "$mobile_ui_stage_line" -ge "$mobile_contract_line" ]; then
+  echo 'manual release gates must stage mobile UI bundles before source contracts' >&2
+  exit 1
+fi
+
 for source_contract in \
   v2_public_release_surface_test.sh \
   v2_client_only_source_test.sh \

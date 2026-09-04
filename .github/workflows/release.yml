@@ -138,6 +138,9 @@ jobs:
         with:
           ruby-version: "3.3"
 
+      - name: Stage the shared UI into the mobile Clients
+        run: make _stage-android-ui _stage-ios-ui
+
       - name: Verify release source contracts
         shell: bash
         run: |

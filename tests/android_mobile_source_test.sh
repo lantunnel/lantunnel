@@ -111,9 +111,11 @@ if grep -qF 'file:///android_asset' "$ACTIVITY"; then
   exit 1
 fi
 # The reserved host resolves nowhere, so a missed interception fails rather
-# than reaching the network. Any other origin must not be loaded.
-if grep -qE 'loadUrl\("https?://(?!appassets)' "$ACTIVITY"; then
-  echo "the Android WebView loads a remote origin" >&2
+# than reaching the network. It is the only URL the WebView may load.
+if [ "$(grep -c 'loadUrl(' "$ACTIVITY")" -ne 1 ] ||
+   ! grep -qF 'loadUrl(UI_URL)' "$ACTIVITY" ||
+   ! grep -qF 'private const val UI_URL = "https://appassets.androidplatform.net/index.html"' "$ACTIVITY"; then
+  echo "the Android WebView loads something other than the packaged UI origin" >&2
   exit 1
 fi
 grep -qF 'settings.allowFileAccess = false' "$ACTIVITY"
