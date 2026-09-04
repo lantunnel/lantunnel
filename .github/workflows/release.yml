@@ -1,6 +1,9 @@
 name: Release Lantunnel 2.0 Artifacts
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       source_commit:
@@ -21,13 +24,19 @@ env:
 jobs:
   manual-build-prepare:
     name: validate release contract
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' &&
+       github.event.created == true &&
+       github.event.deleted == false &&
+       startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     env:
       PROTOC: /usr/bin/protoc
     outputs:
       version: ${{ steps.release.outputs.version }}
       commit: ${{ steps.release.outputs.commit }}
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,27 +45,58 @@ jobs:
           persist-credentials: false
 
       - id: release
-        name: Require requested source commit to belong to dispatched main
+        name: Resolve and validate the release source
         shell: bash
         env:
           REQUESTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          source_commit="$REQUESTED_SOURCE_COMMIT"
-          if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'manual release candidate requires an exact lowercase 40-hex source commit' >&2
-            exit 1
+          event_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          test "$(git rev-parse HEAD)" = "$event_commit"
+
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            source_commit="$REQUESTED_SOURCE_COMMIT"
+            if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+              echo 'manual release candidate requires an exact lowercase 40-hex source commit' >&2
+              exit 1
+            fi
+            test "$(git cat-file -t "$source_commit")" = commit
+            test "$source_commit" = "$event_commit"
+          else
+            tag="$GITHUB_REF_NAME"
+            if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "release tag must be stable SemVer with a v prefix: ${tag}" >&2
+              exit 1
+            fi
+            git fetch --force --no-tags origin "+refs/tags/${tag}:refs/tags/${tag}"
+            source_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
+            test "$source_commit" = "$event_commit"
           fi
-          test "$(git cat-file -t "$source_commit")" = commit
-          test "$source_commit" = "$GITHUB_SHA"
-          version="$(git show "${source_commit}:Cargo.toml" | sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+
+          cargo_manifest="$(git show "${source_commit}:Cargo.toml")"
+          version="$(sed -n '/^\[workspace\.package\]$/,/^\[/s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' <<<"$cargo_manifest")"
           if [ -z "$version" ]; then
             echo "source commit ${source_commit} has no workspace version" >&2
             exit 1
           fi
+          if ! git grep -Fq "## [${version}]" "$source_commit" -- CHANGELOG.md; then
+            echo "source commit ${source_commit} has no CHANGELOG entry for ${version}" >&2
+            exit 1
+          fi
+
+          tag="v${version}"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            test "$GITHUB_REF_NAME" = "$tag"
+            git fetch --force --no-tags origin \
+              '+refs/heads/main:refs/remotes/origin/main'
+            git merge-base --is-ancestor "$source_commit" refs/remotes/origin/main
+            test "$(git rev-parse "${source_commit}:.github/workflows")" = \
+              "$(git rev-parse 'refs/remotes/origin/main:.github/workflows')"
+          fi
+
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "commit=${source_commit}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -162,7 +202,7 @@ jobs:
   build-cli:
     name: ${{ matrix.product }} ${{ matrix.platform }}
     needs: manual-build-prepare
-    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    if: needs.manual-build-prepare.result == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -238,7 +278,7 @@ jobs:
   build-client-linux:
     name: lantunnel-client ${{ matrix.platform }}
     needs: manual-build-prepare
-    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    if: needs.manual-build-prepare.result == 'success'
     # Each AppImage builds on its own architecture. Emulating arm64 on an x86
     # runner exceeded the six-hour job limit while the native amd64 build took
     # half an hour.
@@ -292,7 +332,7 @@ jobs:
   build-client-macos:
     name: lantunnel-client ${{ matrix.platform }} signed and notarized
     needs: manual-build-prepare
-    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    if: needs.manual-build-prepare.result == 'success'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -397,7 +437,7 @@ jobs:
   build-client-windows:
     name: lantunnel-client windows-amd64 unsigned preview NSIS
     needs: manual-build-prepare
-    if: github.event_name == 'workflow_dispatch' && needs.manual-build-prepare.result == 'success'
+    if: needs.manual-build-prepare.result == 'success'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -523,7 +563,6 @@ jobs:
       - build-client-macos
       - build-client-windows
     if: >-
-      github.event_name == 'workflow_dispatch' &&
       needs.manual-build-prepare.result == 'success' &&
       needs.build-cli.result == 'success' &&
       needs.build-client-linux.result == 'success' &&
@@ -597,3 +636,64 @@ jobs:
           name: manual-release-candidate-${{ needs.manual-build-prepare.outputs.version }}
           path: dist/release/*
           if-no-files-found: error
+
+  publish-github-release:
+    name: publish verified GitHub Release
+    needs:
+      - manual-build-prepare
+      - manual-build-bundle
+    if: >-
+      github.event_name == 'push' &&
+      github.event.created == true &&
+      github.event.deleted == false &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.manual-build-prepare.result == 'success' &&
+      needs.manual-build-bundle.result == 'success'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.manual-build-prepare.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: manual-release-candidate-${{ needs.manual-build-prepare.outputs.version }}
+          path: dist/release
+
+      - name: Revalidate the candidate and remote tag
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ needs.manual-build-prepare.outputs.commit }}
+          TAG: ${{ needs.manual-build-prepare.outputs.tag }}
+          VERSION: ${{ needs.manual-build-prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$TAG"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git fetch --force --no-tags origin \
+            "+refs/tags/${TAG}:refs/tags/${TAG}" \
+            '+refs/heads/main:refs/remotes/origin/main'
+          test "$(git rev-parse "refs/tags/${TAG}^{commit}")" = "$SOURCE_COMMIT"
+          git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main
+          test "$(git rev-parse "${SOURCE_COMMIT}:.github/workflows")" = \
+            "$(git rev-parse 'refs/remotes/origin/main:.github/workflows')"
+          DIST_DIR=dist \
+            RELEASE_DIR=dist/release \
+            DOWNLOAD_DIR=dist/release \
+            CHANGELOG_FILE=dist/release/CHANGELOG.md \
+            ./scripts/upload.sh "$VERSION" check
+
+      - name: Publish through a verified, resumable draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.manual-build-prepare.outputs.tag }}
+          SOURCE_COMMIT: ${{ needs.manual-build-prepare.outputs.commit }}
+        run: |
+          set -euo pipefail
+          ./scripts/publish_github_release.sh \
+            "$TAG" "$SOURCE_COMMIT" dist/release "$RUNNER_TEMP/github-release"

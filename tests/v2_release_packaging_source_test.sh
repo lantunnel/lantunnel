@@ -4,14 +4,23 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAKEFILE="$ROOT_DIR/Makefile"
 DOCKERFILE="$ROOT_DIR/Dockerfile"
+CI_WORKFLOW="$ROOT_DIR/.github/workflows/ci.yml"
 RELEASE_WORKFLOW="$ROOT_DIR/.github/workflows/release.yml"
+PUBLISH_GITHUB_RELEASE="$ROOT_DIR/scripts/publish_github_release.sh"
+PUBLISH_GITHUB_RELEASE_TEST="$ROOT_DIR/tests/publish_github_release_test.sh"
 
 # A manual candidate is identified by an immutable source commit, so it can be
 # built and accepted before the formal release tag exists.
 workflow_header="$(sed -n '1,/^jobs:/p' "$RELEASE_WORKFLOW")"
+tag_trigger="$(sed -n '/^  push:/,/^  workflow_dispatch:/p' <<<"$workflow_header")"
+grep -Fq '    tags:' <<<"$tag_trigger"
+grep -Fq '      - "v*"' <<<"$tag_trigger"
 grep -Fq '      source_commit:' <<<"$workflow_header"
 grep -Fq '        description: "Exact 40-hex source commit at dispatched main HEAD"' <<<"$workflow_header"
 grep -Fq '        required: true' <<<"$(sed -n '/^      source_commit:/,/^permissions:/p' <<<"$workflow_header")"
+grep -Fq '  contents: read' <<<"$workflow_header"
+grep -Fq '  group: ${{ github.workflow }}-${{ inputs.source_commit || github.ref_name }}' <<<"$workflow_header"
+grep -Fq '  cancel-in-progress: false' <<<"$workflow_header"
 if grep -Fq '      tag:' <<<"$workflow_header"; then
   echo 'manual candidate workflow still requires a pre-existing release tag' >&2
   exit 1
@@ -27,10 +36,20 @@ do
   git -C "$ROOT_DIR" check-ignore -q -- "$generated_path"
 done
 
-# Manual candidate builds keep the stable workspace gates, while a tag only
-# republishes the already accepted and checksummed R2 bytes.
+# Manual candidates and new stable tags pass through the same workspace gates
+# and native build matrix. The prepare job is the only event boundary.
 prepare_job="$(sed -n '/^  manual-build-prepare:/,/^  build-cli:/p' "$RELEASE_WORKFLOW")"
-grep -Fq "if: github.event_name == 'workflow_dispatch'" <<<"$prepare_job"
+grep -Fq "github.event_name == 'workflow_dispatch'" <<<"$prepare_job"
+grep -Fq "github.event_name == 'push'" <<<"$prepare_job"
+grep -Fq 'github.event.created == true' <<<"$prepare_job"
+grep -Fq 'github.event.deleted == false' <<<"$prepare_job"
+grep -Fq "startsWith(github.ref, 'refs/tags/v')" <<<"$prepare_job"
+grep -Fq 'refs/tags/${tag}^{commit}' <<<"$prepare_job"
+grep -Fq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' <<<"$prepare_job"
+grep -Fq 'test "$GITHUB_REF_NAME" = "$tag"' <<<"$prepare_job"
+grep -Fq 'git grep -Fq "## [${version}]" "$source_commit" -- CHANGELOG.md' <<<"$prepare_job"
+grep -Fq 'git merge-base --is-ancestor "$source_commit" refs/remotes/origin/main' <<<"$prepare_job"
+grep -Fq '${source_commit}:.github/workflows' <<<"$prepare_job"
 grep -Eq 'uses: dtolnay/rust-toolchain@[0-9a-f]{40} # stable' <<<"$prepare_job"
 grep -Fq 'components: rustfmt, clippy' <<<"$prepare_job"
 
@@ -92,12 +111,24 @@ for artifact_job in \
   build-client-macos \
   build-client-windows
 do
-  artifact_job_block="$(sed -n "/^  ${artifact_job}:/,/^  [[:alnum:]_-]\\+:/p" "$RELEASE_WORKFLOW")"
+  artifact_job_block="$(sed -E -n "/^  ${artifact_job}:/,/^  [[:alnum:]_-]+:/p" "$RELEASE_WORKFLOW")"
   grep -Fq '    needs: manual-build-prepare' <<<"$artifact_job_block"
-  grep -Fq "if: github.event_name == 'workflow_dispatch'" <<<"$artifact_job_block"
+  grep -Fq "if: needs.manual-build-prepare.result == 'success'" <<<"$artifact_job_block"
+  if grep -Fq 'github.event_name' <<<"$artifact_job_block"; then
+    echo "release artifact job duplicates the prepare event boundary: ${artifact_job}" >&2
+    exit 1
+  fi
 done
 manual_bundle_dependency_block="$(sed -n '/^  manual-build-bundle:/,/^    if:/p' "$RELEASE_WORKFLOW")"
-grep -Fq '      - manual-build-prepare' <<<"$manual_bundle_dependency_block"
+for dependency in \
+  manual-build-prepare \
+  build-cli \
+  build-client-linux \
+  build-client-macos \
+  build-client-windows
+do
+  grep -Fq "      - ${dependency}" <<<"$manual_bundle_dependency_block"
+done
 
 # Every public production binary uses the performance release profile. Tauri
 # owns the `--release` flag internally, so its public build path must override
@@ -260,17 +291,84 @@ do
 done
 grep -q 'refusing incomplete or extra public release artifacts' "$RELEASE_WORKFLOW"
 
-# The tag-triggered publish job and its pinned 2.0.0 provenance were removed:
-# both were bound to a commit and a CHANGELOG digest that no longer exist. The
-# manual multi-OS build is the surviving path, and it may not publish.
-manual_bundle="$(sed -n '/^  manual-build-bundle:/,$p' "$RELEASE_WORKFLOW")"
+# The shared bundle remains non-publishing: manual dispatch stops after this
+# Actions artifact, while a new stable tag passes the same bytes to a separate
+# least-privileged publisher.
+manual_bundle="$(sed -n '/^  manual-build-bundle:/,/^  publish-github-release:/p' "$RELEASE_WORKFLOW")"
 grep -Fq 'sha256sum "${expected[@]}" > checksums.txt' <<<"$manual_bundle"
 grep -Fq './scripts/upload.sh "$VERSION" check' <<<"$manual_bundle"
 grep -Eq 'uses: actions/upload-artifact@[0-9a-f]{40} # v4' <<<"$manual_bundle"
-if grep -Eq 'upload\.sh.*remote|gh release (create|upload)|R2_SECRET_ACCESS_KEY' <<<"$manual_bundle"; then
+if grep -Eq 'github\.event_name|upload\.sh.*remote|publish_github_release|gh (api|release)|contents: write|R2_' <<<"$manual_bundle"; then
   echo 'manual candidate build can overwrite the accepted formal release' >&2
   exit 1
 fi
+
+publisher="$(sed -n '/^  publish-github-release:/,$p' "$RELEASE_WORKFLOW")"
+publisher_dependencies="$(sed -n '1,/^    if:/p' <<<"$publisher")"
+grep -Fq '      - manual-build-prepare' <<<"$publisher_dependencies"
+grep -Fq '      - manual-build-bundle' <<<"$publisher_dependencies"
+grep -Fq "github.event_name == 'push'" <<<"$publisher"
+grep -Fq 'github.event.created == true' <<<"$publisher"
+grep -Fq 'github.event.deleted == false' <<<"$publisher"
+grep -Fq "startsWith(github.ref, 'refs/tags/v')" <<<"$publisher"
+if grep -Fq 'workflow_dispatch' <<<"$publisher"; then
+  echo 'manual candidate dispatch can reach the GitHub Release publisher' >&2
+  exit 1
+fi
+grep -Fq '      contents: write' <<<"$publisher"
+test "$(grep -c '^[[:space:]]*contents: write$' "$RELEASE_WORKFLOW")" -eq 1
+grep -Fq 'name: manual-release-candidate-${{ needs.manual-build-prepare.outputs.version }}' <<<"$publisher"
+grep -Fq 'test "$(git rev-parse "refs/tags/${TAG}^{commit}")" = "$SOURCE_COMMIT"' <<<"$publisher"
+grep -Fq 'git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main' <<<"$publisher"
+grep -Fq './scripts/upload.sh "$VERSION" check' <<<"$publisher"
+grep -Fq './scripts/publish_github_release.sh' <<<"$publisher"
+grep -Fq 'SOURCE_COMMIT: ${{ needs.manual-build-prepare.outputs.commit }}' <<<"$publisher"
+grep -Fq '"$TAG" "$SOURCE_COMMIT" dist/release "$RUNNER_TEMP/github-release"' <<<"$publisher"
+if grep -Eq 'upload\.sh.*remote|R2_|aws s3|wrangler' <<<"$publisher"; then
+  echo 'GitHub Release publisher reads or writes the R2 release store' >&2
+  exit 1
+fi
+
+# Publishing resumes an exact draft by database ID. It verifies before and
+# after publication and contains no destructive recovery path.
+test -x "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '<expected-source-commit>' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '^[0-9a-f]{40}$' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'releases?per_page=100' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'select(.tag_name == $tag)' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'refs/lantunnel-release-verification/${tag}/${tag_check_count}' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'git fetch --no-tags --no-write-fetch-head origin' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '"refs/tags/${tag}:${verify_ref}"' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '${verify_ref}^{commit}' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'draft: true, prerelease: false' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'gh api "${api_repo}/releases/${release_id}"' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'and (.draft == true)' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq 'and (.body == $body)' "$PUBLISH_GITHUB_RELEASE"
+test "$(grep -c '^[[:space:]]*assert_write_preconditions$' "$PUBLISH_GITHUB_RELEASE")" -eq 2
+asset_upload_block="$(sed -n '/^    for asset in "${missing\[@\]}"; do$/,/^    done$/p' "$PUBLISH_GITHUB_RELEASE")"
+grep -Fq 'assert_write_preconditions' <<<"$asset_upload_block"
+pre_publish_block="$(sed -n "/^jq -n '{draft: false}'/,/^gh api --method PATCH/p" "$PUBLISH_GITHUB_RELEASE")"
+grep -Fq 'assert_write_preconditions' <<<"$pre_publish_block"
+grep -Fq '"$release_id" "$tag" true' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq -- '--method PATCH' "$PUBLISH_GITHUB_RELEASE"
+grep -Fq '"$release_id" "$tag" false' "$PUBLISH_GITHUB_RELEASE"
+draft_verify_line="$(grep -nF '"$release_id" "$tag" true' "$PUBLISH_GITHUB_RELEASE" | cut -d: -f1)"
+publish_line="$(grep -nF -- '--method PATCH' "$PUBLISH_GITHUB_RELEASE" | cut -d: -f1)"
+published_verify_line="$(grep -nF '"$release_id" "$tag" false' "$PUBLISH_GITHUB_RELEASE" | tail -n 1 | cut -d: -f1)"
+if [ "$draft_verify_line" -ge "$publish_line" ] || [ "$publish_line" -ge "$published_verify_line" ]; then
+  echo 'GitHub Release publisher does not verify draft, publish, then verify again' >&2
+  exit 1
+fi
+if grep -Eq -- '--clobber|release delete|--method DELETE|upload\.sh.*remote|R2_|aws s3|wrangler' \
+    "$PUBLISH_GITHUB_RELEASE"; then
+  echo 'GitHub Release publisher contains an overwrite, delete, or R2 path' >&2
+  exit 1
+fi
+grep -Fq 'bash tests/publish_github_release_test.sh' "$CI_WORKFLOW"
+grep -Fq 'annotated tag moved during uploads' "$PUBLISH_GITHUB_RELEASE_TEST"
+grep -Fq 'annotated tag deleted before publish' "$PUBLISH_GITHUB_RELEASE_TEST"
+grep -Fq 'draft published concurrently' "$PUBLISH_GITHUB_RELEASE_TEST"
+grep -Fq 'lightweight release tag resolves directly' "$PUBLISH_GITHUB_RELEASE_TEST"
 
 # R2 permits only an interrupted-release subset before write, and demands the
 # full product-plus-fixed-metadata set afterward. It never silently falls back
