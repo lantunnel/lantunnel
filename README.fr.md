@@ -69,16 +69,13 @@ Lantunnel réunit ces machines dans un petit maillage privé — un **Tunnel** �
 ## Comment ça marche
 
 ```mermaid
-flowchart TB
-    subgraph tunnel["un Tunnel"]
-        direction LR
-        A["Peer A<br/>portable"]
-        B["Peer B<br/>NAS maison"]
-        A <-->|"QUIC direct — préféré"| B
-    end
-    A -.->|"Relais chiffré — repli"| GW
-    B -.->|"Relais chiffré — repli"| GW
-    GW["Gateway<br/>rendez-vous · signalisation NAT · relais opaque<br/>ne voit que du chiffré"]
+flowchart LR
+    A["Peer A<br/>portable"]
+    B["Peer B<br/>NAS maison"]
+    GW["Gateway<br/>ne relaie que du chiffré<br/>et ne peut pas le lire"]
+    A <== "① QUIC direct (préféré)" ==> B
+    A -. "② si le direct échoue" .-> GW
+    GW -. "passage par relais chiffré" .-> B
 ```
 
 Trois composants, et c'est tout le système :

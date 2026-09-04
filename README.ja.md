@@ -69,16 +69,13 @@ Lantunnel は、そうしたマシンを一つの小さなプライベートメ�
 ## しくみ
 
 ```mermaid
-flowchart TB
-    subgraph tunnel["1 つの Tunnel"]
-        direction LR
-        A["Peer A<br/>ノート PC"]
-        B["Peer B<br/>自宅 NAS"]
-        A <-->|"QUIC 直結 — 優先"| B
-    end
-    A -.->|"暗号化リレー — 代替経路"| GW
-    B -.->|"暗号化リレー — 代替経路"| GW
-    GW["Gateway<br/>ランデブー · NAT シグナリング · 不透明な中継<br/>見えるのは暗号文だけ"]
+flowchart LR
+    A["Peer A<br/>ノート PC"]
+    B["Peer B<br/>自宅 NAS"]
+    GW["Gateway<br/>暗号文を中継するだけ<br/>中身は読めない"]
+    A <== "① QUIC 直結（優先）" ==> B
+    A -. "② 直結できないときだけ" .-> GW
+    GW -. "暗号化リレーを通る" .-> B
 ```
 
 システムの構成要素はこの 3 つだけです。

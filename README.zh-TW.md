@@ -69,16 +69,13 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
 ## 運作方式
 
 ```mermaid
-flowchart TB
-    subgraph tunnel["一條 Tunnel"]
-        direction LR
-        A["Peer A<br/>筆電"]
-        B["Peer B<br/>家中 NAS"]
-        A <-->|"QUIC 直連 — 優先"| B
-    end
-    A -.->|"加密中繼 — 備援"| GW
-    B -.->|"加密中繼 — 備援"| GW
-    GW["Gateway<br/>會合點 · NAT 穿透信令 · 不透明轉送<br/>它只看得到密文"]
+flowchart LR
+    A["Peer A<br/>筆電"]
+    B["Peer B<br/>家中 NAS"]
+    GW["Gateway<br/>只轉送密文<br/>它解不開"]
+    A <== "① QUIC 直連（優先）" ==> B
+    A -. "② 直連打不通時" .-> GW
+    GW -. "才走加密中繼" .-> B
 ```
 
 整套系統就這三個部分：

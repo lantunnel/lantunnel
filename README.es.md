@@ -69,16 +69,13 @@ Lantunnel reúne esas máquinas en una pequeña malla privada —un **Tunnel**�
 ## Cómo funciona
 
 ```mermaid
-flowchart TB
-    subgraph tunnel["un Tunnel"]
-        direction LR
-        A["Peer A<br/>portátil"]
-        B["Peer B<br/>NAS de casa"]
-        A <-->|"QUIC directo — preferido"| B
-    end
-    A -.->|"Relay cifrado — plan B"| GW
-    B -.->|"Relay cifrado — plan B"| GW
-    GW["Gateway<br/>encuentro · señalización NAT · reenvío opaco<br/>solo ve texto cifrado"]
+flowchart LR
+    A["Peer A<br/>portátil"]
+    B["Peer B<br/>NAS de casa"]
+    GW["Gateway<br/>solo reenvía texto cifrado<br/>no puede leerlo"]
+    A <== "① QUIC directo (preferido)" ==> B
+    A -. "② si el directo falla" .-> GW
+    GW -. "pasa por relay cifrado" .-> B
 ```
 
 Tres piezas, y con eso está todo el sistema:

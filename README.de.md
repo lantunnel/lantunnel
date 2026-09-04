@@ -69,16 +69,13 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
 ## Wie es funktioniert
 
 ```mermaid
-flowchart TB
-    subgraph tunnel["ein Tunnel"]
-        direction LR
-        A["Peer A<br/>Laptop"]
-        B["Peer B<br/>NAS"]
-        A <-->|"QUIC direkt — bevorzugt"| B
-    end
-    A -.->|"Verschlüsseltes Relay — Rückfall"| GW
-    B -.->|"Verschlüsseltes Relay — Rückfall"| GW
-    GW["Gateway<br/>Rendezvous · NAT-Signalisierung · undurchsichtiges Weiterleiten<br/>sieht nur Chiffrat"]
+flowchart LR
+    A["Peer A<br/>Laptop"]
+    B["Peer B<br/>NAS zu Hause"]
+    GW["Gateway<br/>reicht nur Chiffrat weiter<br/>und kann es nicht lesen"]
+    A <== "① QUIC direkt (bevorzugt)" ==> B
+    A -. "② erst wenn direkt scheitert" .-> GW
+    GW -. "geht es verschlüsselt weiter" .-> B
 ```
 
 Drei Bausteine — und das ist das ganze System:
