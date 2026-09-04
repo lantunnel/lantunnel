@@ -6,6 +6,14 @@ yours.
 New to the project? Start with the [README](../README.md). Want the design behind it?
 [CONTEXT.md](../CONTEXT.md).
 
+**English** ·
+[简体中文](./USAGE.zh-CN.md) ·
+[繁體中文](./USAGE.zh-TW.md) ·
+[日本語](./USAGE.ja.md) ·
+[Español](./USAGE.es.md) ·
+[Deutsch](./USAGE.de.md) ·
+[Français](./USAGE.fr.md)
+
 **Contents**
 
 1. [The idea in one minute](#the-idea-in-one-minute)
@@ -83,6 +91,16 @@ Skip to [Reaching things](#reaching-things).
 
 Everything below is in this repository under Apache-2.0. Nothing contacts lantunnel.app.
 
+Keep two machine roles separate:
+
+- **Gateway host:** the public machine holds the Gateway binary, TLS keypair, and public
+  `.scope` files.
+- **Trusted owner machine:** this machine holds `lantunnel-admin`, the private `.tunnel`
+  owner file, and the per-installation `.peer` files before you transfer each one to its
+  Client.
+
+Never install `lantunnel-admin` or store `.tunnel` or `.peer` files on the public Gateway host.
+
 ### What you need
 
 - A machine reachable from the internet — a $5 VPS is plenty; the Gateway mostly does
@@ -94,13 +112,33 @@ Everything below is in this repository under Apache-2.0. Nothing contacts lantun
 ### 1. Build (or download) the binaries
 
 ```bash
+# Gateway host
 cargo build --release -p lantunnel-gateway
+
+# Trusted owner machine
 cargo build --release -p lantunnel-admin
+
+# Run this in each build shell after the relevant command above.
+export PATH="$PWD/target/release:$PATH"
 ```
 
-### 2. Give the Gateway a certificate
+[Install Lantunnel Client](https://lantunnel.app/download) on every Peer device. To build
+the Client instead, follow the frontend and Rust commands in the README's
+[Building from source](../README.md#building-from-source) section.
 
-A real certificate for your hostname works as-is. For a self-signed one:
+### 2. Gateway host: give the Gateway a certificate
+
+Create the TLS directory first:
+
+```bash
+mkdir -p certs
+```
+
+A publicly trusted hostname certificate needs no `--gateway-cert` pin. Copy its certificate
+chain and key to `certs/server.crt` and `certs/server.key` as two distinct regular files (not
+symlinks), and refresh those copies after renewal.
+
+For a self-signed certificate:
 
 ```bash
 openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
@@ -110,17 +148,33 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
   -addext "basicConstraints = critical, CA:FALSE" \
   -addext "keyUsage = critical, digitalSignature, keyEncipherment" \
   -addext "extendedKeyUsage = serverAuth"
-chmod 0600 certs/server.key
 ```
+
+Whichever certificate you use, make both owner-only:
+
+```bash
+chmod 0600 certs/server.crt certs/server.key
+```
+
+Never copy `server.key` off the Gateway host. For a self-signed or private-CA certificate,
+copy only the public `server.crt` to the trusted owner machine so `lantunnel-admin` can pin
+it in Peer profiles.
 
 Use an **IP SAN** (`IP:203.0.113.10`) instead of a DNS SAN if you have no hostname.
 
-### 3. Create the Tunnel — offline
+### 3. Trusted owner machine: create the Tunnel offline
 
-`lantunnel-admin` never talks to the network. Run it wherever you like; the `.tunnel` file
-it produces is the Tunnel's signing key and should stay somewhere safe.
+`lantunnel-admin` never talks to the network. Run it on the trusted owner machine; the
+`.tunnel` file it produces is the Tunnel's signing key and should stay somewhere safe.
+
+When pinning a self-signed or private-CA certificate, save the public copy as
+`certs/server.crt`; the private key remains on the Gateway host. The command below pins the
+self-signed certificate created above. If its hostname certificate is publicly trusted, omit
+the `--gateway-cert certs/server.crt` line so normal certificate renewal does not require new
+Peer profiles.
 
 ```bash
+mkdir -p certs provision
 lantunnel-admin init-tunnel \
   --gateway-transport quic \
   --gateway-host gw.example.com \
@@ -145,7 +199,7 @@ Options for `init-tunnel`:
 - `--gateway-cert` — the PEM to pin. Omit it for a Gateway with a publicly trusted
   certificate.
 
-### 4. Issue one profile per device
+### 4. Trusted owner machine: issue one profile per device
 
 ```bash
 lantunnel-admin add-peer --tunnel ./provision/<tunnel-id>.tunnel \
@@ -164,13 +218,14 @@ keypair, signs the membership, and updates the owner file atomically.
 Useful flags: `--overlay-ip` to pin an address, `--replicas` to allow more than one
 simultaneous transport connection for that Peer.
 
-### 5. Run the Gateway
+### 5. Gateway host: run the Gateway
 
-Copy the **public scope only** to the Gateway host:
+Transfer the **public scope only** from the trusted owner machine to the Gateway host. On the
+Gateway host, install the received file:
 
 ```bash
 mkdir -p state/scopes.d
-cp ./provision/<tunnel-id>.scope state/scopes.d/
+cp /path/to/<tunnel-id>.scope state/scopes.d/
 ```
 
 Start it with a config based on [`configs/gateway.yaml`](../configs/gateway.yaml):
@@ -198,7 +253,7 @@ QUIC data listener cannot share the mapping port.
 Adding a Tunnel later means dropping another `.scope` into `scopes_dir`. Example systemd
 units are in [`scripts/remote/`](../scripts/remote/).
 
-### 6. Connect the devices
+### 6. Every Client device: connect
 
 ```bash
 lantunnel-client tunnel import ./laptop.peer
@@ -440,6 +495,19 @@ lantunnel-gateway mapping serve                  Standalone UDP mapping reflecto
 `--config` defaults to `configs/gateway.yaml`. `mapping serve` exists for unusual layouts;
 a normal Gateway binds its own mapping socket and does not need it.
 
+Managed onboarding must start in a new owner-only working directory so it can write its
+runtime config. Follow the [Platform-connected Gateway installation
+guide](https://lantunnel.app/docs/installation#platform-connected), or use the same safe
+sequence:
+
+```bash
+mkdir -m 700 lantunnel-gateway-state
+mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml
+chmod 600 lantunnel-gateway-state/pairing.yaml
+cd lantunnel-gateway-state
+lantunnel-gateway onboard --pairing pairing.yaml
+```
+
 ---
 
 ## Settings reference
@@ -477,8 +545,9 @@ doing nothing.
 | Gateway relay usage ledger | `state/relay-usage.wal` |
 | Tunnel owner file | wherever `init-tunnel --output-dir` put it — back it up |
 
-The imported private key is stored in an owner-only file the Client creates; it is never
-written to a log, never sent to a Gateway, and never leaves the machine.
+The imported private key is stored in an owner-only file the Client creates. The Client
+never logs it or sends it to a Gateway. Protect the original `.peer` transfer or download
+as the same per-installation secret.
 
 ---
 
