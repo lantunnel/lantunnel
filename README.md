@@ -79,22 +79,17 @@ port is opened, and no traffic is decrypted in the middle.
 
 ## How it works
 
-```
-┌──────────────────── one Tunnel ─────────────────────┐
-│                                                     │
-│  ┌────────────┐                     ┌────────────┐  │
-│  │   Peer A   │◀─── Direct QUIC ───▶│   Peer B   │  │
-│  │   laptop   │     (preferred)     │  home NAS  │  │
-│  └──────┬─────┘                     └──────┬─────┘  │
-│         │                                  │        │
-└─────────┼──────────────────────────────────┼────────┘
-          │     ┌─────────────────────┐      │
-          └────▶│       Gateway       │◀─────┘
-    Encrypted   │  rendezvous +       │  Encrypted
-        Relay   │  NAT signaling +    │  Relay
-   (fallback)   │  opaque relay       │  (fallback)
-                └─────────────────────┘
-                 sees ciphertext only
+```mermaid
+flowchart TB
+    subgraph tunnel["one Tunnel"]
+        direction LR
+        A["Peer A<br/>laptop"]
+        B["Peer B<br/>home NAS"]
+        A <-->|"Direct QUIC — preferred"| B
+    end
+    A -.->|"Encrypted Relay — fallback"| GW
+    B -.->|"Encrypted Relay — fallback"| GW
+    GW["Gateway<br/>rendezvous · NAT signaling · opaque relay<br/>sees ciphertext only"]
 ```
 
 Three pieces, and that is the whole system:
