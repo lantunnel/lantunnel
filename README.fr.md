@@ -17,6 +17,7 @@
 <p align="center">
   <a href="https://qm.qq.com/q/A5LX4uUwzC"><img alt="Rejoindre le groupe QQ" src="https://img.shields.io/badge/QQ-Rejoindre%20le%20groupe-12B7F5?logo=tencentqq&amp;logoColor=white"></a>
   <a href="https://discord.gg/HsQK9cj2kh"><img alt="Rejoindre Discord" src="https://img.shields.io/badge/Discord-Rejoindre%20le%20serveur-5865F2?logo=discord&amp;logoColor=white"></a>
+  <a href="https://buymeacoffee.com/buhuipao"><img alt="Soutenir Lantunnel via Buy Me a Coffee" src="https://img.shields.io/badge/Buy_Me_a_Coffee-Soutenir-FFDD00?logo=buymeacoffee&amp;logoColor=000000"></a>
 </p>
 
 <p align="center">
