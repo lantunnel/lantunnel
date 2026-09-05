@@ -229,6 +229,51 @@ Peers, Gateways, and profiles must come from the same 2.0.x line — the wire fo
 negotiated across versions. Coming from a 1.x install? Its profiles cannot be imported;
 create new ones with `lantunnel-admin`.
 
+## Related projects
+
+Reaching your own machines behind NAT is a crowded and friendly problem space. Lantunnel
+takes the peer-to-peer, end-to-end encrypted route; the projects below solve nearby
+problems in different ways, and several of them pair well with it.
+
+### Peer-to-peer and mesh networks
+
+Same goal as Lantunnel — put your own machines on one private network instead of
+publishing them.
+
+- [Tailscale](https://github.com/tailscale/tailscale) — WireGuard-based mesh; the client is open source, the coordination server is not.
+- [headscale](https://github.com/juanfont/headscale) — self-hosted, open-source implementation of the Tailscale control server.
+- [ZeroTier](https://github.com/zerotier/ZeroTierOne) — layer-2 overlay network with global roots, written in C++.
+- [Nebula](https://github.com/slackhq/nebula) — certificate-based peer-to-peer overlay from Slack; no WireGuard, no central data path.
+- [NetBird](https://github.com/netbirdio/netbird) — WireGuard overlay with SSO, MFA, and granular access policies; hosted or self-hosted.
+- [Netmaker](https://github.com/gravitl/netmaker) — kernel-WireGuard mesh with a self-hosted server and admin UI.
+- [EasyTier](https://github.com/EasyTier/EasyTier) — decentralized Rust mesh VPN with NAT traversal, subnet proxying, and a web console.
+- [innernet](https://github.com/tonarino/innernet) — small Rust WireGuard network that models access as CIDRs rather than ad-hoc ACLs.
+- [iroh](https://github.com/n0-computer/iroh) — Rust library that gives your own application QUIC plus NAT traversal, dialing peers by public key.
+- [MeshLAN](https://github.com/zhaoxuya520/MeshLAN) — self-hosted P2P-first virtual LAN built on Nebula, with service sharing and multiple relays.
+
+### Relay and reverse-proxy tunnels
+
+The other answer to NAT: a public server in the middle that forwards to your LAN. Worth
+reaching for when you need to hand a URL or a port to someone who will never install a
+client.
+
+- [frp](https://github.com/fatedier/frp) — the reference reverse proxy for exposing a service behind NAT, and the engine most of the tools below drive.
+- [MoonProxy](https://github.com/MoonProxyHQ/moonproxy-desktop) — free, open-source (MIT) desktop GUI client for frp built on Tauri v2 + Rust + Vue 3, with visual proxy rules, real-time traffic monitoring, and one-click frpc start/stop on Windows and macOS.
+- [rathole](https://github.com/rathole-org/rathole) — lightweight, high-performance Rust reverse proxy for NAT traversal.
+- [frp-panel](https://github.com/VaalaCat/frp-panel) — multi-node web control panel for managing frp servers and clients.
+- [chisel](https://github.com/jpillora/chisel) — fast TCP/UDP tunnel carried over HTTP, in a single Go binary.
+- [bore](https://github.com/ekzhang/bore) — minimal Rust CLI for exposing one localhost port through a public relay.
+- [zrok](https://github.com/openziti/zrok) — sharing built on OpenZiti; public or private, ephemeral or reserved.
+- [sish](https://github.com/antoniomika/sish) — HTTP/WS/TCP tunnels to localhost over plain SSH, with nothing to install on the client.
+- [p2ptunnel](https://github.com/chenjia404/p2ptunnel) — P2P TCP/UDP intranet penetration tunnel that connects directly, without a relay server.
+- [umbra](https://github.com/chenow9/umbra) — self-hosted TCP/UDP gateway for services behind NAT, with source-IP authorization and ticket-based visitor tunnels.
+
+### Lists and comparisons
+
+- [awesome-tunneling](https://github.com/anderspitman/awesome-tunneling) — the reference catalogue of tunneling and overlay-network options, self-hosted and commercial.
+
+Maintain something that belongs here? Open an issue — we are happy to add it.
+
 ## Contributing
 
 Issues and pull requests are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for build,
