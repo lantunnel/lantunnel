@@ -104,9 +104,9 @@ native packages, `checksums.txt`, and `CHANGELOG.md`.
 Before creating a release tag, set `[workspace.package].version` in
 `Cargo.toml` to `X.Y.Z` and add the matching `## [X.Y.Z]` entry to
 `CHANGELOG.md`. The tag, Cargo version, and changelog entry must agree. Do not
-move or reuse a release tag after pushing it. Repository administrators should
-restrict `v*` tag creation to release maintainers and block tag updates and
-deletions with a tag ruleset. Lightweight and annotated tags are both
+move or reuse a release tag after pushing it. A tag ruleset enforces this:
+`v*` creation is restricted to release maintainers, and tag updates and
+deletions are blocked outright. Lightweight and annotated tags are both
 supported; annotated tags are recommended for an explicit release message.
 
 The publisher creates a draft, uploads only missing assets, verifies every
@@ -149,7 +149,30 @@ short justification in the same commit, or pin/replace the dependency.
 - Validate at boundaries. Anything arriving from the network, a profile file,
   or a CLI flag is untrusted until parsed and checked.
 
-## Commits and pull requests
+## Sending a pull request
+
+`main` is protected. It takes no direct pushes, no force pushes, and cannot be
+deleted; every change lands through a pull request whose required checks pass.
+Work from a fork:
+
+```bash
+# 1. Fork on GitHub, then clone your fork
+git clone git@github.com:<you>/lantunnel.git
+cd lantunnel
+git remote add upstream git@github.com:lantunnel/lantunnel.git
+
+# 2. Branch from an up-to-date main
+git fetch upstream
+git switch -c fix/short-description upstream/main
+
+# 3. Commit, then push to your fork
+git push -u origin fix/short-description
+```
+
+Open the pull request against `lantunnel/lantunnel:main`. One topic per pull
+request; unrelated fixes belong in separate ones. Update a branch under review
+by pushing follow-up commits rather than force-pushing over what a reviewer is
+reading — if you do need to rebase onto `upstream/main`, say so in a comment.
 
 Commit messages follow Conventional Commits:
 
@@ -165,6 +188,27 @@ Scope the type when it helps, for example `fix(gateway):`.
 A pull request should explain what changed and why, note any protocol or
 profile-compatibility impact, and list how you tested it. Protocol changes need
 a matching update to `docs/PROTOCOL.md`.
+
+### What happens after you open it
+
+CI runs on every pull request. Six checks are required before `main` will accept
+the merge:
+
+| Required check | What it gates |
+|---|---|
+| `fmt + clippy + test (stable)` | `rustfmt`, `clippy -D warnings`, workspace tests, the wired source contracts |
+| `fmt + clippy + test (1.89)` | The same suite at the pinned MSRV |
+| `Android unit tests` | `apps/android-proxy` |
+| `iOS unit tests` | `apps/ios-proxy` |
+| `Windows secret ACL behavior` | Real DACL and reparse-point behavior on a Windows runner |
+| `cargo-deny` | Advisories, licenses, sources, bans |
+
+`coverage warning (crates)` and `coverage warning (apps)` also run. They are
+advisory and never block a merge.
+
+A first pull request from a new contributor waits on a maintainer to approve the
+workflow run, so the checks may take a while to appear. Every review
+conversation must be resolved before merging, and a maintainer does the merge.
 
 ## The desktop bundle identifier
 
