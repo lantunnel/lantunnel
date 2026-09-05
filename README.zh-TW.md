@@ -195,6 +195,46 @@ tests/e2e/v2_docker/run.sh
 
 Peer、Gateway 與設定檔必須來自同一條 2.0.x 線 —— 線格式不做跨版本協商。從 1.x 升上來？舊的設定檔匯不進來，請用 `lantunnel-admin` 重新簽發。
 
+## 相關專案
+
+在 NAT 後面存取自己的機器，是一個熱鬧又友善的領域。Lantunnel 走的是 P2P 優先、端到端加密這條路；下面這些專案用不同的方式解決相鄰的問題，其中不少還能和 Lantunnel 搭配使用。
+
+### P2P 與 Mesh 組網
+
+和 Lantunnel 目標一致 —— 把自己的機器放進一張私有網路，而不是把它們暴露到公網。
+
+- [Tailscale](https://github.com/tailscale/tailscale) —— 基於 WireGuard 的 mesh 組網；用戶端開源，協調伺服器閉源。
+- [headscale](https://github.com/juanfont/headscale) —— Tailscale 控制伺服器的自架開源實作。
+- [ZeroTier](https://github.com/zerotier/ZeroTierOne) —— 帶全球根節點的第二層覆蓋網路，以 C++ 實作。
+- [Nebula](https://github.com/slackhq/nebula) —— Slack 出品、以憑證為基礎的 P2P 覆蓋網路；不用 WireGuard，資料面不經中心節點。
+- [NetBird](https://github.com/netbirdio/netbird) —— 帶 SSO、MFA 與細緻存取策略的 WireGuard 覆蓋網，可託管也可自架。
+- [Netmaker](https://github.com/gravitl/netmaker) —— 跑核心態 WireGuard 的 mesh，自帶自架伺服器與管理後台。
+- [EasyTier](https://github.com/EasyTier/EasyTier) —— Rust 寫的去中心化 mesh VPN，支援 NAT 穿透、子網代理與 Web 主控台。
+- [innernet](https://github.com/tonarino/innernet) —— 小巧的 Rust WireGuard 組網，用 CIDR 而非零散 ACL 表達存取權限。
+- [iroh](https://github.com/n0-computer/iroh) —— Rust 函式庫，為你自己的應用加上 QUIC 與 NAT 穿透，以公鑰直接撥號對端。
+- [MeshLAN](https://github.com/zhaoxuya520/MeshLAN) —— 基於 Nebula 的自架 P2P 優先虛擬區域網路，支援服務共享與多中繼。
+
+### 中繼與反向代理隧道
+
+應對 NAT 的另一條路：中間放一台公網伺服器，把流量轉發進你的區域網路。當你要把一個 URL 或連接埠交給一個永遠不會裝用戶端的人時，這條路更合適。
+
+- [frp](https://github.com/fatedier/frp) —— 把 NAT 後的服務暴露出去的標竿反向代理，也是下面多數工具驅動的引擎。
+- [MoonProxy](https://github.com/MoonProxyHQ/moonproxy-desktop) —— 免費開源（MIT）的 frp 桌面圖形用戶端，基於 Tauri v2 + Rust + Vue 3，提供視覺化代理規則、即時流量監控，以及 Windows / macOS 上一鍵啟停 frpc。
+- [rathole](https://github.com/rathole-org/rathole) —— 輕量、高效能的 Rust NAT 穿透反向代理。
+- [frp-panel](https://github.com/VaalaCat/frp-panel) —— 管理 frp 伺服器與用戶端的多節點 Web 控制面板。
+- [chisel](https://github.com/jpillora/chisel) —— 跑在 HTTP 上的快速 TCP/UDP 隧道，單一 Go 執行檔。
+- [bore](https://github.com/ekzhang/bore) —— 極簡的 Rust CLI，透過公網中繼暴露一個本機連接埠。
+- [zrok](https://github.com/openziti/zrok) —— 建構在 OpenZiti 之上的分享工具；可公開可私有，可臨時可長期。
+- [sish](https://github.com/antoniomika/sish) —— 僅靠 SSH 打通到本機的 HTTP/WS/TCP 隧道，用戶端什麼都不用裝。
+- [p2ptunnel](https://github.com/chenjia404/p2ptunnel) —— P2P 的 TCP/UDP 內網穿透隧道，直連打通，不需要中繼伺服器。
+- [umbra](https://github.com/chenow9/umbra) —— 自架的 NAT 後服務 TCP/UDP 閘道，支援來源 IP 授權與票據式訪客隧道。
+
+### 清單與橫向比較
+
+- [awesome-tunneling](https://github.com/anderspitman/awesome-tunneling) —— 隧道與覆蓋網路方案的權威清單，自架與商業方案都收。
+
+維護著本該出現在這裡的專案？歡迎提 issue，我們很樂意加上。
+
 ## 參與貢獻
 
 歡迎提出 issue 與 PR —— 建置、測試與程式風格見 [CONTRIBUTING.md](./CONTRIBUTING.md)。發現安全漏洞？請依 [SECURITY.md](./SECURITY.md) 走私密回報，不要開公開 issue。

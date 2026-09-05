@@ -196,6 +196,46 @@ tests/e2e/v2_docker/run.sh
 
 Peer、Gateway、プロファイルは同じ 2.0.x 系列で揃える必要があります。ワイヤフォーマットはバージョン間でネゴシエートしません。1.x からの移行では旧プロファイルを取り込めないため、`lantunnel-admin` で新規に発行してください。
 
+## 関連プロジェクト
+
+NAT の内側にある自分のマシンへ到達する、というのは賑やかで友好的な分野です。Lantunnel は P2P 優先・エンドツーエンド暗号化という道を選んでいます。以下のプロジェクトは近い問題を別のやり方で解いており、いくつかは Lantunnel と併用しても相性が良いものです。
+
+### P2P・メッシュネットワーク
+
+Lantunnel と同じゴール — 自分のマシンを公開するのではなく、ひとつのプライベートネットワークにまとめる。
+
+- [Tailscale](https://github.com/tailscale/tailscale) — WireGuard ベースのメッシュ。クライアントはオープンソース、コーディネーションサーバーはクローズド。
+- [headscale](https://github.com/juanfont/headscale) — Tailscale コントロールサーバーのセルフホスト可能なオープンソース実装。
+- [ZeroTier](https://github.com/zerotier/ZeroTierOne) — グローバルなルートノードを持つ L2 オーバーレイネットワーク。C++ 実装。
+- [Nebula](https://github.com/slackhq/nebula) — Slack 発の証明書ベース P2P オーバーレイ。WireGuard を使わず、データ経路も中央を通りません。
+- [NetBird](https://github.com/netbirdio/netbird) — SSO・MFA・きめ細かいアクセスポリシーを備えた WireGuard オーバーレイ。ホスト型もセルフホストも可能。
+- [Netmaker](https://github.com/gravitl/netmaker) — カーネル WireGuard で動くメッシュ。セルフホストのサーバーと管理 UI 付き。
+- [EasyTier](https://github.com/EasyTier/EasyTier) — Rust 製の分散型メッシュ VPN。NAT トラバーサル、サブネットプロキシ、Web コンソールに対応。
+- [innernet](https://github.com/tonarino/innernet) — 小さな Rust 製 WireGuard ネットワーク。アクセス制御を場当たり的な ACL ではなく CIDR で表現します。
+- [iroh](https://github.com/n0-computer/iroh) — 自作アプリに QUIC と NAT トラバーサルを足す Rust ライブラリ。公開鍵でピアに直接ダイヤルします。
+- [MeshLAN](https://github.com/zhaoxuya520/MeshLAN) — Nebula 上に構築されたセルフホスト型 P2P 優先の仮想 LAN。サービス共有と複数リレーに対応。
+
+### リレー・リバースプロキシ型トンネル
+
+NAT に対するもうひとつの答え — 公開サーバーを中継に置き、そこから LAN へ転送する方式です。クライアントを絶対にインストールしない相手に URL やポートを渡したいときは、こちらが向いています。
+
+- [frp](https://github.com/fatedier/frp) — NAT 内のサービスを公開するリバースプロキシの定番であり、以下の多くのツールが動かしているエンジン。
+- [MoonProxy](https://github.com/MoonProxyHQ/moonproxy-desktop) — Tauri v2 + Rust + Vue 3 製の無料・オープンソース（MIT）な frp デスクトップ GUI クライアント。プロキシルールの可視化、リアルタイムのトラフィック監視、Windows / macOS でのワンクリック frpc 起動・停止。
+- [rathole](https://github.com/rathole-org/rathole) — 軽量・高性能な Rust 製 NAT トラバーサル用リバースプロキシ。
+- [frp-panel](https://github.com/VaalaCat/frp-panel) — frp のサーバーとクライアントを管理するマルチノード Web コントロールパネル。
+- [chisel](https://github.com/jpillora/chisel) — HTTP 上を通る高速な TCP/UDP トンネル。Go の単一バイナリ。
+- [bore](https://github.com/ekzhang/bore) — ローカルポートをひとつ、公開リレー経由で露出する最小構成の Rust CLI。
+- [zrok](https://github.com/openziti/zrok) — OpenZiti 上に構築された共有ツール。公開／非公開、一時的／予約済みを選べます。
+- [sish](https://github.com/antoniomika/sish) — SSH だけでローカルへ張る HTTP/WS/TCP トンネル。クライアント側に入れるものはありません。
+- [p2ptunnel](https://github.com/chenjia404/p2ptunnel) — P2P の TCP/UDP イントラネット貫通トンネル。リレーサーバーなしで直接つながります。
+- [umbra](https://github.com/chenow9/umbra) — NAT 内サービス向けのセルフホスト型 TCP/UDP ゲートウェイ。送信元 IP 認可とチケット方式のゲストトンネルに対応。
+
+### 一覧と比較
+
+- [awesome-tunneling](https://github.com/anderspitman/awesome-tunneling) — トンネリングとオーバーレイネットワークの定番カタログ。セルフホストも商用も網羅。
+
+ここに載るべきプロジェクトを開発していますか？ Issue を立ててください。喜んで追加します。
+
 ## コントリビュート
 
 Issue と Pull Request を歓迎します。ビルド、テスト、コードスタイルについては [CONTRIBUTING.md](./CONTRIBUTING.md) を参照してください。脆弱性を見つけた場合は公開 Issue ではなく、[SECURITY.md](./SECURITY.md) の手順で非公開に報告してください。

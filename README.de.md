@@ -196,6 +196,46 @@ tests/e2e/v2_docker/run.sh
 
 Peers, Gateways und Profile müssen aus derselben 2.0.x-Reihe stammen — das Wire-Format wird nicht zwischen Versionen ausgehandelt. Du kommst von einer 1.x-Installation? Deren Profile lassen sich nicht importieren; erzeuge mit `lantunnel-admin` neue.
 
+## Verwandte Projekte
+
+Die eigenen Maschinen hinter NAT zu erreichen, ist ein belebtes und freundliches Feld. Lantunnel geht den Peer-to-Peer-Weg mit Ende-zu-Ende-Verschlüsselung; die folgenden Projekte lösen benachbarte Probleme anders, und einige davon lassen sich gut mit ihm kombinieren.
+
+### Peer-to-Peer- und Mesh-Netzwerke
+
+Gleiches Ziel wie Lantunnel — die eigenen Maschinen in ein privates Netz holen, statt sie zu veröffentlichen.
+
+- [Tailscale](https://github.com/tailscale/tailscale) — Mesh auf WireGuard-Basis; der Client ist Open Source, der Koordinationsserver nicht.
+- [headscale](https://github.com/juanfont/headscale) — selbst gehostete, quelloffene Implementierung des Tailscale-Kontrollservers.
+- [ZeroTier](https://github.com/zerotier/ZeroTierOne) — Layer-2-Overlay-Netz mit globalen Root-Knoten, in C++ geschrieben.
+- [Nebula](https://github.com/slackhq/nebula) — zertifikatsbasiertes Peer-to-Peer-Overlay von Slack; ohne WireGuard, ohne zentralen Datenpfad.
+- [NetBird](https://github.com/netbirdio/netbird) — WireGuard-Overlay mit SSO, MFA und feingranularen Zugriffsrichtlinien; gehostet oder selbst betrieben.
+- [Netmaker](https://github.com/gravitl/netmaker) — Mesh auf Kernel-WireGuard, mit selbst gehostetem Server und Admin-Oberfläche.
+- [EasyTier](https://github.com/EasyTier/EasyTier) — dezentrales Mesh-VPN in Rust, mit NAT-Traversal, Subnetz-Proxy und Web-Konsole.
+- [innernet](https://github.com/tonarino/innernet) — kompaktes WireGuard-Netz in Rust, das Zugriff über CIDRs statt über lose ACLs modelliert.
+- [iroh](https://github.com/n0-computer/iroh) — Rust-Bibliothek, die der eigenen Anwendung QUIC und NAT-Traversal gibt; Peers werden per Public Key gewählt.
+- [MeshLAN](https://github.com/zhaoxuya520/MeshLAN) — selbst gehostetes, P2P-zuerst arbeitendes virtuelles LAN auf Nebula-Basis, mit Dienst-Sharing und mehreren Relays.
+
+### Relay- und Reverse-Proxy-Tunnel
+
+Die andere Antwort auf NAT: ein öffentlicher Server in der Mitte, der in dein LAN weiterleitet. Sinnvoll, wenn du jemandem eine URL oder einen Port geben musst, der niemals einen Client installieren wird.
+
+- [frp](https://github.com/fatedier/frp) — der Referenz-Reverse-Proxy, um einen Dienst hinter NAT zu veröffentlichen, und die Engine hinter den meisten Werkzeugen unten.
+- [MoonProxy](https://github.com/MoonProxyHQ/moonproxy-desktop) — kostenloser, quelloffener (MIT) Desktop-GUI-Client für frp auf Basis von Tauri v2 + Rust + Vue 3, mit visuellen Proxy-Regeln, Traffic-Überwachung in Echtzeit und frpc-Start/Stopp per Klick unter Windows und macOS.
+- [rathole](https://github.com/rathole-org/rathole) — leichtgewichtiger, performanter Reverse-Proxy in Rust für NAT-Traversal.
+- [frp-panel](https://github.com/VaalaCat/frp-panel) — Web-Control-Panel für mehrere Knoten zur Verwaltung von frp-Servern und -Clients.
+- [chisel](https://github.com/jpillora/chisel) — schneller TCP/UDP-Tunnel über HTTP, in einer einzigen Go-Binary.
+- [bore](https://github.com/ekzhang/bore) — minimales Rust-CLI, um einen lokalen Port über ein öffentliches Relay bereitzustellen.
+- [zrok](https://github.com/openziti/zrok) — Sharing auf Basis von OpenZiti; öffentlich oder privat, kurzlebig oder reserviert.
+- [sish](https://github.com/antoniomika/sish) — HTTP/WS/TCP-Tunnel nach localhost allein über SSH, ohne Client-Installation.
+- [p2ptunnel](https://github.com/chenjia404/p2ptunnel) — P2P-Tunnel für TCP/UDP ins interne Netz, der direkt verbindet — ohne Relay-Server.
+- [umbra](https://github.com/chenow9/umbra) — selbst gehostetes TCP/UDP-Gateway für Dienste hinter NAT, mit Quell-IP-Autorisierung und ticketbasierten Besuchertunneln.
+
+### Listen und Vergleiche
+
+- [awesome-tunneling](https://github.com/anderspitman/awesome-tunneling) — der Referenzkatalog für Tunneling- und Overlay-Netzwerk-Optionen, selbst gehostet wie kommerziell.
+
+Du pflegst etwas, das hierher gehört? Mach ein Issue auf — wir nehmen es gern mit auf.
+
 ## Mitwirken
 
 Issues und Pull Requests sind willkommen — Hinweise zu Build, Tests und Stil stehen in [CONTRIBUTING.md](./CONTRIBUTING.md). Eine Schwachstelle gefunden? Bitte vertraulich gemäß [SECURITY.md](./SECURITY.md) melden, nicht in einem öffentlichen Issue.

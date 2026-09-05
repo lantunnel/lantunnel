@@ -196,6 +196,46 @@ tests/e2e/v2_docker/run.sh
 
 Peers, Gateways y perfiles deben ser de la misma línea 2.0.x: el formato de red no se negocia entre versiones. ¿Vienes de una instalación 1.x? Sus perfiles no se pueden importar; crea otros nuevos con `lantunnel-admin`.
 
+## Proyectos relacionados
+
+Llegar a tus propias máquinas detrás de un NAT es un terreno concurrido y cordial. Lantunnel toma la vía peer-to-peer y cifrada de extremo a extremo; los proyectos siguientes resuelven problemas vecinos de otras maneras, y varios encajan bien junto a él.
+
+### Redes peer-to-peer y de malla
+
+El mismo objetivo que Lantunnel: reunir tus máquinas en una sola red privada en lugar de publicarlas.
+
+- [Tailscale](https://github.com/tailscale/tailscale) — malla basada en WireGuard; el cliente es de código abierto, el servidor de coordinación no.
+- [headscale](https://github.com/juanfont/headscale) — implementación open source y autoalojada del servidor de control de Tailscale.
+- [ZeroTier](https://github.com/zerotier/ZeroTierOne) — red superpuesta de capa 2 con raíces globales, escrita en C++.
+- [Nebula](https://github.com/slackhq/nebula) — red superpuesta peer-to-peer basada en certificados, creada en Slack; sin WireGuard y sin ruta de datos central.
+- [NetBird](https://github.com/netbirdio/netbird) — red superpuesta sobre WireGuard con SSO, MFA y políticas de acceso granulares; alojada o autoalojada.
+- [Netmaker](https://github.com/gravitl/netmaker) — malla sobre WireGuard del kernel, con servidor autoalojado e interfaz de administración.
+- [EasyTier](https://github.com/EasyTier/EasyTier) — VPN de malla descentralizada en Rust, con NAT traversal, proxy de subredes y consola web.
+- [innernet](https://github.com/tonarino/innernet) — red WireGuard pequeña en Rust que modela el acceso con CIDR en lugar de ACL improvisadas.
+- [iroh](https://github.com/n0-computer/iroh) — biblioteca en Rust que añade QUIC y NAT traversal a tu propia aplicación, marcando a los pares por clave pública.
+- [MeshLAN](https://github.com/zhaoxuya520/MeshLAN) — LAN virtual autoalojada y peer-to-peer primero, construida sobre Nebula, con compartición de servicios y varios relés.
+
+### Túneles de relé y proxy inverso
+
+La otra respuesta al NAT: un servidor público en medio que reenvía hacia tu LAN. Conviene cuando necesitas entregar una URL o un puerto a alguien que nunca va a instalar un cliente.
+
+- [frp](https://github.com/fatedier/frp) — el proxy inverso de referencia para exponer un servicio detrás de NAT, y el motor que impulsa a la mayoría de las herramientas de abajo.
+- [MoonProxy](https://github.com/MoonProxyHQ/moonproxy-desktop) — cliente GUI de escritorio para frp, gratuito y open source (MIT), construido con Tauri v2 + Rust + Vue 3, con reglas de proxy visuales, monitorización de tráfico en tiempo real y arranque/parada de frpc con un clic en Windows y macOS.
+- [rathole](https://github.com/rathole-org/rathole) — proxy inverso ligero y de alto rendimiento en Rust para NAT traversal.
+- [frp-panel](https://github.com/VaalaCat/frp-panel) — panel web multinodo para gestionar servidores y clientes de frp.
+- [chisel](https://github.com/jpillora/chisel) — túnel TCP/UDP rápido transportado sobre HTTP, en un único binario de Go.
+- [bore](https://github.com/ekzhang/bore) — CLI mínima en Rust para exponer un puerto local a través de un relé público.
+- [zrok](https://github.com/openziti/zrok) — compartición construida sobre OpenZiti; pública o privada, efímera o reservada.
+- [sish](https://github.com/antoniomika/sish) — túneles HTTP/WS/TCP hacia localhost usando solo SSH, sin nada que instalar en el cliente.
+- [p2ptunnel](https://github.com/chenjia404/p2ptunnel) — túnel P2P de TCP/UDP para atravesar la red interna conectando directamente, sin servidor de relé.
+- [umbra](https://github.com/chenow9/umbra) — pasarela TCP/UDP autoalojada para servicios tras NAT, con autorización por IP de origen y túneles de visitante basados en tickets.
+
+### Listas y comparativas
+
+- [awesome-tunneling](https://github.com/anderspitman/awesome-tunneling) — el catálogo de referencia de opciones de tunelización y redes superpuestas, autoalojadas y comerciales.
+
+¿Mantienes algo que debería estar aquí? Abre un issue: lo añadimos encantados.
+
 ## Contribuir
 
 Los issues y pull requests son bienvenidos; consulta [CONTRIBUTING.md](./CONTRIBUTING.md) para compilación, pruebas y estilo. ¿Has encontrado una vulnerabilidad? Repórtala en privado siguiendo [SECURITY.md](./SECURITY.md), no en un issue público.
