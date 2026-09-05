@@ -17,7 +17,10 @@
 <p align="center">
   <a href="https://qm.qq.com/q/A5LX4uUwzC"><img alt="加入 QQ 群" src="https://img.shields.io/badge/QQ-%E5%8A%A0%E5%85%A5%E7%BE%A4%E8%81%8A-12B7F5?logo=tencentqq&amp;logoColor=white"></a>
   <a href="https://discord.gg/HsQK9cj2kh"><img alt="加入 Discord 社群" src="https://img.shields.io/badge/Discord-%E5%8A%A0%E5%85%A5%E7%A4%BE%E7%BE%A4-5865F2?logo=discord&amp;logoColor=white"></a>
-  <a href="https://buymeacoffee.com/buhuipao"><img alt="透過 Buy Me a Coffee 支持 Lantunnel" src="https://img.shields.io/badge/Buy_Me_a_Coffee-%E6%94%AF%E6%8C%81%E5%B0%88%E6%A1%88-FFDD00?logo=buymeacoffee&amp;logoColor=000000"></a>
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/buhuipao"><img height="32" alt="透過 Buy Me a Coffee 支持 Lantunnel" src="https://img.shields.io/badge/Buy_Me_a_Coffee-%E6%94%AF%E6%8C%81%E5%B0%88%E6%A1%88-FFDD00?style=for-the-badge&amp;logo=buymeacoffee&amp;logoColor=000000"></a>
 </p>
 
 <p align="center">
