@@ -127,8 +127,9 @@ lantunnel-admin init-tunnel \
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 4. Öffentlichen Scope auf den Gateway-Host legen und starten.
-cp <tunnel-id>.scope state/scopes.d/
+# 4. Nur den öffentlichen Scope auf den Gateway-Host kopieren, prüfen und starten.
+mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 
 # 5. Auf jedem Gerät das eigene Profil importieren und verbinden.

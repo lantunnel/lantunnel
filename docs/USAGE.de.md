@@ -76,6 +76,13 @@ Du kannst direkt zu [Dinge erreichen](#dinge-erreichen) springen.
 
 Alles Folgende liegt unter Apache-2.0 in diesem Repository. Nichts davon nimmt Kontakt zu lantunnel.app auf.
 
+Halte diese beiden Maschinenrollen getrennt:
+
+- **Gateway-Host:** Die öffentliche Maschine enthält das Gateway-Binary, das TLS-Schlüsselpaar und die öffentlichen `.scope`-Dateien.
+- **Vertrauenswürdige Besitzermaschine:** Sie enthält `lantunnel-admin`, die private `.tunnel`-Besitzerdatei und die `.peer`-Dateien der einzelnen Installationen, bis du jede davon auf den jeweiligen Client überträgst.
+
+Installiere `lantunnel-admin` niemals auf dem öffentlichen Gateway-Host und speichere dort keine `.tunnel`- oder `.peer`-Dateien.
+
 ### Was du brauchst
 
 - Eine aus dem Internet erreichbare Maschine — ein VPS für 5 Dollar reicht völlig. Das Gateway macht überwiegend Signalisierung, und das Relay trägt nur das, was direkt nicht geht.
@@ -85,9 +92,17 @@ Alles Folgende liegt unter Apache-2.0 in diesem Repository. Nichts davon nimmt K
 ### 1. Binaries bauen (oder herunterladen)
 
 ```bash
+# Gateway-Host
 cargo build --release -p lantunnel-gateway
+
+# Vertrauenswürdige Besitzermaschine
 cargo build --release -p lantunnel-admin
+
+# Führe dies nach dem passenden Befehl oben in jeder Build-Shell aus.
+export PATH="$PWD/target/release:$PATH"
 ```
+
+Installiere [Lantunnel Client](https://lantunnel.app/download) auf jedem Peer-Gerät. Wenn du den Client selbst bauen möchtest, folge den Frontend- und Rust-Befehlen unter [Aus dem Quellcode bauen](../README.de.md#aus-dem-quellcode-bauen).
 
 ### 2. Das unabhängige Gateway initialisieren
 
@@ -146,7 +161,7 @@ Das schreibt zwei Dateien, benannt nach der erzeugten Tunnel-ID:
 Optionen von `init-tunnel`:
 
 - `--gateway-transport quic | websocket | grpc` — QUIC ist die Standardwahl und die einzige Variante mit eigenem Stream pro Flow. WebSocket und gRPC sind für Netze gedacht, die UDP blockieren.
-- `--gateway-host` und/oder `--gateway-ip` — mit beiden wird die IP angewählt und der Hostname als TLS-Servername verwendet.
+- `--gateway-host` und/oder `--gateway-ip` — mit beiden wird die Verbindung über die IP hergestellt und der Hostname als TLS-Servername verwendet.
 - `--gateway-mapping-port` — der UDP-Mapping-Port des Gateways. Standard ist `8444`; der Wert muss mit `lantunnel-gateway init --mapping-port` oder `gateway.mapping_probe_port` übereinstimmen.
 - `--gateway-cert` — das anzupinnende PEM. Bei einem öffentlich vertrauenswürdigen Zertifikat weglassen.
 
@@ -420,6 +435,16 @@ lantunnel-gateway mapping serve                  Eigenständiger UDP-Mapping-Ref
 ```
 
 `init` arbeitet offline und verwendet standardmäßig QUIC auf UDP `8443` sowie Mapping auf UDP `8444`; mit `--mapping-port` wählst du einen anderen Mapping-Port. `--config` verwendet standardmäßig `configs/gateway.yaml`. `mapping serve` existiert für ungewöhnliche Aufbauten; ein normales Gateway bindet seinen Mapping-Socket selbst und braucht es nicht.
+
+Das Onboarding eines verwalteten Gateways muss in einem neuen Arbeitsverzeichnis beginnen, auf das nur der Besitzer zugreifen kann. Dort schreibt es seine Laufzeitkonfiguration. Folge der [Installationsanleitung für ein plattformverbundenes Gateway](https://lantunnel.app/docs/installation#platform-connected) oder verwende dieselbe sichere Befehlsfolge:
+
+```bash
+mkdir -m 700 lantunnel-gateway-state
+mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml
+chmod 600 lantunnel-gateway-state/pairing.yaml
+cd lantunnel-gateway-state
+lantunnel-gateway onboard --pairing pairing.yaml
+```
 
 ---
 
