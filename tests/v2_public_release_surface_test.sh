@@ -16,6 +16,24 @@ grep -Fxq 'buy_me_a_coffee: buhuipao' "$FUNDING_FILE"
 language_labels=(English 简体中文 繁體中文 日本語 Español Deutsch Français)
 readme_files=(README.md README.zh-CN.md README.zh-TW.md README.ja.md README.es.md README.de.md README.fr.md)
 usage_files=(USAGE.md USAGE.zh-CN.md USAGE.zh-TW.md USAGE.ja.md USAGE.es.md USAGE.de.md USAGE.fr.md)
+readme_support_labels=(
+  'Support Lantunnel on Buy Me a Coffee'
+  '通过 Buy Me a Coffee 支持 Lantunnel'
+  '透過 Buy Me a Coffee 支持 Lantunnel'
+  'Buy Me a Coffee で Lantunnel を応援する'
+  'Apoya el proyecto Lantunnel en Buy Me a Coffee'
+  'Lantunnel auf Buy Me a Coffee unterstützen'
+  'Soutenir Lantunnel via Buy Me a Coffee'
+)
+readme_support_ctas=(
+  'Support'
+  '%E6%94%AF%E6%8C%81%E9%A1%B9%E7%9B%AE'
+  '%E6%94%AF%E6%8C%81%E5%B0%88%E6%A1%88'
+  '%E5%BF%9C%E6%8F%B4%E3%81%99%E3%82%8B'
+  'Apoyar'
+  'Unterst%C3%BCtzen'
+  'Soutenir'
+)
 
 assert_once() {
   local needle="$1"
@@ -35,6 +53,9 @@ for index in "${!language_labels[@]}"; do
   test -f "$usage"
   assert_once "<b>${language_labels[$index]}</b>" "$readme"
   assert_once "**${language_labels[$index]}**" "$usage"
+  assert_once \
+    "<a href=\"https://buymeacoffee.com/buhuipao\"><img alt=\"${readme_support_labels[$index]}\" src=\"https://img.shields.io/badge/Buy_Me_a_Coffee-${readme_support_ctas[$index]}-FFDD00?logo=buymeacoffee&amp;logoColor=000000\"></a>" \
+    "$readme"
 
   for peer_index in "${!language_labels[@]}"; do
     if [[ "$peer_index" -eq "$index" ]]; then
@@ -47,6 +68,13 @@ for index in "${!language_labels[@]}"; do
       "[${language_labels[$peer_index]}](./${usage_files[$peer_index]})" \
       "$usage"
   done
+done
+
+for document in "${usage_files[@]}"; do
+  if grep -Fq 'buymeacoffee.com/buhuipao' "$ROOT_DIR/docs/$document"; then
+    echo "Buy Me a Coffee belongs in README files, not docs/$document" >&2
+    exit 1
+  fi
 done
 
 for document in "${readme_files[@]:1}"; do
