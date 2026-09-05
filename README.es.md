@@ -17,7 +17,10 @@
 <p align="center">
   <a href="https://qm.qq.com/q/A5LX4uUwzC"><img alt="Únete al grupo de QQ" src="https://img.shields.io/badge/QQ-%C3%9Anete%20al%20grupo-12B7F5?logo=tencentqq&amp;logoColor=white"></a>
   <a href="https://discord.gg/HsQK9cj2kh"><img alt="Únete a Discord" src="https://img.shields.io/badge/Discord-%C3%9Anete%20al%20servidor-5865F2?logo=discord&amp;logoColor=white"></a>
-  <a href="https://buymeacoffee.com/buhuipao"><img alt="Apoya el proyecto Lantunnel en Buy Me a Coffee" src="https://img.shields.io/badge/Buy_Me_a_Coffee-Apoyar-FFDD00?logo=buymeacoffee&amp;logoColor=000000"></a>
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/buhuipao"><img height="32" alt="Apoya el proyecto Lantunnel en Buy Me a Coffee" src="https://img.shields.io/badge/Buy_Me_a_Coffee-Apoyar-FFDD00?style=for-the-badge&amp;logo=buymeacoffee&amp;logoColor=000000"></a>
 </p>
 
 <p align="center">
