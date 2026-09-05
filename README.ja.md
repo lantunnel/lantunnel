@@ -127,8 +127,9 @@ lantunnel-admin init-tunnel \
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 4. 公開 scope を Gateway ホストに置いて起動。
-cp <tunnel-id>.scope state/scopes.d/
+# 4. 公開 scope だけを Gateway ホストにコピーし、設定を検証してから起動。
+mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 
 # 5. 各デバイスで自分のプロファイルを取り込んで接続。

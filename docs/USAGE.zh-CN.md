@@ -76,6 +76,13 @@
 
 下面用到的东西全在这个仓库里，Apache-2.0，全程不联系 lantunnel.app。
 
+请严格分开两类机器的职责：
+
+- **Gateway 主机：** 公网机器，存放 Gateway 二进制、TLS 密钥对和公开的 `.scope` 文件。
+- **可信任的 owner 主机：** 存放 `lantunnel-admin`、私有的 `.tunnel` owner 文件，以及每份 `.peer` 文件；每份 `.peer` 只在传给对应 Client 前暂存于此。
+
+绝不要在公网 Gateway 主机上安装 `lantunnel-admin`，也不要把 `.tunnel` 或 `.peer` 文件存到那里。
+
 ### 你需要准备
 
 - 一台公网能访问到的机器 —— 5 美元的 VPS 完全够用；Gateway 主要做信令，中继只承载直连打不通的那部分流量。
@@ -85,9 +92,17 @@
 ### 1. 构建（或下载）二进制
 
 ```bash
+# Gateway 主机
 cargo build --release -p lantunnel-gateway
+
+# 可信任的 owner 主机
 cargo build --release -p lantunnel-admin
+
+# 分别完成上面的构建命令后，在对应的构建 shell 中运行。
+export PATH="$PWD/target/release:$PATH"
 ```
+
+[在每台 Peer 设备上安装 Lantunnel Client](https://lantunnel.app/download)。如果要自行构建 Client，请按 README 的[从源码构建](../README.zh-CN.md#从源码构建)一节依次完成前端和 Rust 构建命令。
 
 ### 2. 在 Gateway 主机上初始化固定 IP Gateway
 
@@ -427,6 +442,16 @@ lantunnel-gateway mapping serve                           独立的 UDP 映射�
 `init` 不联网，用于初始化独立的固定 IP Gateway。默认使用 QUIC/8443、映射 UDP `8444`，并写入 `configs/gateway.yaml`；可用 `--mapping-port` 选择其他映射端口。完全相同的命令会保留现有配置和身份；只要指定同一个配置文件，重跑、校验和启动就不依赖当前工作目录。在同一个配置路径下，IP、传输、数据端口或映射端口变化则拒绝执行。同一部署根目录内的另一个配置文件可以复用同一份匹配的证书。
 
 域名和公信 CA 部署使用上面的高级手工路径。所有模式的 `--config` 都默认是 `configs/gateway.yaml`。`mapping serve` 只用于特殊部署；正常 Gateway 会自己绑定映射端口。
+
+平台托管接入必须从一个新建、仅所有者可访问的工作目录开始，Gateway 才能安全写入运行时配置。请按[平台连接型 Gateway 安装指南](https://lantunnel.app/docs/installation#platform-connected)操作，也可以使用同样安全的步骤：
+
+```bash
+mkdir -m 700 lantunnel-gateway-state
+mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml
+chmod 600 lantunnel-gateway-state/pairing.yaml
+cd lantunnel-gateway-state
+lantunnel-gateway onboard --pairing pairing.yaml
+```
 
 ---
 

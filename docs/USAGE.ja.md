@@ -76,6 +76,13 @@
 
 以下で使うものはすべてこのリポジトリの中にあり、Apache-2.0 です。lantunnel.app には一切接続しません。
 
+次の 2 つの役割は、必ず別のマシンに分けてください。
+
+- **Gateway ホスト：** 公開マシンに Gateway バイナリ、TLS 鍵ペア、公開 `.scope` ファイルを置きます。
+- **信頼済みオーナーマシン：** `lantunnel-admin` と非公開の `.tunnel` オーナーファイルを置き、各インストール用の `.peer` ファイルはそれぞれの Client へ転送するまで保管します。
+
+公開 Gateway ホストには `lantunnel-admin` をインストールせず、`.tunnel` や `.peer` ファイルも保存しないでください。
+
 ### 用意するもの
 
 - インターネットから到達できるマシン。月 5 ドルの VPS で十分です。Gateway の仕事はほとんどがシグナリングで、リレーが運ぶのは直結できなかった分だけです。
@@ -85,9 +92,17 @@
 ### 1. バイナリをビルド（または入手）
 
 ```bash
+# Gateway ホスト
 cargo build --release -p lantunnel-gateway
+
+# 信頼済みオーナーマシン
 cargo build --release -p lantunnel-admin
+
+# それぞれのビルド後、同じシェルで実行
+export PATH="$PWD/target/release:$PATH"
 ```
+
+各 Peer デバイスに [Lantunnel Client をインストール](https://lantunnel.app/download)してください。Client を自分でビルドする場合は、README の「[ソースからビルド](../README.ja.md#ソースからビルド)」にあるフロントエンドと Rust のコマンドを実行してください。
 
 ### 2. Gateway ホストで固定 IP Gateway を初期化する
 
@@ -433,6 +448,16 @@ lantunnel-gateway mapping serve                           単体の UDP マッ�
 `init` はネットワークを使わず、独立した固定 IP Gateway を初期化します。既定は QUIC/8443、マッピングは UDP `8444`、設定は `configs/gateway.yaml` です。別のマッピングポートは `--mapping-port` で選択できます。同じコマンドの再実行では設定と身元を保持します。同じ設定ファイルを指定すれば、再実行・検証・起動は現在の作業ディレクトリに依存しません。同じ設定パスで IP、トランスポート、データポート、またはマッピングポートが異なる場合は拒否します。同じデプロイルート内の別の設定ファイルなら、同じ一致する証明書を再利用できます。
 
 ホスト名と公開 CA は前述の上級手動手順を使います。全モードで `--config` の既定値は `configs/gateway.yaml` です。`mapping serve` は特殊な構成専用で、通常は不要です。
+
+Platform 管理下の Gateway を登録するときは、ランタイム設定を書き込むため、所有者だけがアクセスできる新しい作業ディレクトリから開始してください。[Platform 接続型 Gateway のインストールガイド](https://lantunnel.app/docs/installation#platform-connected)に従うか、次の安全な手順を実行してください。
+
+```bash
+mkdir -m 700 lantunnel-gateway-state
+mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml
+chmod 600 lantunnel-gateway-state/pairing.yaml
+cd lantunnel-gateway-state
+lantunnel-gateway onboard --pairing pairing.yaml
+```
 
 ---
 

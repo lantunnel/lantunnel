@@ -76,6 +76,13 @@ Puedes saltar directamente a [Cómo llegar a las cosas](#cómo-llegar-a-las-cosa
 
 Todo lo que viene a continuación está en este repositorio bajo Apache-2.0. Nada contacta con lantunnel.app.
 
+Mantén separados estos dos roles de máquina:
+
+- **Host del Gateway:** la máquina pública contiene el binario del Gateway, el par de claves TLS y los archivos públicos `.scope`.
+- **Equipo de confianza del propietario:** contiene `lantunnel-admin`, el archivo privado `.tunnel` del propietario y los archivos `.peer` de cada instalación antes de transferir cada uno a su Client.
+
+Nunca instales `lantunnel-admin` ni guardes archivos `.tunnel` o `.peer` en el host público del Gateway.
+
 ### Qué necesitas
 
 - Una máquina accesible desde internet: un VPS de 5 dólares sobra. El Gateway se dedica sobre todo a la señalización, y el relay solo transporta lo que la vía directa no consigue llevar.
@@ -85,9 +92,17 @@ Todo lo que viene a continuación está en este repositorio bajo Apache-2.0. Nad
 ### 1. Compila (o descarga) los binarios
 
 ```bash
+# Host del Gateway
 cargo build --release -p lantunnel-gateway
+
+# Equipo de confianza del propietario
 cargo build --release -p lantunnel-admin
+
+# Ejecuta esto en cada shell de compilación después del comando correspondiente.
+export PATH="$PWD/target/release:$PATH"
 ```
+
+Instala [Lantunnel Client](https://lantunnel.app/download) en cada dispositivo Peer. Si prefieres compilar el Client, sigue los comandos del frontend y de Rust de [Compilar desde el código](../README.es.md#compilar-desde-el-código).
 
 ### 2. Inicializa el Gateway independiente
 
@@ -146,7 +161,7 @@ Esto escribe dos archivos nombrados según el Tunnel ID generado:
 Opciones de `init-tunnel`:
 
 - `--gateway-transport quic | websocket | grpc` — QUIC es la opción por defecto y la única con flujos independientes por conexión. WebSocket y gRPC están pensados para redes que bloquean UDP.
-- `--gateway-host` y/o `--gateway-ip` — si indicas ambos, se marca la IP y el nombre de host se usa como nombre de servidor TLS.
+- `--gateway-host` y/o `--gateway-ip` — si indicas ambos, la conexión se establece mediante la IP y el nombre de host se usa como nombre de servidor TLS.
 - `--gateway-mapping-port` — el puerto UDP de mapeo del Gateway. El valor predeterminado es `8444` y debe coincidir con `lantunnel-gateway init --mapping-port` o `gateway.mapping_probe_port`.
 - `--gateway-cert` — el PEM que se va a fijar. Omítelo si el Gateway usa un certificado de confianza pública.
 
@@ -420,6 +435,16 @@ lantunnel-gateway mapping serve                  Reflector UDP de mapeo independ
 ```
 
 `init` funciona sin conexión y usa de forma predeterminada QUIC en UDP `8443` y mapeo en UDP `8444`; usa `--mapping-port` para elegir otro puerto de mapeo. `--config` usa `configs/gateway.yaml` por defecto. `mapping serve` existe para despliegues poco habituales; un Gateway normal abre su propio socket de mapeo y no lo necesita.
+
+El alta gestionada debe comenzar en un directorio de trabajo nuevo y accesible solo por su propietario, para que pueda escribir allí su configuración de ejecución. Sigue la [guía de instalación de un Gateway conectado a la plataforma](https://lantunnel.app/docs/installation#platform-connected) o usa la misma secuencia segura:
+
+```bash
+mkdir -m 700 lantunnel-gateway-state
+mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml
+chmod 600 lantunnel-gateway-state/pairing.yaml
+cd lantunnel-gateway-state
+lantunnel-gateway onboard --pairing pairing.yaml
+```
 
 ---
 

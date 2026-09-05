@@ -126,8 +126,9 @@ lantunnel-admin init-tunnel \
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
 lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
 
-# 4. 把公开 scope 放到 Gateway 主机上，然后启动。
-cp <tunnel-id>.scope state/scopes.d/
+# 4. 只把公开 scope 放到 Gateway 主机上，先校验配置，再启动。
+mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
+lantunnel-gateway --config configs/gateway.yaml --check-config
 lantunnel-gateway --config configs/gateway.yaml
 
 # 5. 每台设备导入自己那份配置并连接。

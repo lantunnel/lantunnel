@@ -5,6 +5,63 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAKEFILE="$ROOT_DIR/Makefile"
 RELEASE_WORKFLOW="$ROOT_DIR/.github/workflows/release.yml"
 VERIFY_BUNDLE="$ROOT_DIR/scripts/verify_release_bundle.sh"
+FUNDING_FILE="$ROOT_DIR/.github/FUNDING.yml"
+
+test -f "$FUNDING_FILE"
+grep -Fxq 'buy_me_a_coffee: buhuipao' "$FUNDING_FILE"
+
+# GitHub's README and Usage surfaces must expose the same seven authored
+# languages as the Platform. Each selector has one non-link current language
+# and six exact links, so a visible label cannot mask a broken destination.
+language_labels=(English 简体中文 繁體中文 日本語 Español Deutsch Français)
+readme_files=(README.md README.zh-CN.md README.zh-TW.md README.ja.md README.es.md README.de.md README.fr.md)
+usage_files=(USAGE.md USAGE.zh-CN.md USAGE.zh-TW.md USAGE.ja.md USAGE.es.md USAGE.de.md USAGE.fr.md)
+
+assert_once() {
+  local needle="$1"
+  local file="$2"
+  local count
+  count="$(grep -Fc -- "$needle" "$file" || true)"
+  if [[ "$count" -ne 1 ]]; then
+    echo "expected one '$needle' in ${file#"$ROOT_DIR"/}, found $count" >&2
+    exit 1
+  fi
+}
+
+for index in "${!language_labels[@]}"; do
+  readme="$ROOT_DIR/${readme_files[$index]}"
+  usage="$ROOT_DIR/docs/${usage_files[$index]}"
+  test -f "$readme"
+  test -f "$usage"
+  assert_once "<b>${language_labels[$index]}</b>" "$readme"
+  assert_once "**${language_labels[$index]}**" "$usage"
+
+  for peer_index in "${!language_labels[@]}"; do
+    if [[ "$peer_index" -eq "$index" ]]; then
+      continue
+    fi
+    assert_once \
+      "<a href=\"./${readme_files[$peer_index]}\">${language_labels[$peer_index]}</a>" \
+      "$readme"
+    assert_once \
+      "[${language_labels[$peer_index]}](./${usage_files[$peer_index]})" \
+      "$usage"
+  done
+done
+
+for document in "${readme_files[@]:1}"; do
+  grep -Fq 'mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/' "$ROOT_DIR/$document"
+  grep -Fq 'lantunnel-gateway --config configs/gateway.yaml --check-config' "$ROOT_DIR/$document"
+done
+
+for document in "${usage_files[@]:1}"; do
+  usage="$ROOT_DIR/docs/$document"
+  grep -Fq 'export PATH="$PWD/target/release:$PATH"' "$usage"
+  grep -Fq 'https://lantunnel.app/download' "$usage"
+  grep -Fq 'mkdir -m 700 lantunnel-gateway-state' "$usage"
+  grep -Fq 'chmod 600 lantunnel-gateway-state/pairing.yaml' "$usage"
+  grep -Fq 'lantunnel-gateway onboard --pairing pairing.yaml' "$usage"
+done
 
 while IFS= read -r workflow; do
   if grep -q -- 'anyproxy-client' "$workflow"; then

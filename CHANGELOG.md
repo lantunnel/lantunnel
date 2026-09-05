@@ -12,6 +12,11 @@ before this repository was opened and are not documented here.
 
 ### Changed
 
+- German, Spanish, French, Japanese, Simplified Chinese, and Traditional
+  Chinese README and usage guides now match the English setup, validation,
+  managed onboarding, and Gateway security guidance.
+- The repository now links to the project's Buy Me a Coffee page through
+  GitHub's Sponsor button.
 - Stable version tags now publish GitHub Releases as the authoritative download
   source, with direct package links, signature and checksum guidance,
   installation modes, a managed quick start, and only that version's changes.
