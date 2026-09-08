@@ -72,7 +72,9 @@ release_base="https://github.com/${repository}/releases/download/${tag}"
     printf '| [macOS Intel](%s/lantunnel-client-%s-macos-amd64.dmg) | Intel Mac | Signed, notarized, and stapled |\n' "$release_base" "$version"
     printf '| [macOS Apple Silicon](%s/lantunnel-client-%s-macos-arm64.dmg) | Apple Silicon Mac | Signed, notarized, and stapled |\n' "$release_base" "$version"
     printf '| [Linux x64](%s/lantunnel-client-%s-linux-amd64.AppImage) | 64-bit Intel/AMD Linux | Verify SHA-256 |\n' "$release_base" "$version"
-    printf '| [Linux ARM64](%s/lantunnel-client-%s-linux-arm64.AppImage) | 64-bit ARM Linux | Verify SHA-256 |\n\n' "$release_base" "$version"
+    printf '| [Linux ARM64](%s/lantunnel-client-%s-linux-arm64.AppImage) | 64-bit ARM Linux | Verify SHA-256 |\n' "$release_base" "$version"
+    printf '| [Android ARM64](%s/lantunnel-client-%s-android-arm64.apk) | Android 8.0 or later, 64-bit ARM | Signed with the project release key |\n\n' "$release_base" "$version"
+    printf 'There is no iOS download. The iOS Client needs Apple Network Extension entitlements that cannot be attached to a redistributable build, so it is [built from source with your own Apple Developer account](SOURCE_IOS_URL).\n\n'
 
     printf '### Gateway — relay and coordinate a Tunnel\n\n'
     printf 'Install Gateway only when you operate an independent or Platform-connected Gateway host.\n\n'
@@ -93,6 +95,7 @@ release_base="https://github.com/${repository}/releases/download/${tag}"
 
 - macOS Client DMGs are Developer ID signed, notarized, and stapled.
 - The Windows Client executable is an intentionally unsigned preview; Windows may show **Unknown publisher**. Verify its SHA-256 before running it.
+- The Android APK is signed with the Lantunnel release key, not distributed through Google Play. Android will ask you to allow installs from this source. Verify its SHA-256 before installing it.
 - Gateway and Admin command-line binaries and Linux AppImages are not code-signed. Verify their SHA-256 before running them.
 - macOS Gateway and Admin CLI binaries are unsigned and not notarized. If Gatekeeper or an organization policy blocks one, [build it from source](SOURCE_BUILD_URL). Do not bypass Gatekeeper or an organization policy.
 
@@ -103,6 +106,8 @@ release_base="https://github.com/${repository}/releases/download/${tag}"
 - **Windows:** download the `.exe`, verify it, and run it. Review the Windows security prompt before continuing.
 - **macOS:** open the `.dmg`, drag Lantunnel Client to Applications, then open it from Applications.
 - **Linux:** make the AppImage executable with `chmod +x <downloaded.AppImage>`, then run it.
+- **Android:** verify the `.apk`, open it, and allow installs from your browser or file manager when prompted. Import the device's own `.peer` profile by scanning its QR code, then approve the VPN permission dialog.
+- **iOS:** no download; [build and install it yourself](SOURCE_IOS_URL) with an Apple Developer account.
 
 ### Gateway and Admin
 
@@ -114,6 +119,7 @@ Verify the downloaded CLI, make it executable, rename it to `lantunnel-gateway` 
 - macOS 10.15 Catalina or later on Intel.
 - macOS 11 Big Sur or later on Apple Silicon.
 - 64-bit Linux on x86-64 or ARM64; the desktop Client requires GTK 3 and WebKitGTK 4.1.
+- Android 8.0 Oreo or later on 64-bit ARM.
 - Gateway and Admin packages are available for Apple Silicon macOS and x86-64 Linux.
 
 ## Verify SHA-256
@@ -168,6 +174,7 @@ sed \
     -e "s#CHECKSUM_URL#${release_base}/checksums.txt#g" \
     -e "s#CHANGELOG_URL#${release_base}/CHANGELOG.md#g" \
     -e "s|SOURCE_BUILD_URL|https://github.com/${repository}#building-from-source|g" \
+    -e "s|SOURCE_IOS_URL|https://github.com/${repository}/blob/${tag}/docs/BUILD_MOBILE.md#ios|g" \
     -e "s#VERSION#${version}#g" \
     "$rendered_file" > "$final_file"
 {

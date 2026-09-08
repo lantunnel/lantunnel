@@ -2,6 +2,10 @@
 
 This directory contains the generated Xcode project source for the Lantunnel iOS container app and Packet Tunnel extension.
 
+Building it for your own phone — the entitlements, the identifiers to replace, and why
+there is no download — is documented in [`docs/BUILD_MOBILE.md`](../../docs/BUILD_MOBILE.md#ios).
+What follows is the developer loop.
+
 ## Generate
 
 ```sh

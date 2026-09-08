@@ -190,6 +190,7 @@ Everything needed to run Lantunnel yourself, under Apache-2.0:
 | `docs/PROTOCOL.md` | Normative wire format. |
 | `CONTEXT.md` | Architecture and vocabulary. |
 | `docs/USAGE.md` | How to actually use it. |
+| `docs/BUILD_MOBILE.md` | Installing the Android APK, and building the iOS Client yourself. |
 
 The hosted Lantunnel Platform at lantunnel.app — accounts, billing, managed Gateway fleet
 — is a separate closed-source service and is **not** in this repository. Nothing here
@@ -212,6 +213,11 @@ cargo build --release -p lantunnel-client
 
 On Linux the Client links against webkit2gtk, appindicator, and rsvg; see
 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) for the exact `-dev` packages.
+
+The Android Client ships as a signed APK on every release. The iOS Client has no download
+— Apple binds the packet-tunnel entitlements to the developer account that signs the
+build, so you build it under your own. Both are covered in
+[`docs/BUILD_MOBILE.md`](./docs/BUILD_MOBILE.md).
 
 Checks, and a three-Peer end-to-end acceptance that proves every directed TCP and UDP pair
 over Direct and then again over Encrypted Relay:

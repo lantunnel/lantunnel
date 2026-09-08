@@ -10,6 +10,15 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Releases now include a signed Android APK
+  (`lantunnel-client-<version>-android-arm64.apk`), checksummed alongside the
+  desktop packages.
+- `docs/BUILD_MOBILE.md` documents installing the Android APK and building the
+  iOS Client yourself. iOS has no download because Apple binds the packet-tunnel
+  entitlements to the developer account that signs the build.
+
 ### Changed
 
 - German, Spanish, French, Japanese, Simplified Chinese, and Traditional
