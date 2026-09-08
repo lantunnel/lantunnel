@@ -54,7 +54,7 @@ for index in "${!language_labels[@]}"; do
   assert_once "<b>${language_labels[$index]}</b>" "$readme"
   assert_once "**${language_labels[$index]}**" "$usage"
   assert_once \
-    "<a href=\"https://buymeacoffee.com/buhuipao\"><img alt=\"${readme_support_labels[$index]}\" src=\"https://img.shields.io/badge/Buy_Me_a_Coffee-${readme_support_ctas[$index]}-FFDD00?logo=buymeacoffee&amp;logoColor=000000\"></a>" \
+    "<a href=\"https://buymeacoffee.com/buhuipao\"><img height=\"32\" alt=\"${readme_support_labels[$index]}\" src=\"https://img.shields.io/badge/Buy_Me_a_Coffee-${readme_support_ctas[$index]}-FFDD00?style=for-the-badge&amp;logo=buymeacoffee&amp;logoColor=000000\"></a>" \
     "$readme"
 
   for peer_index in "${!language_labels[@]}"; do
