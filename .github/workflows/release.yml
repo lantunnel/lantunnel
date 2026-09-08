@@ -565,6 +565,10 @@ jobs:
       # a failed build instead of an APK nobody can upgrade to.
       ANDROID_RELEASE_CERT_SHA256: 9ea62ec40625d7d685036ce3e91adcdac7061c2ecbf541f324aab9392afe83b6
       ANDROID_NDK_VERSION: 27.2.12479018
+      # apksigner lives here. The runner image is not guaranteed to ship any
+      # build-tools, so the signature check searched an empty directory and the
+      # 2.0.10 candidate failed after building a perfectly good APK.
+      ANDROID_BUILD_TOOLS_VERSION: "35.0.0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -625,13 +629,15 @@ jobs:
       # The runner preinstalls some NDK, but app/build.gradle.kts pins
       # ndkVersion. Installing the pinned one keeps cargo-ndk and the ndkBuild
       # of hev-socks5-tunnel on the same toolchain.
-      - name: Install the pinned Android NDK
+      - name: Install the pinned Android NDK and build-tools
         shell: bash
         run: |
           set -euo pipefail
           "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "ndk;${ANDROID_NDK_VERSION}"
+            "ndk;${ANDROID_NDK_VERSION}" \
+            "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"
           test -d "$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}"
+          test -x "$ANDROID_SDK_ROOT/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 
       - name: Install the release keystore
         shell: bash
@@ -674,13 +680,16 @@ jobs:
           VERSION: ${{ needs.manual-build-prepare.outputs.version }}
         run: |
           set -euo pipefail
-          apksigner="$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n 1)"
+          apksigner="$ANDROID_SDK_ROOT/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
           test -x "$apksigner"
           apk="dist/release/lantunnel-client-${VERSION}-android-arm64.apk"
           "$apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/apk-certs.txt"
+          # Print what was actually signed before asserting, so a mismatch is
+          # readable in the log instead of a bare non-zero grep.
+          cat "$RUNNER_TEMP/apk-certs.txt"
+          test "$(grep -c '^Signer #1 certificate SHA-256 digest: ' "$RUNNER_TEMP/apk-certs.txt")" -eq 1
           grep -Fq "Signer #1 certificate SHA-256 digest: ${ANDROID_RELEASE_CERT_SHA256}" \
             "$RUNNER_TEMP/apk-certs.txt"
-          test "$(grep -c '^Signer #' "$RUNNER_TEMP/apk-certs.txt" | tr -d ' ')" -gt 0
 
       - name: Remove the release keystore from the workspace
         if: always()
