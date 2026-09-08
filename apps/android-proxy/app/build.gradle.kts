@@ -53,6 +53,11 @@ android {
                 storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
+                // v3 carries the signing lineage, so a compromised or lost
+                // release key can still be rotated. Without it the first key
+                // is the only key that can ever upgrade an install.
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

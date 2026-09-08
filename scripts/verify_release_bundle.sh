@@ -26,6 +26,7 @@ artifacts=(
     "lantunnel-client-${version}-macos-arm64.dmg"
     "lantunnel-client-${version}-linux-amd64.AppImage"
     "lantunnel-client-${version}-linux-arm64.AppImage"
+    "lantunnel-client-${version}-android-arm64.apk"
     "lantunnel-gateway-${version}-aarch64-apple-darwin"
     "lantunnel-gateway-${version}-x86_64-unknown-linux-musl"
     "lantunnel-admin-${version}-aarch64-apple-darwin"
@@ -38,8 +39,8 @@ while IFS= read -r file; do
     actual[${#actual[@]}]="${file##*/}"
 done < <(find "$release_dir" -maxdepth 1 -type f | sort)
 
-if [ "${#actual[@]}" -ne 11 ]; then
-    echo "Error: expected exactly 11 local release files, got ${#actual[@]}" >&2
+if [ "${#actual[@]}" -ne 12 ]; then
+    echo "Error: expected exactly 12 local release files, got ${#actual[@]}" >&2
     exit 1
 fi
 
@@ -65,8 +66,8 @@ done
 
 checksum_file="$release_dir/checksums.txt"
 checksum_count="$(awk 'NF { count++ } END { print count + 0 }' "$checksum_file")"
-if [ "$checksum_count" -ne 9 ]; then
-    echo "Error: checksums.txt must contain exactly 9 non-empty entries" >&2
+if [ "$checksum_count" -ne 10 ]; then
+    echo "Error: checksums.txt must contain exactly 10 non-empty entries" >&2
     exit 1
 fi
 if ! awk '

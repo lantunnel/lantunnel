@@ -115,7 +115,8 @@ for artifact_job in \
   build-cli \
   build-client-linux \
   build-client-macos \
-  build-client-windows
+  build-client-windows \
+  build-client-android
 do
   artifact_job_block="$(sed -E -n "/^  ${artifact_job}:/,/^  [[:alnum:]_-]+:/p" "$RELEASE_WORKFLOW")"
   grep -Fq '    needs: manual-build-prepare' <<<"$artifact_job_block"
@@ -131,7 +132,8 @@ for dependency in \
   build-cli \
   build-client-linux \
   build-client-macos \
-  build-client-windows
+  build-client-windows \
+  build-client-android
 do
   grep -Fq "      - ${dependency}" <<<"$manual_bundle_dependency_block"
 done
@@ -211,7 +213,7 @@ fi
 grep -q 'certificateThumbprint' "$MAKEFILE"
 grep -q 'ALLOW_UNSIGNED_MACOS_DMG' "$MAKEFILE"
 
-windows_job="$(sed -n '/^  build-client-windows:/,/^  manual-build-bundle:/p' "$RELEASE_WORKFLOW")"
+windows_job="$(sed -n '/^  build-client-windows:/,/^  build-client-android:/p' "$RELEASE_WORKFLOW")"
 grep -q 'name: lantunnel-client windows-amd64 unsigned preview NSIS' <<<"$windows_job"
 if grep -q 'WINDOWS_CERTIFICATE_PFX_BASE64\|WINDOWS_CERTIFICATE_PASSWORD\|Import-PfxCertificate' <<<"$windows_job"; then
   echo 'unsigned Windows preview still depends on a production signing PFX' >&2
@@ -259,7 +261,7 @@ grep -Fq '/mingw64/bin/protoc.exe --version' <<<"$windows_nsis_build"
 grep -Fq 'ALLOW_UNSIGNED_WINDOWS_INSTALLER=1 SKIP_UI_FRONTEND=1 make' <<<"$windows_nsis_build"
 
 # The separate manual candidate build invokes the existing Make targets for
-# the supported product/platform matrix: two Gateway, two Admin, five Client.
+# the supported product/platform matrix: two Gateway, two Admin, six Client.
 for target in \
   _release-lantunnel-gateway-macos-arm64 \
   _release-lantunnel-gateway-linux-amd64 \
@@ -269,7 +271,8 @@ for target in \
   _release-lantunnel-client-macos-amd64 \
   _release-lantunnel-client-windows-amd64 \
   _release-lantunnel-client-linux-amd64 \
-  _release-lantunnel-client-linux-arm64
+  _release-lantunnel-client-linux-arm64 \
+  _release-android-proxy-apk
 do
   grep -q "$target" "$RELEASE_WORKFLOW"
 done
@@ -291,7 +294,8 @@ for artifact in \
   'lantunnel-client-${version}-macos-amd64.dmg' \
   'lantunnel-client-${version}-windows-amd64.exe' \
   'lantunnel-client-${version}-linux-amd64.AppImage' \
-  'lantunnel-client-${version}-linux-arm64.AppImage'
+  'lantunnel-client-${version}-linux-arm64.AppImage' \
+  'lantunnel-client-${version}-android-arm64.apk'
 do
   grep -Fq "$artifact" "$RELEASE_WORKFLOW"
 done
@@ -392,7 +396,7 @@ grep -Fq 'lightweight release tag resolves directly' "$PUBLISH_GITHUB_RELEASE_TE
 test ! -e "$ROOT_DIR/scripts/upload.sh"
 test ! -e "$ROOT_DIR/tests/upload_script_test.sh"
 test ! -e "$ROOT_DIR/tests/download_existing_release_test.sh"
-grep -Fq 'expected exactly 11 local release files' "$VERIFY_RELEASE_BUNDLE"
+grep -Fq 'expected exactly 12 local release files' "$VERIFY_RELEASE_BUNDLE"
 grep -Fq 'checksums.txt must contain exactly one entry' "$VERIFY_RELEASE_BUNDLE"
 grep -Fq 'changelog must contain exactly one version section' "$VERIFY_RELEASE_BUNDLE"
 grep -Fq 'https://lantunnel.app/docs/installation' "$RENDER_GITHUB_RELEASE_NOTES"

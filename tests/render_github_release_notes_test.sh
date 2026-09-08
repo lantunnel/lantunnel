@@ -19,6 +19,7 @@ artifacts=(
   lantunnel-client-2.0.0-macos-arm64.dmg
   lantunnel-client-2.0.0-linux-amd64.AppImage
   lantunnel-client-2.0.0-linux-arm64.AppImage
+  lantunnel-client-2.0.0-android-arm64.apk
   lantunnel-gateway-2.0.0-aarch64-apple-darwin
   lantunnel-gateway-2.0.0-x86_64-unknown-linux-musl
   lantunnel-admin-2.0.0-aarch64-apple-darwin

@@ -41,12 +41,17 @@ The machine running the build must provide Android SDK, Android NDK,
 Release APK packaging from the repository root:
 
 ```sh
-make release-android-proxy-apk VERSION=2.0.8
+make release-android-proxy-apk VERSION=2.0.9
 ```
 
 The APK is copied to:
 
-`dist/release/lantunnel-client-2.0.8-android-arm64.apk`
+`dist/release/lantunnel-client-2.0.9-android-arm64.apk`
+
+`assembleRelease` needs a keystore; `apps/android-proxy/keystore.properties` points at
+one and a missing key fails the build rather than falling back to the debug key. The
+release workflow writes that file from repository secrets. For a local signed build, see
+[`docs/BUILD_MOBILE.md`](../../docs/BUILD_MOBILE.md#build-your-own-apk).
 
 ## Device Smoke
 

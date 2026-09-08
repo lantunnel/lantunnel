@@ -17,6 +17,7 @@ assets=(
   lantunnel-client-2.0.0-macos-arm64.dmg
   lantunnel-client-2.0.0-linux-amd64.AppImage
   lantunnel-client-2.0.0-linux-arm64.AppImage
+  lantunnel-client-2.0.0-android-arm64.apk
   lantunnel-gateway-2.0.0-aarch64-apple-darwin
   lantunnel-gateway-2.0.0-x86_64-unknown-linux-musl
   lantunnel-admin-2.0.0-aarch64-apple-darwin
@@ -30,7 +31,7 @@ for asset in "${assets[@]}"; do
 done
 (
   cd "$release_dir"
-  shasum -a 256 "${assets[@]:0:9}" > checksums.txt
+  shasum -a 256 "${assets[@]:0:10}" > checksums.txt
 )
 printf '%s\n' '# Changelog' '' '## [2.0.0] - 2026-09-04' '' '- Accepted.' \
   > "$release_dir/CHANGELOG.md"
@@ -136,11 +137,11 @@ expect_failure() {
 
 : > "$TEST_DIR/gh.log"
 verify "$TEST_DIR/draft.json" "$asset_dir" 42 true "$TEST_DIR/verify-draft"
-test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 15
+test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 16
 
 : > "$TEST_DIR/gh.log"
 verify "$TEST_DIR/published.json" "$asset_dir" 42 false "$TEST_DIR/verify-published"
-test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 15
+test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 16
 
 expect_failure 'release database ID mismatch' \
   verify "$TEST_DIR/draft.json" "$asset_dir" 43 true "$TEST_DIR/verify-wrong-id"

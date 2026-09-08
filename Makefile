@@ -185,6 +185,7 @@ PUBLIC_RELEASE_FILES := \
 	lantunnel-client-$(UI_VERSION)-macos-arm64.dmg \
 	lantunnel-client-$(UI_VERSION)-linux-amd64.AppImage \
 	lantunnel-client-$(UI_VERSION)-linux-arm64.AppImage \
+	lantunnel-client-$(VERSION)-android-arm64.apk \
 	lantunnel-gateway-$(VERSION)-aarch64-apple-darwin \
 	lantunnel-gateway-$(VERSION)-x86_64-unknown-linux-musl \
 	lantunnel-admin-$(VERSION)-aarch64-apple-darwin \
@@ -507,7 +508,8 @@ _release-android-proxy-apk:
 	  echo "  ✓ $(RELEASE_DIR)/$(ANDROID_APK_NAME)"
 
 .PHONY: release-android-proxy-apk
-# Non-public pre-2.0 mobile experiment. Not part of the V2 release surface.
+# Part of the V2 public release surface. The APK ships alongside the desktop
+# Clients, so it is listed in PUBLIC_RELEASE_FILES and checksummed with them.
 release-android-proxy-apk:
 	@$(MAKE) --no-print-directory _release-android-proxy-apk
 	@$(MAKE) --no-print-directory checksums CHECKSUM_FILES="$(ANDROID_APK_NAME)"

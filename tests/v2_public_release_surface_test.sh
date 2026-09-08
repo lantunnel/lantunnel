@@ -139,6 +139,7 @@ for artifact in \
   'lantunnel-client-$(UI_VERSION)-macos-arm64.dmg' \
   'lantunnel-client-$(UI_VERSION)-linux-amd64.AppImage' \
   'lantunnel-client-$(UI_VERSION)-linux-arm64.AppImage' \
+  'lantunnel-client-$(VERSION)-android-arm64.apk' \
   'lantunnel-gateway-$(VERSION)-aarch64-apple-darwin' \
   'lantunnel-gateway-$(VERSION)-x86_64-unknown-linux-musl' \
   'lantunnel-admin-$(VERSION)-aarch64-apple-darwin' \
@@ -146,9 +147,10 @@ for artifact in \
 do
   grep -Fq "$artifact" <<<"$public_manifest"
 done
-# Mobile Clients ship on their own cadence, and the Legacy Client is gone, so
-# none belongs in this native desktop/CLI manifest.
-for forbidden in android ios anyproxy; do
+# The Android APK ships with the desktop Clients and is listed above. iOS
+# cannot be redistributed at all, and the Legacy Client is gone, so neither
+# belongs in this manifest.
+for forbidden in ios anyproxy; do
   if grep -qi "$forbidden" <<<"$public_manifest"; then
     echo "public manifest contains a non-V2 public artifact: $forbidden" >&2
     exit 1
