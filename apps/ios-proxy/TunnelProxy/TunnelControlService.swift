@@ -690,7 +690,7 @@ private struct ProviderRuntimeStatus {
     }
 
     private static func trafficLabel(tx: Int64?, rx: Int64?) -> String {
-        "\(formatBytes(tx ?? 0)) ↑ / \(formatBytes(rx ?? 0)) ↓"
+        "\(TunnelStatusSnapshot.byteLabel(tx ?? 0)) ↑ / \(TunnelStatusSnapshot.byteLabel(rx ?? 0)) ↓"
     }
 
     private static func hasPositiveTraffic(tx: Int64?, rx: Int64?) -> Bool {
@@ -742,19 +742,6 @@ private struct ProviderRuntimeStatus {
         return nil
     }
 
-    private static func formatBytes(_ bytes: Int64) -> String {
-        let units = ["B", "KB", "MB", "GB", "TB"]
-        var value = Double(max(0, bytes))
-        var unit = 0
-        while value >= 1024 && unit < units.count - 1 {
-            value /= 1024
-            unit += 1
-        }
-        if unit == 0 {
-            return "\(Int(value)) \(units[unit])"
-        }
-        return String(format: "%.1f %@", value, units[unit])
-    }
 }
 
 private enum NativeBridgeFFICommands {

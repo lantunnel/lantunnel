@@ -1546,12 +1546,18 @@ function formatUptime(totalSeconds: number) {
 }
 
 
+/**
+ * Decimal units, because every byte figure this screen shows is quoted that
+ * way elsewhere. A 5,000,000,000-byte Relay allowance divided by 1024³ reads
+ * "4.7 GB" — the same number the plan calls 5 GB, rendered as if the Client
+ * were shorting it.
+ */
 function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let value = Math.max(0, bytes || 0)
   let unit = 0
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000
     unit += 1
   }
   return unit === 0 ? `${Math.floor(value)} ${units[unit]}` : `${value.toFixed(1)} ${units[unit]}`
