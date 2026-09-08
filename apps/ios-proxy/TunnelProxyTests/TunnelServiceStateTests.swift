@@ -302,7 +302,7 @@ final class TunnelServiceStateTests: XCTestCase {
         // this assertion was pinning that bug in place.
         XCTAssertEqual(snapshot.presentation.pathMode, "Direct")
         XCTAssertEqual(snapshot.presentation.peer, "3 devices")
-        XCTAssertEqual(snapshot.presentation.p2pTraffic, "4.0 KB ↑ / 8.0 KB ↓")
+        XCTAssertEqual(snapshot.presentation.p2pTraffic, "4.1 KB ↑ / 8.2 KB ↓")
         XCTAssertEqual(snapshot.presentation.relayTraffic, "1.0 KB ↑ / 2.0 KB ↓")
     }
 
@@ -336,7 +336,7 @@ final class TunnelServiceStateTests: XCTestCase {
             now: Date(timeIntervalSince1970: 1_000)
         )
 
-        XCTAssertEqual(snapshot.presentation.p2pTraffic, "4.0 KB ↑ / 8.0 KB ↓")
+        XCTAssertEqual(snapshot.presentation.p2pTraffic, "4.1 KB ↑ / 8.2 KB ↓")
         XCTAssertEqual(snapshot.presentation.relayTraffic, "1.0 KB ↑ / 2.0 KB ↓")
     }
 
@@ -375,7 +375,7 @@ final class TunnelServiceStateTests: XCTestCase {
             now: Date(timeIntervalSince1970: 1_000)
         )
 
-        XCTAssertEqual(snapshot.presentation.p2pTraffic, "4.0 KB ↑ / 8.0 KB ↓")
+        XCTAssertEqual(snapshot.presentation.p2pTraffic, "4.1 KB ↑ / 8.2 KB ↓")
         XCTAssertEqual(snapshot.presentation.relayTraffic, "0 B ↑ / 0 B ↓")
     }
 
@@ -453,7 +453,7 @@ final class TunnelServiceStateTests: XCTestCase {
             now: Date(timeIntervalSince1970: 1_000)
         )
 
-        XCTAssertEqual(snapshot.presentation.p2pTraffic, "16.0 KB ↑ / 32.0 KB ↓")
+        XCTAssertEqual(snapshot.presentation.p2pTraffic, "16.4 KB ↑ / 32.8 KB ↓")
         XCTAssertEqual(snapshot.presentation.relayTraffic, "1.0 KB ↑ / 2.0 KB ↓")
     }
 
