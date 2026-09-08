@@ -23,7 +23,7 @@ Download `lantunnel-client-<version>-android-arm64.apk` and `checksums.txt` from
 open the APK. Android will ask you to allow installs from your browser or file manager.
 
 ```sh
-FILE=lantunnel-client-2.0.9-android-arm64.apk
+FILE=lantunnel-client-2.0.10-android-arm64.apk
 grep "  ${FILE}$" checksums.txt | sha256sum --check --strict -
 ```
 
