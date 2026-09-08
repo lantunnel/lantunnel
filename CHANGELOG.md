@@ -10,6 +10,8 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+## [2.0.10] - 2026-09-08
+
 ### Added
 
 - Releases now include a signed Android APK
