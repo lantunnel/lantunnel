@@ -128,6 +128,39 @@ fn native_projection_only_reports_ready_after_the_existing_apply_result_is_runni
     assert_ne!(no_apply_result.state, NativeRoutingStateV2::Ready);
 }
 
+/// A Peer the Gateway has only named carries no verified address yet, and the
+/// projection says so with `None`. It used to spend the word "Unavailable" on
+/// the address field, which the state and the reason already said, so the row
+/// read as three errors instead of one wait.
+#[test]
+fn a_peer_named_before_its_membership_arrives_projects_no_address() {
+    let mut snapshot = V2RuntimeSnapshot::default();
+    snapshot.peer_directory.phase = V2PeerDirectoryPhase::Syncing;
+    snapshot.peer_directory.peers = vec![V2RemotePeerSnapshot {
+        peer_id: "peer-b".into(),
+        overlay_ip: None,
+        phase: V2RemotePeerPhase::Unavailable,
+        reason_code: Some(V2RuntimeReasonCode::NoUsablePeerPath),
+        current_path: None,
+        usable_lanes: None,
+        routing: V2RoutingPhase::Unavailable,
+        exports: Vec::new(),
+    }];
+
+    let projected = project_client_ui_status(
+        &ConnectionStatus::default(),
+        project_engine_runtime_snapshot(
+            snapshot,
+            project_native_routing(false, NativeRoutingApplyResultV2::Unavailable, false, false),
+        ),
+    );
+
+    let row = &projected.peer_directory.peers[0];
+    assert_eq!(row.overlay_cidr, None);
+    assert_eq!(row.state, RemotePeerStateV2::Unavailable);
+    assert_eq!(row.reason_code.as_deref(), Some("no_usable_peer_path"));
+}
+
 #[test]
 fn one_engine_snapshot_projects_typed_v2_truth_and_real_counters() {
     let mut snapshot = V2RuntimeSnapshot::default();
@@ -191,8 +224,8 @@ fn one_engine_snapshot_projects_typed_v2_truth_and_real_counters() {
     );
     assert_eq!(projected.mesh.state, MeshStateV2::Healthy);
     assert_eq!(
-        projected.peer_directory.peers[0].overlay_cidr,
-        "198.18.42.11/32"
+        projected.peer_directory.peers[0].overlay_cidr.as_deref(),
+        Some("198.18.42.11/32")
     );
     assert_eq!(
         projected.peer_directory.peers[0].current_path,
@@ -245,7 +278,7 @@ fn projection_preserves_backend_owned_peer_path_and_local_export_placement() {
             reason_code: None,
             peers: vec![RemotePeerRowV2 {
                 peer_id: "peer-b".into(),
-                overlay_cidr: "198.18.42.11/32".into(),
+                overlay_cidr: Some("198.18.42.11/32".into()),
                 state: RemotePeerStateV2::Ready,
                 reason_code: None,
                 current_path: Some(PeerCurrentPathV2::Direct),

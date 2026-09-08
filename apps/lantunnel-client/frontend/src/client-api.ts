@@ -52,7 +52,8 @@ export interface RemotePeerExportV2 {
 
 export interface RemotePeerRowV2 {
   peer_id: string
-  overlay_cidr: string
+  /** Absent until this Peer's Tunnel-signed membership arrives. */
+  overlay_cidr?: string | null
   state: RemotePeerStateV2
   reason_code?: string | null
   current_path?: PeerCurrentPathV2 | null
