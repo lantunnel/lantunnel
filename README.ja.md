@@ -57,6 +57,17 @@ Lantunnel は、そうしたマシンを一つの小さなプライベートメ�
 
 ---
 
+## Client の画面
+
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="接続"><br><sub><b>接続</b><br>接続状態、この Peer の Overlay IP、直接とリレーそれぞれの通信量。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Tunnel にいる各 Peer と、その Overlay IP、いま使っている経路。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="設定"><br><sub><b>設定</b><br>ログイン時に起動、ネイティブルーティング、LAN 公開。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="アクセス"><br><sub><b>アクセス</b><br>ループバックの SOCKS5 リスナーと、この端末が提供する範囲。</sub></td>
+  </tr>
+</table>
+
 ## できること
 
 | | |

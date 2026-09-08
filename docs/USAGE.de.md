@@ -228,6 +228,8 @@ Einen weiteren Tunnel fügst du später hinzu, indem du eine weitere `.scope` in
 
 ### 6. Die Geräte verbinden
 
+<p align="center"><img src="./images/client-connection.png" width="300" alt="Verbindung"><br><sub>Status, die Overlay-IP dieses Peers und direkte gegenüber relayten Bytes.</sub></p>
+
 ```bash
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client tunnel list          # zur Kontrolle; gibt nie private Schlüssel aus
@@ -269,6 +271,8 @@ Alternativ stellst du den Netzwerkmodus in der Desktop-Oberfläche um und trägs
 
 ### Welche Adresse nehme ich?
 
+<p align="center"><img src="./images/client-peers.png" width="300" alt="Peers"><br><sub>Jeder Peer im Tunnel, seine Overlay-IP und der aktuelle Pfad.</sub></p>
+
 | Um zu erreichen | Nimm |
 |---|---|
 | Einen Dienst auf der entfernten Peer-Maschine selbst | Deren **Overlay-IP** (`198.18.x.y`) mit dem Port des Dienstes. `lantunnel-client tunnel list` gibt sie als JSON aus, die Oberfläche zeigt sie ebenfalls. |
@@ -298,6 +302,8 @@ Exportieren zwei Peers dasselbe Präfix, wählt jeder Client den zuerst gesehene
 ---
 
 ## Bestimmen, wer dich erreicht
+
+<p align="center"><img src="./images/client-access.png" width="300" alt="Zugriff"><br><sub>Der SOCKS5-Listener auf Loopback und was dieses Gerät ausliefert.</sub></p>
 
 Die **Client-Zugriffsrichtlinie** ist die einzige ACL in Lantunnel, und sie liegt auf der Maschine, die erreicht wird. Nicht auf dem Gateway. Nicht auf einem Server. Die Routenwahl entscheidet, *wohin* geschickt wird; dein Client entscheidet unabhängig davon, ob er bedient.
 
@@ -449,6 +455,8 @@ lantunnel-gateway onboard --pairing pairing.yaml
 ---
 
 ## Einstellungsreferenz
+
+<p align="center"><img src="./images/client-settings.png" width="300" alt="Einstellungen"><br><sub>Start bei der Anmeldung, native Routen, LAN-Freigabe.</sub></p>
 
 `settings.json` im Konfigurationsverzeichnis des Clients. Jeder Schlüssel ist optional.
 

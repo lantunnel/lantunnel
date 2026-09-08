@@ -298,6 +298,8 @@ units are in [`scripts/remote/`](../scripts/remote/).
 
 ### 6. Every Client device: connect
 
+<p align="center"><img src="./images/client-connection.png" width="300" alt="Connection"><br><sub>State, this Peer's Overlay IP, and direct versus relayed bytes.</sub></p>
+
 ```bash
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client tunnel list          # confirm; never prints private keys
@@ -349,6 +351,8 @@ DNS, and self-export destinations stay on their native routes either way.
 
 ### Which address do I use?
 
+<p align="center"><img src="./images/client-peers.png" width="300" alt="Peers"><br><sub>Every Peer in the Tunnel, its Overlay IP, and the path in use.</sub></p>
+
 | To reach | Use |
 |---|---|
 | A service on the remote Peer machine itself | Its **Overlay IP** (`198.18.x.y`) at the service's port. `lantunnel-client tunnel list` prints it as JSON, and the UI shows it. |
@@ -387,6 +391,8 @@ of your machines may legitimately pick different exporters.
 ---
 
 ## Deciding who reaches you
+
+<p align="center"><img src="./images/client-access.png" width="300" alt="Access"><br><sub>The loopback SOCKS5 listener and what this device will serve.</sub></p>
 
 The **Client Access Policy** is the only ACL in Lantunnel, and it lives on the machine
 being reached. Not on the Gateway. Not on a server. Route selection decides *where* to
@@ -568,6 +574,8 @@ lantunnel-gateway onboard --pairing pairing.yaml
 ---
 
 ## Settings reference
+
+<p align="center"><img src="./images/client-settings.png" width="300" alt="Settings"><br><sub>Start at login, native routing, LAN export.</sub></p>
 
 `settings.json` in the Client config directory. Every key is optional.
 

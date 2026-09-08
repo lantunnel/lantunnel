@@ -57,6 +57,17 @@ Lantunnel re煤ne esas m谩quinas en una peque帽a malla privada 鈥攗n **Tunnel**鈥
 
 ---
 
+## El Cliente
+
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="Conexi贸n"><br><sub><b>Conexi贸n</b><br>Estado, la IP Overlay de este Peer y los bytes directos frente a los retransmitidos.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Cada Peer del Tunnel, su IP Overlay y la ruta en uso.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="Ajustes"><br><sub><b>Ajustes</b><br>Inicio al iniciar sesi贸n, enrutamiento nativo y exportaci贸n de LAN.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="Acceso"><br><sub><b>Acceso</b><br>El SOCKS5 en loopback y lo que este dispositivo acepta servir.</sub></td>
+  </tr>
+</table>
+
 ## Qu茅 obtienes
 
 | | |

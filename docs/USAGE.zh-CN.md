@@ -233,6 +233,8 @@ Tunnel ID、已安装的 `.scope` 和 Peer 成员身份签名仍然有效，无�
 
 ### 6. 各设备连接
 
+<p align="center"><img src="./images/client-connection.png" width="300" alt="连接"><br><sub>连接状态、本机 Overlay IP，以及直连和中继各走了多少字节。</sub></p>
+
 ```bash
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client tunnel list          # 确认；不会打印私钥
@@ -274,6 +276,8 @@ lantunnel-client --desktop-network-mode lan_routes_tun \
 
 ### 我该用哪个地址？
 
+<p align="center"><img src="./images/client-peers.png" width="300" alt="Peers"><br><sub>Tunnel 里的每个 Peer、它的 Overlay IP，以及当前走的路径。</sub></p>
+
 | 要访问 | 用 |
 |---|---|
 | 远端 Peer 机器上自己跑的服务 | 它的 **Overlay IP**（`198.18.x.y`）加服务端口。`lantunnel-client tunnel list` 会以 JSON 打印，界面上也能看到。 |
@@ -303,6 +307,8 @@ lantunnel-client --desktop-network-mode lan_routes_tun \
 ---
 
 ## 决定谁能访问你
+
+<p align="center"><img src="./images/client-access.png" width="300" alt="访问"><br><sub>本地回环 SOCKS5 监听，以及这台设备愿意提供什么。</sub></p>
 
 **Client 访问策略**是 Lantunnel 里唯一的 ACL，而且它存在被访问的那台机器上。不在 Gateway 上，也不在任何服务器上。路由选择决定**往哪儿发**；你的 Client 独立决定**要不要提供服务**。
 
@@ -456,6 +462,8 @@ lantunnel-gateway onboard --pairing pairing.yaml
 ---
 
 ## 配置项速查
+
+<p align="center"><img src="./images/client-settings.png" width="300" alt="设置"><br><sub>开机自启、原生路由、内网导出。</sub></p>
 
 Client 配置目录下的 `settings.json`。每一项都是可选的。
 

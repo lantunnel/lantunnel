@@ -68,6 +68,17 @@ port is opened, and no traffic is decrypted in the middle.
 
 ---
 
+## The Client
+
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="Connection"><br><sub><b>Connection</b><br>State, this Peer's Overlay IP, and direct versus relayed bytes.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Every Peer in the Tunnel, its Overlay IP, and the path in use.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="Settings"><br><sub><b>Settings</b><br>Start at login, native routing, LAN export.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="Access"><br><sub><b>Access</b><br>The loopback SOCKS5 listener and what this device will serve.</sub></td>
+  </tr>
+</table>
+
 ## What you get
 
 | | |
