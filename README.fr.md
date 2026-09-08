@@ -57,6 +57,17 @@ Lantunnel réunit ces machines dans un petit maillage privé — un **Tunnel** �
 
 ---
 
+## Le Client
+
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="Connexion"><br><sub><b>Connexion</b><br>L'état, l'IP Overlay de ce Peer, et les octets directs face aux octets relayés.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Chaque Peer du Tunnel, son IP Overlay et le chemin utilisé.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="Paramètres"><br><sub><b>Paramètres</b><br>Démarrage à l'ouverture de session, routage natif, export du LAN.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="Accès"><br><sub><b>Accès</b><br>Le SOCKS5 en loopback et ce que cet appareil accepte de servir.</sub></td>
+  </tr>
+</table>
+
 ## Ce que vous obtenez
 
 | | |

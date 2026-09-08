@@ -57,6 +57,17 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
 
 ---
 
+## Der Client
+
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="Verbindung"><br><sub><b>Verbindung</b><br>Status, die Overlay-IP dieses Peers und direkte gegenüber relayten Bytes.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Jeder Peer im Tunnel, seine Overlay-IP und der aktuelle Pfad.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="Einstellungen"><br><sub><b>Einstellungen</b><br>Start bei der Anmeldung, native Routen, LAN-Freigabe.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="Zugriff"><br><sub><b>Zugriff</b><br>Der SOCKS5-Listener auf Loopback und was dieses Gerät ausliefert.</sub></td>
+  </tr>
+</table>
+
 ## Was du bekommst
 
 | | |

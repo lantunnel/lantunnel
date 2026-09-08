@@ -57,6 +57,17 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
 
 ---
 
+## Client 長這樣
+
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="連線"><br><sub><b>連線</b><br>連線狀態、本機 Overlay IP，以及直連和中繼各走了多少位元組。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Tunnel 裡的每個 Peer、它的 Overlay IP，以及目前走的路徑。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="設定"><br><sub><b>設定</b><br>開機自動啟動、原生路由、內網匯出。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="存取"><br><sub><b>存取</b><br>本機回送 SOCKS5 監聽，以及這台裝置願意提供什麼。</sub></td>
+  </tr>
+</table>
+
 ## 你會得到什麼
 
 | | |

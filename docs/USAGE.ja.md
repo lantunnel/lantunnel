@@ -239,6 +239,8 @@ Tunnel ID、設置済みの `.scope`、Peer メンバーシップ署名はその
 
 ### 6. 各デバイスを接続する
 
+<p align="center"><img src="./images/client-connection.png" width="300" alt="接続"><br><sub>接続状態、この Peer の Overlay IP、直接とリレーそれぞれの通信量。</sub></p>
+
 ```bash
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client tunnel list          # 確認用。秘密鍵は出力されません
@@ -280,6 +282,8 @@ lantunnel-client --desktop-network-mode lan_routes_tun \
 
 ### どのアドレスを使えばいい？
 
+<p align="center"><img src="./images/client-peers.png" width="300" alt="Peers"><br><sub>Tunnel にいる各 Peer と、その Overlay IP、いま使っている経路。</sub></p>
+
 | 到達したい先 | 使うアドレス |
 |---|---|
 | リモート Peer のマシン自身で動くサービス | その **Overlay IP**（`198.18.x.y`）とサービスのポート。`lantunnel-client tunnel list` が JSON で出力し、UI にも表示されます。 |
@@ -309,6 +313,8 @@ Peer は、自分が接続しているプライベートサブネットを広告
 ---
 
 ## 誰に到達を許すか
+
+<p align="center"><img src="./images/client-access.png" width="300" alt="アクセス"><br><sub>ループバックの SOCKS5 リスナーと、この端末が提供する範囲。</sub></p>
 
 **Client アクセスポリシー** は Lantunnel における唯一の ACL であり、到達される側のマシンに置かれます。Gateway でもサーバーでもありません。経路の選択は**どこへ送るか**を決め、あなたの Client が**応じるかどうか**を独立して決めます。
 
@@ -462,6 +468,8 @@ lantunnel-gateway onboard --pairing pairing.yaml
 ---
 
 ## 設定リファレンス
+
+<p align="center"><img src="./images/client-settings.png" width="300" alt="設定"><br><sub>ログイン時に起動、ネイティブルーティング、LAN 公開。</sub></p>
 
 Client の設定ディレクトリにある `settings.json`。すべてのキーは省略可能です。
 

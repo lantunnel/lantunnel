@@ -237,6 +237,8 @@ Tunnel ID、已安裝的 `.scope` 和 Peer 成員身分簽章仍然有效，無�
 
 ### 6. 各裝置連線
 
+<p align="center"><img src="./images/client-connection.png" width="300" alt="連線"><br><sub>連線狀態、本機 Overlay IP，以及直連和中繼各走了多少位元組。</sub></p>
+
 ```bash
 lantunnel-client tunnel import ./laptop.peer
 lantunnel-client tunnel list          # 確認；不會列印私鑰
@@ -278,6 +280,8 @@ lantunnel-client --desktop-network-mode lan_routes_tun \
 
 ### 我該用哪個位址？
 
+<p align="center"><img src="./images/client-peers.png" width="300" alt="Peers"><br><sub>Tunnel 裡的每個 Peer、它的 Overlay IP，以及目前走的路徑。</sub></p>
+
 | 要連到 | 用 |
 |---|---|
 | 遠端 Peer 機器上自己跑的服務 | 它的 **Overlay IP**（`198.18.x.y`）加上服務連接埠。`lantunnel-client tunnel list` 會以 JSON 列印，介面上也看得到。 |
@@ -307,6 +311,8 @@ lantunnel-client --desktop-network-mode lan_routes_tun \
 ---
 
 ## 決定誰能連到你
+
+<p align="center"><img src="./images/client-access.png" width="300" alt="存取"><br><sub>本機回送 SOCKS5 監聽，以及這台裝置願意提供什麼。</sub></p>
 
 **Client 存取政策**是 Lantunnel 裡唯一的 ACL，而且它存放在被連到的那台機器上。不在 Gateway 上，也不在任何伺服器上。路由選擇決定**往哪裡送**；你的 Client 獨立決定**要不要提供服務**。
 
@@ -460,6 +466,8 @@ lantunnel-gateway onboard --pairing pairing.yaml
 ---
 
 ## 設定項速查
+
+<p align="center"><img src="./images/client-settings.png" width="300" alt="設定"><br><sub>開機自動啟動、原生路由、內網匯出。</sub></p>
 
 Client 設定目錄下的 `settings.json`。每一項都是選填的。
 
