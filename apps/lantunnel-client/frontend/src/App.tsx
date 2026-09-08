@@ -104,6 +104,22 @@ export default function App() {
     })()
   }, [])
 
+  /**
+   * While the runtime holds a Peer, the selector names that Peer.
+   *
+   * Seeding it with the first import meant a Client that auto-connected as one
+   * profile displayed another one's address above a Disconnect button, and the
+   * selector is disabled whenever a connection exists, so nothing else ever
+   * corrected it. Only the runtime's own answer moves it here; the choice is
+   * still the user's while disconnected.
+   */
+  useEffect(() => {
+    const running = runtimePeerProfile(peerProfiles, status)
+    if (running && running.tunnel_id !== selectedTunnelId) {
+      setSelectedTunnelId(running.tunnel_id)
+    }
+  }, [peerProfiles, status, selectedTunnelId])
+
   useEffect(() => {
     let un: (() => void) | undefined
     api.onStatus(() => {
@@ -1531,6 +1547,19 @@ function buildLogText(nativeStatusText: string, logs: string[]) {
 
 function trafficLabel(tx: number, rx: number) {
   return `${formatBytes(tx)} ↑ / ${formatBytes(rx)} ↓`
+}
+
+/**
+ * Which imported profile the runtime is connected as, if any.
+ *
+ * The runtime reports the Peer, not the Tunnel, so the match is by `peer_id`:
+ * that is the identity a `.peer` file carries, and it is what the Connection
+ * tab is claiming when it prints an address.
+ */
+function runtimePeerProfile(profiles: ImportedPeerSummaryV2[], status: ConnectionStatus) {
+  const peerId = status.client_ui?.this_peer?.peer_id
+  if (!peerId) return undefined
+  return profiles.find((profile) => profile.peer_id === peerId)
 }
 
 /** How long the current connection has been up. The engine clears it on
