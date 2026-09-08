@@ -248,12 +248,15 @@ struct TunnelStatusSnapshot: Equatable {
         "\(byteLabel(tx)) \u{2191} / \(byteLabel(rx)) \u{2193}"
     }
 
+    /// Decimal units, matching the shared UI. A 5,000,000,000-byte Relay
+    /// allowance divided by 1024³ reads "4.7 GB" — the same number the plan
+    /// calls 5 GB, rendered as if the Client were shorting it.
     static func byteLabel(_ bytes: Int64) -> String {
         let units = ["B", "KB", "MB", "GB", "TB"]
         var value = Double(max(bytes, 0))
         var unit = 0
-        while value >= 1024 && unit < units.count - 1 {
-            value /= 1024
+        while value >= 1000 && unit < units.count - 1 {
+            value /= 1000
             unit += 1
         }
         return unit == 0 ? "\(Int(value)) B" : String(format: "%.1f %@", value, units[unit])
