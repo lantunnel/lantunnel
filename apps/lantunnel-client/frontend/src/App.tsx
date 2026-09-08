@@ -421,7 +421,7 @@ export default function App() {
   const normalizedPeerSearch = peerSearch.trim().toLowerCase()
   const filteredPeers = (peerDirectory?.peers || []).filter((peer) => {
     if (!normalizedPeerSearch) return true
-    return [peer.peer_id, peer.overlay_cidr, ...peer.exports.map((entry) => entry.prefix)]
+    return [peer.peer_id, peer.overlay_cidr ?? '', ...peer.exports.map((entry) => entry.prefix)]
       .some((value) => value.toLowerCase().includes(normalizedPeerSearch))
   })
   const visiblePeers = normalizedPeerSearch || showAllPeers ? filteredPeers : filteredPeers.slice(0, 10)
@@ -1391,7 +1391,15 @@ function PeerRow({ peer }: { peer: RemotePeerRowV2 }) {
     <article className="glass rounded-xl p-3 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-mono text-sm font-medium">{peer.overlay_cidr}</div>
+          {/* A row exists as soon as the Tunnel names this Peer, which is
+              before any address for it has been verified. Naming the wait is
+              honest; printing "Unavailable" in the address slot said the same
+              word the state and the reason below already say. */}
+          {peer.overlay_cidr ? (
+            <div className="font-mono text-sm font-medium">{peer.overlay_cidr}</div>
+          ) : (
+            <div className="text-sm font-medium text-content-muted">Address not known yet</div>
+          )}
         </div>
         {peer.current_path && (
           <span className={`shrink-0 rounded-full border px-3 py-1 text-xs ${peer.current_path === 'direct' ? 'border-status-success/40 text-status-success' : 'border-accent/50 text-accent'}`}>

@@ -252,7 +252,15 @@ pub struct PeerDirectoryV2 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemotePeerRowV2 {
     pub peer_id: String,
-    pub overlay_cidr: String,
+    /// Absent until this Peer's Tunnel-signed membership arrives.
+    ///
+    /// The Gateway's membership cycle names Peers by id only, so a row can
+    /// exist before any address for it has been verified. Saying so with
+    /// `None` keeps the address field an address; the earlier placeholder put
+    /// the word "Unavailable" where a CIDR belongs, and the row then read as
+    /// an error three times over.
+    #[serde(default)]
+    pub overlay_cidr: Option<String>,
     pub state: RemotePeerStateV2,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<String>,
@@ -530,10 +538,7 @@ pub fn project_engine_runtime_snapshot(
                 .into_iter()
                 .map(|peer| RemotePeerRowV2 {
                     peer_id: peer.peer_id,
-                    overlay_cidr: peer
-                        .overlay_ip
-                        .map(|ip| format!("{ip}/32"))
-                        .unwrap_or_else(|| "Unavailable".into()),
+                    overlay_cidr: peer.overlay_ip.map(|ip| format!("{ip}/32")),
                     state: match peer.phase {
                         V2RemotePeerPhase::Syncing => RemotePeerStateV2::Syncing,
                         V2RemotePeerPhase::Ready => RemotePeerStateV2::Ready,
