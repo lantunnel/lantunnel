@@ -22,11 +22,12 @@ Vous découvrez le projet ? Commencez par le [README](../README.fr.md). Vous che
 6. [Partager tout un LAN](#partager-tout-un-lan)
 7. [Décider qui vous atteint](#décider-qui-vous-atteint)
 8. [Sur un serveur (headless)](#sur-un-serveur-headless)
-9. [Téléphones](#téléphones)
-10. [Référence des commandes](#référence-des-commandes)
-11. [Référence des réglages](#référence-des-réglages)
-12. [Où se trouvent les fichiers](#où-se-trouvent-les-fichiers)
-13. [Dépannage](#dépannage)
+9. [Sur un routeur (OpenWrt)](#sur-un-routeur-openwrt)
+10. [Téléphones](#téléphones)
+11. [Référence des commandes](#référence-des-commandes)
+12. [Référence des réglages](#référence-des-réglages)
+13. [Où se trouvent les fichiers](#où-se-trouvent-les-fichiers)
+14. [Dépannage](#dépannage)
 
 ---
 
@@ -340,6 +341,10 @@ Pour tout refuser, interdisez `0.0.0.0/0` et `::/0` en TCP comme en UDP — c'es
 
 `--headless` (alias `--no-ui`) exécute exactement le même runtime, sans fenêtre, sans icône de barre d'état ni WebView : même logique de reconnexion, même comportement de PeerLink et du relais, mêmes interfaces SOCKS5 et TUN.
 
+Téléchargez `lantunnel-client-headless-<version>-<triple>` plutôt que le paquet de bureau. C'est le même runtime, l'interface retirée à la compilation : pas de Tauri, pas de WebView, 5 à 7 Mo au lieu d'un AppImage de ~97 Mo, et aucune bibliothèque graphique requise sur l'hôte. Les versions Linux sont liées statiquement à musl. Chaque lancement de ce binaire est headless : `--headless` est donc implicite, l'option ne subsiste que pour les scripts partagés avec des machines de bureau.
+
+Une capacité ne suit pas : installer l'assistant TUN privilégié de macOS est une action de l'application de bureau. Un hôte macOS headless ne peut donc utiliser le routage natif que si le Client de bureau a installé cet assistant auparavant. Linux et Windows ne sont pas concernés — ils résolvent le sidecar TUN comme la version de bureau — et un Peer exportateur n'a besoin d'aucun TUN.
+
 ```bash
 lantunnel-client tunnel import /etc/lantunnel/nas.peer
 lantunnel-client connect <tunnel-id>          # au premier plan, sans interface
@@ -368,11 +373,44 @@ WantedBy=multi-user.target
 
 Le mode headless n'a pas d'interface de réglages : modifiez directement `settings.json` dans le répertoire de configuration — voir la [référence des réglages](#référence-des-réglages).
 
-**Sous Windows**, les builds de release utilisent le sous-système GUI : un lancement normal n'ouvre aucune console et `cmd.exe` n'attend pas le processus. Quand la sortie et le code de retour d'une commande courte comptent, utilisez `start /wait` :
+**Sous Windows**, le build de bureau utilise le sous-système GUI : un lancement normal n'ouvre aucune console et `cmd.exe` n'attend pas le processus. Quand la sortie et le code de retour d'une commande courte comptent, utilisez `start /wait`. Le build headless conserve le sous-système console et n'en a pas besoin :
 
 ```
 start /wait "" "C:\Program Files\Lantunnel\lantunnel-client.exe" status --json
 ```
+
+---
+
+## Sur un routeur (OpenWrt)
+
+Le routeur tourne déjà en permanence et se trouve déjà sur le LAN : c'est l'endroit naturel pour le Peer qui [exporte ce LAN](#partager-tout-un-lan). Les appareils situés derrière n'ont rien à installer.
+
+Exporter un sous-réseau ne fait que composer vers l'extérieur : ni périphérique TUN, ni `kmod-tun`, ni `ip-full`, ni modification de routes ou de pare-feu.
+
+Choisissez l'archive correspondant à `uname -m` — `aarch64`, `armv7l` ou `x86_64` — et décompressez-la à la racine du système de fichiers :
+
+```sh
+tar -xzf lantunnel-client-openwrt-<version>-<arch>.tar.gz -C /
+```
+
+Cela installe `/usr/bin/lantunnel-client`, un service procd dans `/etc/init.d/lantunnel` et `/etc/config/lantunnel`. Importez le profil, puis démarrez le service :
+
+```sh
+TUNNEL_PROXY_APP_CONFIG_DIR=/etc/lantunnel \
+  /usr/bin/lantunnel-client tunnel import /tmp/router.peer
+/etc/init.d/lantunnel enable
+/etc/init.d/lantunnel start
+logread -e lantunnel
+```
+
+Avec un seul profil importé, le service s'y connecte. S'il y en a plusieurs, désignez-le avec
+`uci set lantunnel.main.tunnel_id=<TUNNEL_ID> && uci commit lantunnel`.
+
+La configuration vit sur l'overlay flash dans `/etc/lantunnel` ; les journaux vont dans `/var/log/lantunnel`, qui est en tmpfs, pour qu'un fichier de log tourné chaque jour ne touche jamais la flash. `/etc/config` survit automatiquement à un sysupgrade ; pour conserver aussi le profil importé, ajoutez `/etc/lantunnel` à `/etc/sysupgrade.conf`. Le binaire n'est jamais conservé : réinstallez-le après une mise à jour.
+
+Une fois installé, le binaire pèse 5,5 Mo sur armv7, 5,7 Mo sur aarch64 et 7,1 Mo sur x86_64. Cela exclut les routeurs à 16 Mo de flash, c'est-à-dire l'essentiel du matériel `ath79` et `ramips`, et MIPS n'est pas compilé du tout.
+
+Les instructions d'installation complètes voyagent dans l'archive, sous `/usr/share/lantunnel/README.md`.
 
 ---
 
@@ -409,7 +447,7 @@ lantunnel-client tunnel list              Liste les profils en JSON
 | `--enable-lan-p2p` | Autorise les adresses LAN comme candidates au chemin direct |
 | `-V`, `--help` | Version, aide |
 
-Surcharges par variables d'environnement : `LANTUNNEL_LOCAL_SOCKS5_LISTEN`, `LANTUNNEL_DESKTOP_NETWORK_MODE`, `LANTUNNEL_LAN_ROUTES`, `TUNNEL_PROXY_APP_CONFIG_DIR`.
+Surcharges par variables d'environnement : `LANTUNNEL_LOCAL_SOCKS5_LISTEN`, `LANTUNNEL_DESKTOP_NETWORK_MODE`, `LANTUNNEL_LAN_ROUTES`, `TUNNEL_PROXY_APP_CONFIG_DIR`, `LANTUNNEL_LOG_DIR`.
 
 ### `lantunnel-admin`
 
@@ -485,6 +523,7 @@ Les clés inconnues sont refusées plutôt qu'ignorées : une faute de frappe se
 |---|---|
 | Configuration du Client, profils importés, secrets | `~/.lantunnel/app/` (modifiable via `TUNNEL_PROXY_APP_CONFIG_DIR`) |
 | Réglages du Client | `~/.lantunnel/app/settings.json` |
+| Journaux du Client | à côté de la configuration (modifiable via `LANTUNNEL_LOG_DIR` ; c'est ainsi que le paquet routeur les tient à l'écart de la flash) |
 | Configuration de la Gateway | `configs/gateway.yaml` (ou via `--config`) |
 | Admission des Tunnels par la Gateway | `state/scopes.d/*.scope` |
 | Journal d'usage du relais | `state/relay-usage.wal` |

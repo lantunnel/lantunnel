@@ -22,11 +22,12 @@ Neu im Projekt? Fang mit der [README](../README.de.md) an. Interessiert dich der
 6. [Ein ganzes LAN freigeben](#ein-ganzes-lan-freigeben)
 7. [Bestimmen, wer dich erreicht](#bestimmen-wer-dich-erreicht)
 8. [Auf einem Server (headless)](#auf-einem-server-headless)
-9. [Smartphones](#smartphones)
-10. [Befehlsreferenz](#befehlsreferenz)
-11. [Einstellungsreferenz](#einstellungsreferenz)
-12. [Wo die Dateien liegen](#wo-die-dateien-liegen)
-13. [Fehlersuche](#fehlersuche)
+9. [Auf einem Router (OpenWrt)](#auf-einem-router-openwrt)
+10. [Smartphones](#smartphones)
+11. [Befehlsreferenz](#befehlsreferenz)
+12. [Einstellungsreferenz](#einstellungsreferenz)
+13. [Wo die Dateien liegen](#wo-die-dateien-liegen)
+14. [Fehlersuche](#fehlersuche)
 
 ---
 
@@ -340,6 +341,10 @@ Um alles abzulehnen, verweigerst du `0.0.0.0/0` und `::/0` für TCP und UDP. Gen
 
 `--headless` (Alias `--no-ui`) führt dieselbe Laufzeit ohne Fenster, Tray-Symbol und WebView aus — dieselbe Reconnect-Logik, dasselbe Verhalten von PeerLink und Relay, dieselben SOCKS5- und TUN-Schnittstellen.
 
+Lade `lantunnel-client-headless-<version>-<triple>` statt des Desktop-Pakets. Es ist dieselbe Laufzeit, nur mit herauskompilierter Oberfläche: kein Tauri, kein WebView, 5–7MB statt eines ~97MB großen AppImage, und auf dem Host werden keine Grafikbibliotheken gebraucht. Die Linux-Builds sind statisch gegen musl gelinkt. Jeder Start dieser Binärdatei ist headless, `--headless` ist also impliziert; die Option existiert nur noch für Skripte, die auch auf Desktop-Hosts laufen.
+
+Eine Fähigkeit kommt nicht mit: Den privilegierten TUN-Helfer unter macOS installiert die Desktop-App, deshalb kann ein headless macOS-Host natives Routing nur nutzen, wenn der Desktop-Client den Helfer vorher eingerichtet hat. Linux und Windows sind nicht betroffen — sie finden den TUN-Sidecar genauso wie der Desktop-Build — und ein freigebender Peer braucht überhaupt kein TUN.
+
 ```bash
 lantunnel-client tunnel import /etc/lantunnel/nas.peer
 lantunnel-client connect <tunnel-id>          # im Vordergrund, ohne Oberfläche
@@ -368,11 +373,44 @@ WantedBy=multi-user.target
 
 Im Headless-Betrieb gibt es keine Einstellungsoberfläche; bearbeite `settings.json` im Konfigurationsverzeichnis direkt — siehe [Einstellungsreferenz](#einstellungsreferenz).
 
-**Unter Windows** verwenden Release-Builds das GUI-Subsystem. Ein normaler Start öffnet daher kein Konsolenfenster, und `cmd.exe` wartet nicht auf den Prozess. Wenn Ausgabe und Exit-Status eines kurzen Befehls zählen, nimm `start /wait`:
+**Unter Windows** verwendet der Desktop-Build das GUI-Subsystem. Ein normaler Start öffnet daher kein Konsolenfenster, und `cmd.exe` wartet nicht auf den Prozess. Wenn Ausgabe und Exit-Status eines kurzen Befehls zählen, nimm `start /wait`. Der headless Build behält das Konsolen-Subsystem und braucht das nicht:
 
 ```
 start /wait "" "C:\Program Files\Lantunnel\lantunnel-client.exe" status --json
 ```
+
+---
+
+## Auf einem Router (OpenWrt)
+
+Der Router läuft ohnehin rund um die Uhr und sitzt ohnehin im LAN. Damit ist er der natürliche Ort für den Peer, der [dieses LAN freigibt](#ein-ganzes-lan-freigeben). Auf den Geräten dahinter muss nichts installiert werden.
+
+Ein Subnetz freizugeben wählt nur nach außen. Es braucht also kein TUN-Gerät, kein `kmod-tun`, kein `ip-full` und keine Änderung an Routen oder Firewall.
+
+Nimm das Tarball, das zu `uname -m` passt — `aarch64`, `armv7l` oder `x86_64` — und entpacke es im Wurzelverzeichnis:
+
+```sh
+tar -xzf lantunnel-client-openwrt-<version>-<arch>.tar.gz -C /
+```
+
+Das legt `/usr/bin/lantunnel-client`, einen procd-Dienst unter `/etc/init.d/lantunnel` und `/etc/config/lantunnel` an. Profil importieren, dann den Dienst starten:
+
+```sh
+TUNNEL_PROXY_APP_CONFIG_DIR=/etc/lantunnel \
+  /usr/bin/lantunnel-client tunnel import /tmp/router.peer
+/etc/init.d/lantunnel enable
+/etc/init.d/lantunnel start
+logread -e lantunnel
+```
+
+Bei genau einem importierten Profil verbindet der Dienst dieses. Bei mehreren benennst du es mit
+`uci set lantunnel.main.tunnel_id=<TUNNEL_ID> && uci commit lantunnel`.
+
+Die Konfiguration liegt im Flash-Overlay unter `/etc/lantunnel`, die Logs unter `/var/log/lantunnel` — das ist tmpfs, damit eine täglich rotierende Logdatei den Flash nie berührt. `/etc/config` übersteht ein sysupgrade automatisch; damit auch das importierte Profil bleibt, trage `/etc/lantunnel` in `/etc/sysupgrade.conf` ein. Die Binärdatei bleibt nie erhalten — nach einem Upgrade neu installieren.
+
+Installiert belegt die Binärdatei 5,5MB auf armv7, 5,7MB auf aarch64 und 7,1MB auf x86_64. Für Router mit 16MB Flash — also die meiste `ath79`- und `ramips`-Hardware — reicht das nicht, und MIPS wird gar nicht erst gebaut.
+
+Die vollständige Installationsanleitung liegt im Tarball unter `/usr/share/lantunnel/README.md`.
 
 ---
 
@@ -409,7 +447,7 @@ lantunnel-client tunnel list              Profile als JSON auflisten
 | `--enable-lan-p2p` | LAN-Adressen als Kandidaten für den Direktweg zulassen |
 | `-V`, `--help` | Version, Hilfe |
 
-Überschreibung per Umgebung: `LANTUNNEL_LOCAL_SOCKS5_LISTEN`, `LANTUNNEL_DESKTOP_NETWORK_MODE`, `LANTUNNEL_LAN_ROUTES`, `TUNNEL_PROXY_APP_CONFIG_DIR`.
+Überschreibung per Umgebung: `LANTUNNEL_LOCAL_SOCKS5_LISTEN`, `LANTUNNEL_DESKTOP_NETWORK_MODE`, `LANTUNNEL_LAN_ROUTES`, `TUNNEL_PROXY_APP_CONFIG_DIR`, `LANTUNNEL_LOG_DIR`.
 
 ### `lantunnel-admin`
 
@@ -485,6 +523,7 @@ Unbekannte Schlüssel werden abgelehnt statt ignoriert, damit ein Tippfehler auf
 |---|---|
 | Client-Konfiguration, importierte Profile, Geheimnisse | `~/.lantunnel/app/` (überschreibbar mit `TUNNEL_PROXY_APP_CONFIG_DIR`) |
 | Client-Einstellungen | `~/.lantunnel/app/settings.json` |
+| Client-Logs | neben der Konfiguration (überschreibbar mit `LANTUNNEL_LOG_DIR`; genau so hält das Router-Paket sie vom Flash fern) |
 | Gateway-Konfiguration | `configs/gateway.yaml` (oder per `--config`) |
 | Tunnel-Zulassung im Gateway | `state/scopes.d/*.scope` |
 | Relay-Nutzungsjournal des Gateways | `state/relay-usage.wal` |
