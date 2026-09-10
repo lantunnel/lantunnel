@@ -232,6 +232,61 @@ jobs:
             make_target: _release-lantunnel-admin-macos-arm64
             rust_target: aarch64-apple-darwin
             artifact: lantunnel-admin-${version}-aarch64-apple-darwin
+          # Headless Client: the same runtime with the `ui` feature off. The
+          # Linux UI build is a ~97MB AppImage because it carries webkit2gtk,
+          # which is exactly what a server or a router cannot host.
+          - product: lantunnel-client-headless
+            platform: linux-amd64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-headless-linux-amd64
+            rust_target: x86_64-unknown-linux-musl
+            artifact: lantunnel-client-headless-${version}-x86_64-unknown-linux-musl
+          - product: lantunnel-client-headless
+            platform: linux-arm64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-headless-linux-arm64
+            rust_target: aarch64-unknown-linux-musl
+            artifact: lantunnel-client-headless-${version}-aarch64-unknown-linux-musl
+          - product: lantunnel-client-headless
+            platform: macos-arm64
+            os: macos-latest
+            make_target: _release-lantunnel-client-headless-macos-arm64
+            rust_target: aarch64-apple-darwin
+            artifact: lantunnel-client-headless-${version}-aarch64-apple-darwin
+          - product: lantunnel-client-headless
+            platform: macos-amd64
+            os: macos-latest
+            make_target: _release-lantunnel-client-headless-macos-amd64
+            rust_target: x86_64-apple-darwin
+            artifact: lantunnel-client-headless-${version}-x86_64-apple-darwin
+          - product: lantunnel-client-headless
+            platform: windows-amd64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-headless-windows-amd64
+            rust_target: x86_64-pc-windows-msvc
+            artifact: lantunnel-client-headless-${version}-x86_64-pc-windows-msvc.exe
+          # OpenWrt exporting Peer: the same headless musl binary plus a procd
+          # service and a UCI file, so a router can front the LAN it already
+          # sits on. MIPS is absent on purpose — 8-16MB of flash does not fit
+          # this, and the firmware already claims most of it.
+          - product: lantunnel-client-openwrt
+            platform: aarch64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-openwrt-aarch64
+            rust_target: aarch64-unknown-linux-musl
+            artifact: lantunnel-client-openwrt-${version}-aarch64.tar.gz
+          - product: lantunnel-client-openwrt
+            platform: armv7
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-openwrt-armv7
+            rust_target: armv7-unknown-linux-musleabihf
+            artifact: lantunnel-client-openwrt-${version}-armv7.tar.gz
+          - product: lantunnel-client-openwrt
+            platform: x86-64
+            os: ubuntu-latest
+            make_target: _release-lantunnel-client-openwrt-x86-64
+            rust_target: x86_64-unknown-linux-musl
+            artifact: lantunnel-client-openwrt-${version}-x86_64.tar.gz
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -258,6 +313,7 @@ jobs:
           protoc --version
 
       - name: Build through the public Make release path
+        id: build
         shell: bash
         env:
           VERSION: ${{ needs.manual-build-prepare.outputs.version }}
@@ -268,11 +324,12 @@ jobs:
           artifact='${{ matrix.artifact }}'
           artifact="${artifact//\$\{version\}/$VERSION}"
           test -f "dist/release/${artifact}"
+          echo "artifact=${artifact}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-${{ matrix.product }}-${{ matrix.platform }}
-          path: dist/release/${{ matrix.product }}-${{ needs.manual-build-prepare.outputs.version }}-${{ matrix.rust_target }}
+          path: dist/release/${{ steps.build.outputs.artifact }}
           if-no-files-found: error
 
   build-client-linux:
@@ -751,6 +808,14 @@ jobs:
             "lantunnel-client-${version}-linux-amd64.AppImage"
             "lantunnel-client-${version}-linux-arm64.AppImage"
             "lantunnel-client-${version}-android-arm64.apk"
+            "lantunnel-client-headless-${version}-x86_64-pc-windows-msvc.exe"
+            "lantunnel-client-headless-${version}-x86_64-apple-darwin"
+            "lantunnel-client-headless-${version}-aarch64-apple-darwin"
+            "lantunnel-client-headless-${version}-x86_64-unknown-linux-musl"
+            "lantunnel-client-headless-${version}-aarch64-unknown-linux-musl"
+            "lantunnel-client-openwrt-${version}-aarch64.tar.gz"
+            "lantunnel-client-openwrt-${version}-armv7.tar.gz"
+            "lantunnel-client-openwrt-${version}-x86_64.tar.gz"
           )
           mapfile -t actual < <(find dist/release -maxdepth 1 -type f -printf '%f\n' | sort)
           if [ "${#actual[@]}" -ne "${#expected[@]}" ]; then

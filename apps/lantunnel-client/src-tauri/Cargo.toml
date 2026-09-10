@@ -26,10 +26,10 @@ tp-client.workspace = true
 tp-proxy-socks5.workspace = true
 tp-ipc.workspace = true
 
-tauri = { version = "2", features = ["tray-icon"] }
-tauri-plugin-dialog = "2"
-tauri-plugin-shell = "2"
-tauri-plugin-autostart = "2"
+tauri = { version = "2", features = ["tray-icon"], optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+tauri-plugin-shell = { version = "2", optional = true }
+tauri-plugin-autostart = { version = "2", optional = true }
 
 tokio.workspace = true
 tokio-util.workspace = true
@@ -50,7 +50,7 @@ rustls.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 libc = "0.2"
-rfd = { version = "0.16", default-features = false, features = ["common-controls-v6"] }
+rfd = { version = "0.16", default-features = false, features = ["common-controls-v6"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
@@ -63,5 +63,15 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [features]
-default = ["custom-protocol"]
-custom-protocol = ["tauri/custom-protocol"]
+default = ["ui", "custom-protocol"]
+# `ui` pulls in Tauri and the WebView stack. Turning it off builds the same
+# runtime as a headless daemon — the shape that fits a server or a router,
+# where webkit2gtk does not exist and a 97MB AppImage is not an option.
+ui = [
+    "dep:tauri",
+    "dep:tauri-plugin-dialog",
+    "dep:tauri-plugin-shell",
+    "dep:tauri-plugin-autostart",
+    "dep:rfd",
+]
+custom-protocol = ["tauri?/custom-protocol"]

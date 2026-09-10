@@ -12,7 +12,14 @@ fn main() {
     println!("cargo:rerun-if-changed=windows/require-administrator.manifest.xml");
 
     generate_sidecar_assets(&target_os, sidecar_dir.as_deref());
-    run_tauri_build(&target_os);
+
+    // Headless builds (`--no-default-features`) link no Tauri and ship no
+    // frontend, so the Tauri codegen step must not run — it would demand a
+    // built `frontendDist` that a router build never produces. Build scripts
+    // read features from the environment, not from `cfg!`.
+    if env::var_os("CARGO_FEATURE_UI").is_some() {
+        run_tauri_build(&target_os);
+    }
 }
 
 fn run_tauri_build(target_os: &str) {

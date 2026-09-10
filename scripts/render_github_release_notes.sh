@@ -76,6 +76,24 @@ release_base="https://github.com/${repository}/releases/download/${tag}"
     printf '| [Android ARM64](%s/lantunnel-client-%s-android-arm64.apk) | Android 8.0 or later, 64-bit ARM | Signed with the project release key |\n\n' "$release_base" "$version"
     printf 'There is no iOS download. The iOS Client needs Apple Network Extension entitlements that cannot be attached to a redistributable build, so it is [built from source with your own Apple Developer account](SOURCE_IOS_URL).\n\n'
 
+    printf '### Client (headless) — servers, NAS boxes, and anything without a desktop\n\n'
+    printf 'The same Client runtime with the UI compiled out: no WebView, no window, 5-7MB instead of a ~97MB AppImage. Run it with `--headless`.\n\n'
+    printf '| Download | Platform |\n'
+    printf '| --- | --- |\n'
+    printf '| [Windows x64](%s/lantunnel-client-headless-%s-x86_64-pc-windows-msvc.exe) | Windows 10 or later |\n' "$release_base" "$version"
+    printf '| [macOS Intel](%s/lantunnel-client-headless-%s-x86_64-apple-darwin) | Intel Mac |\n' "$release_base" "$version"
+    printf '| [macOS Apple Silicon](%s/lantunnel-client-headless-%s-aarch64-apple-darwin) | Apple Silicon Mac |\n' "$release_base" "$version"
+    printf '| [Linux x64](%s/lantunnel-client-headless-%s-x86_64-unknown-linux-musl) | 64-bit Intel/AMD Linux, statically linked |\n' "$release_base" "$version"
+    printf '| [Linux ARM64](%s/lantunnel-client-headless-%s-aarch64-unknown-linux-musl) | 64-bit ARM Linux, statically linked |\n\n' "$release_base" "$version"
+
+    printf '### Router — export a whole LAN from OpenWrt\n\n'
+    printf 'The headless Client plus a procd service and a UCI file. The router publishes the LAN it already sits on, so the devices behind it need no install of their own. Exporting a subnet only dials outbound: no TUN, no `kmod-tun`, no route or firewall changes. Installed it is 5.5-7.1MB depending on the architecture, which rules out 16MB-flash and MIPS devices.\n\n'
+    printf '| Download | `uname -m` |\n'
+    printf '| --- | --- |\n'
+    printf '| [OpenWrt aarch64](%s/lantunnel-client-openwrt-%s-aarch64.tar.gz) | `aarch64` |\n' "$release_base" "$version"
+    printf '| [OpenWrt armv7](%s/lantunnel-client-openwrt-%s-armv7.tar.gz) | `armv7l` |\n' "$release_base" "$version"
+    printf '| [OpenWrt x86_64](%s/lantunnel-client-openwrt-%s-x86_64.tar.gz) | `x86_64` |\n\n' "$release_base" "$version"
+
     printf '### Gateway — relay and coordinate a Tunnel\n\n'
     printf 'Install Gateway only when you operate an independent or Platform-connected Gateway host.\n\n'
     printf '| Download | Platform |\n'
@@ -96,7 +114,7 @@ release_base="https://github.com/${repository}/releases/download/${tag}"
 - macOS Client DMGs are Developer ID signed, notarized, and stapled.
 - The Windows Client executable is an intentionally unsigned preview; Windows may show **Unknown publisher**. Verify its SHA-256 before running it.
 - The Android APK is signed with the Lantunnel release key, not distributed through Google Play. Android will ask you to allow installs from this source. Verify its SHA-256 before installing it.
-- Gateway and Admin command-line binaries and Linux AppImages are not code-signed. Verify their SHA-256 before running them.
+- Gateway, Admin, headless Client, and OpenWrt command-line artifacts and Linux AppImages are not code-signed. Verify their SHA-256 before running them.
 - macOS Gateway and Admin CLI binaries are unsigned and not notarized. If Gatekeeper or an organization policy blocks one, [build it from source](SOURCE_BUILD_URL). Do not bypass Gatekeeper or an organization policy.
 
 ## Install

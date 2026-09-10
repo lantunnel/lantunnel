@@ -69,7 +69,10 @@ fn public_help_describes_one_ui_and_headless_client() {
     );
     assert!(output.stderr.is_empty());
     let help = String::from_utf8(output.stdout).expect("help must be UTF-8");
+    #[cfg(feature = "ui")]
     assert!(help.contains("Running without a command opens the Lantunnel Client UI."));
+    #[cfg(not(feature = "ui"))]
+    assert!(help.contains("runs the Client runtime with no UI"));
     assert!(help.contains("--headless"));
     assert!(help.contains("same Client runtime without the UI"));
     assert!(help.contains("connect <Tunnel ID>"));

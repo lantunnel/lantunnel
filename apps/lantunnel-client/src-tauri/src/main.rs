@@ -1,5 +1,15 @@
-// Hide console on Windows release builds.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Hide console on Windows release builds. Headless builds keep the console
+// subsystem: a daemon with no window still has to print to the terminal that
+// launched it, and `status --json` has to be readable from a pipe.
+#![cfg_attr(
+    all(feature = "ui", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+// A headless build compiles out every Tauri command, so the read-model structs
+// and helpers they were the only callers of are genuinely unused here. The
+// default (`ui`) build still checks dead code in full, so nothing hides for
+// good — gating each of them by hand would only add churn.
+#![cfg_attr(not(feature = "ui"), allow(dead_code))]
 
 use std::collections::VecDeque;
 use std::io::{Seek, Write};
@@ -26,10 +36,15 @@ use lantunnel_client::peer_store::{
 };
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "ui")]
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
+#[cfg(feature = "ui")]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+#[cfg(feature = "ui")]
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
+#[cfg(feature = "ui")]
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+#[cfg(feature = "ui")]
 use tauri_plugin_shell::ShellExt;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -62,6 +77,7 @@ const ENABLE_LAN_P2P_ENV: &str = "ENABLE_LAN_P2P";
 const LOCAL_SOCKS5_LISTEN_ENV: &str = "LANTUNNEL_LOCAL_SOCKS5_LISTEN";
 const DESKTOP_NETWORK_MODE_ENV: &str = "LANTUNNEL_DESKTOP_NETWORK_MODE";
 const LAN_ROUTES_ENV: &str = "LANTUNNEL_LAN_ROUTES";
+const LOG_DIR_ENV: &str = "LANTUNNEL_LOG_DIR";
 const DYNAMIC_ROUTE_SYNC_INTERVAL: Duration = Duration::from_millis(250);
 const INSTANCE_TAKEOVER_GRACE: Duration = Duration::from_secs(5);
 const INSTANCE_TAKEOVER_POLL: Duration = Duration::from_millis(100);
@@ -70,11 +86,15 @@ const CANCEL_REPLACE_INSTANCE_BUTTON: &str = "Cancel";
 #[cfg(target_os = "macos")]
 const MACOS_TUN_HELPER_REQUIRED_MESSAGE: &str =
     "TUN mode requires the macOS helper. Use Local SOCKS5 for this release.";
-const PUBLIC_HELP: &str = r#"Lantunnel Client 2.0
+#[cfg(feature = "ui")]
+const PUBLIC_HELP_SUMMARY: &str = "Running without a command opens the Lantunnel Client UI.";
+/// A headless build links no WebView, so there is no UI to open and no reason
+/// to tell the reader about one.
+#[cfg(not(feature = "ui"))]
+const PUBLIC_HELP_SUMMARY: &str =
+    "Headless build: running without a command runs the Client runtime with no UI.";
 
-Running without a command opens the Lantunnel Client UI.
-
-Usage:
+const PUBLIC_HELP_BODY: &str = r#"Usage:
   lantunnel-client
   lantunnel-client [OPTIONS]
   lantunnel-client connect <Tunnel ID>
@@ -100,6 +120,10 @@ Options:
   -V, --version                  Print version
   -h, --help                     Print help
 "#;
+
+fn public_help() -> String {
+    format!("Lantunnel Client 2.0\n\n{PUBLIC_HELP_SUMMARY}\n\n{PUBLIC_HELP_BODY}")
+}
 
 #[derive(Debug, Clone, Copy)]
 struct ClipboardCommand {
@@ -409,6 +433,14 @@ impl StartupArgs {
                 other => return Err(format!("unknown argument {other:?}")),
             }
         }
+        // A build without the `ui` feature links no WebView and has no window
+        // to open, so every launch is a headless launch: `--headless` is
+        // implied rather than required. Normalising here means every
+        // downstream `no_ui` check keeps working untouched.
+        #[cfg(not(feature = "ui"))]
+        {
+            out.no_ui = true;
+        }
         Ok(out)
     }
 
@@ -433,7 +465,7 @@ impl StartupArgs {
 
     fn early_exit_output(&self, product: ProductKind) -> Option<String> {
         if self.show_help {
-            Some(PUBLIC_HELP.to_string())
+            Some(public_help())
         } else {
             self.show_version
                 .then(|| format!("{} {}", product.binary_name(), env!("CARGO_PKG_VERSION")))
@@ -832,6 +864,24 @@ fn product_config_dir_in_root(root: &Path, product: ProductKind) -> PathBuf {
     root.join("app")
 }
 
+fn log_dir(product: ProductKind) -> PathBuf {
+    let override_dir = std::env::var(LOG_DIR_ENV).ok();
+    log_dir_with_override(override_dir.as_deref(), product)
+}
+
+/// Log files sit beside the config unless `LANTUNNEL_LOG_DIR` says otherwise.
+///
+/// A router keeps its config on the flash overlay, which is exactly where a
+/// daily rotating log file must not go — that is how a 128MB NAND chip gets
+/// worn out by a tunnel that was only supposed to sit there quietly. Pointing
+/// this at tmpfs (`/var/log`) keeps the writes in RAM.
+fn log_dir_with_override(override_dir: Option<&str>, product: ProductKind) -> PathBuf {
+    match override_dir.map(str::trim).filter(|dir| !dir.is_empty()) {
+        Some(dir) => PathBuf::from(dir),
+        None => config_dir(product),
+    }
+}
+
 fn last_peer_selection_path(product: ProductKind) -> PathBuf {
     last_peer_selection_path_in_dir(&config_dir(product))
 }
@@ -1126,6 +1176,13 @@ fn lock_file(_file: &std::fs::File, _path: &Path) -> Result<(), SingleInstanceEr
     Ok(())
 }
 
+/// Headless builds have no dialog surface, so the same message goes to stderr.
+#[cfg(not(feature = "ui"))]
+fn show_already_running_message(_product: ProductKind, message: &str) {
+    eprintln!("{message}");
+}
+
+#[cfg(feature = "ui")]
 fn show_already_running_message(product: ProductKind, message: &str) {
     eprintln!("{message}");
     if std::env::var_os("TUNNEL_PROXY_SKIP_ALREADY_RUNNING_DIALOG").is_some() {
@@ -1139,6 +1196,13 @@ fn show_already_running_message(product: ProductKind, message: &str) {
         .show();
 }
 
+/// Headless builds never prompt: an already-running instance is left alone.
+#[cfg(not(feature = "ui"))]
+fn confirm_replace_running_instance(_product: ProductKind, _instance: &RunningInstance) -> bool {
+    false
+}
+
+#[cfg(feature = "ui")]
 fn confirm_replace_running_instance(product: ProductKind, instance: &RunningInstance) -> bool {
     let message = replace_running_instance_message(product, instance);
     eprintln!("{message}");
@@ -1987,7 +2051,7 @@ fn desktop_tun_supported_for_runtime() -> bool {
     }
 }
 
-#[tauri::command]
+#[cfg_attr(feature = "ui", tauri::command)]
 fn get_desktop_tun_capability() -> DesktopTunCapability {
     #[cfg(target_os = "macos")]
     {
@@ -2023,12 +2087,14 @@ fn get_desktop_tun_capability() -> DesktopTunCapability {
 }
 
 #[cfg(target_os = "macos")]
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_tun_helper_status() -> Result<macos_tun_helper::TunHelperStatus, String> {
     macos_tun_helper::status()
 }
 
 #[cfg(not(target_os = "macos"))]
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_tun_helper_status() -> Result<TunHelperStatusCompat, String> {
     Ok(TunHelperStatusCompat {
@@ -2040,12 +2106,14 @@ fn get_tun_helper_status() -> Result<TunHelperStatusCompat, String> {
 }
 
 #[cfg(target_os = "macos")]
+#[cfg(feature = "ui")]
 #[tauri::command]
 async fn install_tun_helper(_app: AppHandle) -> Result<macos_tun_helper::TunHelperStatus, String> {
     macos_tun_helper::install().await
 }
 
 #[cfg(not(target_os = "macos"))]
+#[cfg(feature = "ui")]
 #[tauri::command]
 async fn install_tun_helper(_app: AppHandle) -> Result<TunHelperStatusCompat, String> {
     get_tun_helper_status()
@@ -2738,6 +2806,7 @@ impl StatusGenerationGate {
     }
 }
 
+#[cfg(feature = "ui")]
 struct TauriListener {
     // TODO: carried but never read. Either the listener should vary by product
     // or the field should go; it decides nothing as it stands.
@@ -2749,6 +2818,7 @@ struct TauriListener {
     generation: u64,
     log_buffer: Arc<Mutex<VecDeque<String>>>,
 }
+#[cfg(feature = "ui")]
 impl StatusListener for TauriListener {
     fn on_status(&self, s: &ConnectionStatus) {
         if !self.status_generation.accepts(self.generation) {
@@ -2828,6 +2898,7 @@ fn status_text(s: &ConnectionStatus) -> String {
 
 // ----- autostart reconciliation -------------------------------------------
 
+#[cfg(feature = "ui")]
 fn reconcile_auto_start(
     app: &AppHandle,
     product: ProductKind,
@@ -2862,6 +2933,7 @@ fn startup_auto_connect_peer(
     (settings.auto_connect && !tunnel_id.is_empty()).then(|| tunnel_id.to_string())
 }
 
+#[cfg(feature = "ui")]
 fn spawn_startup_auto_connect(handle: AppHandle, tunnel_id: Option<String>) {
     let Some(tunnel_id) = tunnel_id else {
         return;
@@ -2882,6 +2954,7 @@ fn spawn_startup_auto_connect(handle: AppHandle, tunnel_id: Option<String>) {
 
 // ----- Tauri commands -----------------------------------------------------
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn list_peer_profiles(state: State<'_, AppState>) -> Result<Vec<ImportedPeerSummaryV2>, String> {
     list_peer_profiles_from_store(&config_dir(state.product)).map_err(|error| error.to_string())
@@ -2891,6 +2964,7 @@ fn list_peer_profiles(state: State<'_, AppState>) -> Result<Vec<ImportedPeerSumm
 ///
 /// A Tunnel could be joined but never left: nothing here could remove a
 /// profile, so the only way out was finding the file on disk.
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn forget_peer_profile(
     tunnel_id: String,
@@ -2902,6 +2976,7 @@ fn forget_peer_profile(
     list_peer_profiles_from_store(&root).map_err(|error| error.to_string())
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn import_peer_profile(
     path: PathBuf,
@@ -2930,6 +3005,7 @@ impl ConnectRuntimeSource {
     }
 }
 
+#[cfg(feature = "ui")]
 struct ConnectRuntimeInput {
     source: ConnectRuntimeSource,
     app: AppHandle,
@@ -2945,6 +3021,7 @@ struct ConnectRuntimeInput {
     log_buffer: Arc<Mutex<VecDeque<String>>>,
 }
 
+#[cfg(feature = "ui")]
 fn begin_connect_runtime(
     source: ConnectRuntimeSource,
     app: AppHandle,
@@ -2987,6 +3064,7 @@ fn ensure_connect_not_cancelled(cancel: &CancellationToken) -> Result<(), String
     }
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 async fn connect_peer_profile(
     tunnel_id: String,
@@ -3015,6 +3093,7 @@ async fn connect_peer_profile(
     connect_runtime(begin_connect_runtime(source, app, &state)?).await
 }
 
+#[cfg(feature = "ui")]
 async fn connect_runtime(input: ConnectRuntimeInput) -> Result<(), String> {
     let started = Instant::now();
     let mut engine_for_cleanup: Option<Arc<Engine>> = None;
@@ -3040,6 +3119,7 @@ async fn connect_runtime(input: ConnectRuntimeInput) -> Result<(), String> {
     result
 }
 
+#[cfg(feature = "ui")]
 async fn connect_runtime_inner(
     input: &ConnectRuntimeInput,
     engine_for_cleanup: &mut Option<Arc<Engine>>,
@@ -3428,17 +3508,20 @@ async fn wait_shutdown_signal() -> std::io::Result<&'static str> {
     }
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 async fn disconnect(state: State<'_, AppState>) -> Result<(), String> {
     LocalControlState::from_app(&state).disconnect().await;
     Ok(())
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_status(state: State<'_, AppState>) -> ClientStatusReadModelV2 {
     LocalControlState::from_app(&state).status()
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_proxy_status(state: State<'_, AppState>) -> ProxyStatus {
     let settings = merge_product_defaults(
@@ -3454,6 +3537,7 @@ fn get_proxy_status(state: State<'_, AppState>) -> ProxyStatus {
     )
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_clash_config(state: State<'_, AppState>) -> Result<String, String> {
     let settings = merge_product_defaults(
@@ -3473,6 +3557,7 @@ fn get_clash_config(state: State<'_, AppState>) -> Result<String, String> {
     clash_overlay_yaml(&cfg, listen, DEFAULT_PLATFORM_URL)
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn write_clipboard_text(text: String) -> Result<(), String> {
     write_text_to_native_clipboard(&text)
@@ -3500,6 +3585,7 @@ fn write_text_to_native_clipboard(text: &str) -> Result<(), String> {
     deprecated,
     reason = "tauri-plugin-shell remains the app's installed URL opener"
 )]
+#[cfg(feature = "ui")]
 fn open_platform_dashboard(app: &AppHandle) {
     let _ = app
         .shell()
@@ -3591,6 +3677,7 @@ fn clipboard_command_candidates() -> &'static [ClipboardCommand] {
     }
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_settings(state: State<'_, AppState>) -> AppSettingsReadModelV2 {
     let settings = merge_product_defaults(
@@ -3674,6 +3761,7 @@ fn app_settings_read_model_with_exports(
     }
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 async fn save_settings(
     settings: AppSettings,
@@ -3812,6 +3900,7 @@ async fn save_settings(
     Ok(())
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn set_auto_start(app: AppHandle, enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
     let mut s: AppSettings = read_settings_json(&settings_path(state.product));
@@ -3826,6 +3915,7 @@ fn set_auto_start(app: AppHandle, enabled: bool, state: State<'_, AppState>) -> 
     Ok(())
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn set_auto_connect(enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
     let mut s: AppSettings = read_settings_json(&settings_path(state.product));
@@ -3833,6 +3923,7 @@ fn set_auto_connect(enabled: bool, state: State<'_, AppState>) -> Result<(), Str
     write_json(&settings_path(state.product), &s).map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_logs(limit: Option<usize>, state: State<'_, AppState>) -> Vec<String> {
     let buf = state.log_buffer.lock();
@@ -3845,16 +3936,19 @@ fn get_logs(limit: Option<usize>, state: State<'_, AppState>) -> Vec<String> {
         .collect()
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn clear_logs(state: State<'_, AppState>) {
     state.log_buffer.lock().clear();
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn set_log_level(level: String, state: State<'_, AppState>) -> Result<(), String> {
     (state.set_log_level)(&level)
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_log_config(state: State<'_, AppState>) -> LogConfigInfo {
     LogConfigInfo {
@@ -3863,11 +3957,13 @@ fn get_log_config(state: State<'_, AppState>) -> LogConfigInfo {
     }
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_log_file_path(state: State<'_, AppState>) -> String {
     today_log_path(&state.log_dir).to_string_lossy().to_string()
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_product_info(state: State<'_, AppState>) -> ProductInfo {
     product_info_for_product(state.product)
@@ -3878,6 +3974,7 @@ fn get_product_info(state: State<'_, AppState>) -> ProductInfo {
 /// Every Client draws the same screens in the same order; a flag here means
 /// the platform genuinely cannot offer the thing, not that it looks different
 /// somewhere. The desktop offers all four.
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn get_capabilities() -> serde_json::Value {
     serde_json::json!({
@@ -3901,6 +3998,9 @@ fn product_info_for_product(product: ProductKind) -> ProductInfo {
 }
 
 #[cfg(test)]
+// `main` and its console helpers deliberately sit below this module. Splitting
+// them out to satisfy the lint would move ~2k lines for no reader's benefit.
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
@@ -4006,8 +4106,9 @@ mod tests {
     /// answered with "expected `tunnel import <file>` or `tunnel list`".
     #[test]
     fn help_names_no_command_the_parser_rejects() {
-        assert!(!PUBLIC_HELP.contains("gateway set"));
-        assert!(!PUBLIC_HELP.contains("Static Gateway"));
+        let help = public_help();
+        assert!(!help.contains("gateway set"));
+        assert!(!help.contains("Static Gateway"));
         for advertised in [
             "tunnel import",
             "tunnel list",
@@ -4016,7 +4117,7 @@ mod tests {
             "status",
         ] {
             assert!(
-                PUBLIC_HELP.contains(advertised),
+                help.contains(advertised),
                 "help stopped naming {advertised}"
             );
         }
@@ -4784,6 +4885,28 @@ mod tests {
         assert_eq!(
             settings_path_in_dir(&b),
             PathBuf::from("/tmp/tp-root-b/app/settings.json")
+        );
+    }
+
+    #[test]
+    fn log_dir_override_moves_logs_off_the_config_directory() {
+        // A router keeps its config on flash and its logs on tmpfs; blank or
+        // whitespace-only values must not silently redirect logs to "".
+        assert_eq!(
+            log_dir_with_override(Some("/var/log/lantunnel"), ProductKind),
+            PathBuf::from("/var/log/lantunnel")
+        );
+        assert_eq!(
+            log_dir_with_override(Some("  /var/log/lantunnel  "), ProductKind),
+            PathBuf::from("/var/log/lantunnel")
+        );
+        assert_eq!(
+            log_dir_with_override(Some("   "), ProductKind),
+            config_dir(ProductKind)
+        );
+        assert_eq!(
+            log_dir_with_override(None, ProductKind),
+            config_dir(ProductKind)
         );
     }
 
@@ -6020,6 +6143,7 @@ mod tests {
     }
 }
 
+#[cfg(feature = "ui")]
 #[tauri::command]
 fn validate_auto_start(
     app: AppHandle,
@@ -6178,15 +6302,18 @@ fn main() {
             }
         };
 
-    let log_dir = config_dir(product);
+    let log_dir = log_dir(product);
     install_panic_logger(log_dir.clone());
+    // `log_buffer` / `set_log_level_fn` only feed `AppState`, which a headless
+    // build compiles out.
+    #[cfg_attr(not(feature = "ui"), allow(unused_variables))]
     let (log_buffer, set_log_level_fn, log_level, _log_file_path, log_guard) =
         init_logging(&log_dir, product, startup_args.log_level.as_deref())
             .expect("failed to init logging");
     // Keep the non_blocking guard alive for the process lifetime.
     std::mem::forget(log_guard);
     tracing::info!(
-        mode = "tauri",
+        mode = if startup_args.no_ui { "headless" } else { "tauri" },
         binary = product.binary_name(),
         log_file = %today_log_path(&log_dir).display(),
         level = %log_level.read(),
@@ -6203,212 +6330,229 @@ fn main() {
             eprintln!("{e}");
             std::process::exit(1);
         }
+        // The UI build falls through to the Tauri runtime below, so it has to
+        // stop here explicitly. A headless build has nothing left to run.
+        #[cfg(feature = "ui")]
         return;
     }
 
-    let state = AppState {
-        product,
-        engine: Arc::new(RwLock::new(None)),
-        connect_op: Arc::new(Mutex::new(ConnectOperationSlot::default())),
-        local_proxy: Arc::new(RwLock::new(None)),
-        desktop_tun: Arc::new(Mutex::new(DesktopTunState::default())),
-        last_status: Arc::new(RwLock::new(ConnectionStatus {
-            message: "Disconnected".into(),
-            ..Default::default()
-        })),
-        status_generation: StatusGenerationGate::default(),
-        log_buffer,
-        set_log_level: set_log_level_fn,
-        log_level,
-        log_dir: log_dir.clone(),
-    };
+    #[cfg(feature = "ui")]
+    {
+        let state = AppState {
+            product,
+            engine: Arc::new(RwLock::new(None)),
+            connect_op: Arc::new(Mutex::new(ConnectOperationSlot::default())),
+            local_proxy: Arc::new(RwLock::new(None)),
+            desktop_tun: Arc::new(Mutex::new(DesktopTunState::default())),
+            last_status: Arc::new(RwLock::new(ConnectionStatus {
+                message: "Disconnected".into(),
+                ..Default::default()
+            })),
+            status_generation: StatusGenerationGate::default(),
+            log_buffer,
+            set_log_level: set_log_level_fn,
+            log_level,
+            log_dir: log_dir.clone(),
+        };
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec![]),
-        ))
-        .manage(state)
-        .setup(move |app| {
-            let control = LocalControlState::from_app(&app.state::<AppState>());
-            let control_path = local_control_path(product);
-            tauri::async_runtime::spawn(async move {
-                if let Err(error) = serve_local_control(control_path, control).await {
-                    tracing::error!(%error, "local Client control server stopped");
-                }
-            });
-
-            // Reconcile autostart on launch: settings.json is the source of
-            // truth, and the OS-level toggle (launchd/Run/.desktop) is brought
-            // into sync.
-            let handle = app.handle().clone();
-            if let Err(e) = reconcile_auto_start(&handle, product) {
-                tracing::warn!(error = %e, "autostart reconciliation failed");
-            }
-
-            let startup_settings =
-                merge_product_defaults(read_settings_json(&settings_path(product)), product);
-            let startup_auto_connect = startup_auto_connect_peer(
-                &startup_settings,
-                read_json(&last_peer_selection_path(product)),
-            );
-
-            // Build tray menu:
-            //   Show / Hide (toggle) | Status (disabled) | Open Dashboard |
-            //   Disconnect | Quit
-            let show = MenuItemBuilder::with_id("show", "Show Window").build(app)?;
-            let hide = MenuItemBuilder::with_id("hide", "Hide Window").build(app)?;
-            let status = MenuItemBuilder::with_id("status", "Status: Disconnected")
-                .enabled(false)
-                .build(app)?;
-            let open_dashboard =
-                MenuItemBuilder::with_id("open_dashboard", "Open Dashboard").build(app)?;
-            let disconnect = MenuItemBuilder::with_id("disconnect", "Disconnect").build(app)?;
-            let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let menu = MenuBuilder::new(app)
-                .item(&show)
-                .item(&hide)
-                .item(&PredefinedMenuItem::separator(app)?)
-                .item(&status)
-                .item(&open_dashboard)
-                .item(&PredefinedMenuItem::separator(app)?)
-                .item(&disconnect)
-                .item(&PredefinedMenuItem::separator(app)?)
-                .item(&quit)
-                .build()?;
-
-            let mut tray_builder = TrayIconBuilder::with_id("main")
-                .tooltip(product.display_name())
-                .menu(&menu)
-                .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                        }
-                    }
-                    "hide" => {
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.hide();
-                        }
-                    }
-                    "open_dashboard" => {
-                        open_platform_dashboard(app);
-                    }
-                    "disconnect" => {
-                        let handle = app.clone();
-                        // A tray callback runs on the main thread, which is not
-                        // inside the Tokio runtime. tokio::spawn panics there.
-                        tauri::async_runtime::spawn(async move {
-                            let (local_proxy_slot, desktop_tun_slot, status_generation, engine) = {
-                                let state = handle.state::<AppState>();
-                                state.connect_op.lock().cancel_current();
-                                let engine = state.engine.write().take();
-                                (
-                                    state.local_proxy.clone(),
-                                    state.desktop_tun.clone(),
-                                    state.status_generation.clone(),
-                                    engine,
-                                )
-                            };
-                            disconnect_runtime(
-                                local_proxy_slot,
-                                desktop_tun_slot,
-                                engine,
-                                status_generation,
-                            )
-                            .await;
-                        });
-                    }
-                    "quit" => {
-                        let handle = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let (local_proxy_slot, desktop_tun_slot, status_generation, engine) = {
-                                let state = handle.state::<AppState>();
-                                state.connect_op.lock().cancel_current();
-                                let engine = state.engine.write().take();
-                                (
-                                    state.local_proxy.clone(),
-                                    state.desktop_tun.clone(),
-                                    state.status_generation.clone(),
-                                    engine,
-                                )
-                            };
-                            disconnect_runtime(
-                                local_proxy_slot,
-                                desktop_tun_slot,
-                                engine,
-                                status_generation,
-                            )
-                            .await;
-                            handle.exit(0);
-                        });
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        if let Some(win) = tray.app_handle().get_webview_window("main") {
-                            if win.is_visible().unwrap_or(false) {
-                                let _ = win.hide();
-                            } else {
-                                let _ = win.show();
-                                let _ = win.set_focus();
-                            }
-                        }
+        tauri::Builder::default()
+            .plugin(tauri_plugin_dialog::init())
+            .plugin(tauri_plugin_shell::init())
+            .plugin(tauri_plugin_autostart::init(
+                MacosLauncher::LaunchAgent,
+                Some(vec![]),
+            ))
+            .manage(state)
+            .setup(move |app| {
+                let control = LocalControlState::from_app(&app.state::<AppState>());
+                let control_path = local_control_path(product);
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = serve_local_control(control_path, control).await {
+                        tracing::error!(%error, "local Client control server stopped");
                     }
                 });
-            if let Some(icon) = app.default_window_icon().cloned() {
-                tray_builder = tray_builder.icon(icon);
-            }
-            let _tray = tray_builder.build(app)?;
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.show();
-                let _ = win.set_focus();
-            }
-            spawn_startup_auto_connect(app.handle().clone(), startup_auto_connect);
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            // Intercept close and hide, so the tray keeps the app alive.
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
-            }
-        })
-        .invoke_handler(tauri::generate_handler![
-            list_peer_profiles,
-            forget_peer_profile,
-            import_peer_profile,
-            connect_peer_profile,
-            disconnect,
-            get_status,
-            get_proxy_status,
-            get_clash_config,
-            write_clipboard_text,
-            get_settings,
-            save_settings,
-            set_auto_start,
-            set_auto_connect,
-            get_logs,
-            clear_logs,
-            set_log_level,
-            get_log_config,
-            get_log_file_path,
-            get_product_info,
-            get_capabilities,
-            get_desktop_tun_capability,
-            get_tun_helper_status,
-            install_tun_helper,
-            validate_auto_start,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error running tauri application");
+
+                // Reconcile autostart on launch: settings.json is the source of
+                // truth, and the OS-level toggle (launchd/Run/.desktop) is brought
+                // into sync.
+                let handle = app.handle().clone();
+                if let Err(e) = reconcile_auto_start(&handle, product) {
+                    tracing::warn!(error = %e, "autostart reconciliation failed");
+                }
+
+                let startup_settings =
+                    merge_product_defaults(read_settings_json(&settings_path(product)), product);
+                let startup_auto_connect = startup_auto_connect_peer(
+                    &startup_settings,
+                    read_json(&last_peer_selection_path(product)),
+                );
+
+                // Build tray menu:
+                //   Show / Hide (toggle) | Status (disabled) | Open Dashboard |
+                //   Disconnect | Quit
+                let show = MenuItemBuilder::with_id("show", "Show Window").build(app)?;
+                let hide = MenuItemBuilder::with_id("hide", "Hide Window").build(app)?;
+                let status = MenuItemBuilder::with_id("status", "Status: Disconnected")
+                    .enabled(false)
+                    .build(app)?;
+                let open_dashboard =
+                    MenuItemBuilder::with_id("open_dashboard", "Open Dashboard").build(app)?;
+                let disconnect = MenuItemBuilder::with_id("disconnect", "Disconnect").build(app)?;
+                let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+                let menu = MenuBuilder::new(app)
+                    .item(&show)
+                    .item(&hide)
+                    .item(&PredefinedMenuItem::separator(app)?)
+                    .item(&status)
+                    .item(&open_dashboard)
+                    .item(&PredefinedMenuItem::separator(app)?)
+                    .item(&disconnect)
+                    .item(&PredefinedMenuItem::separator(app)?)
+                    .item(&quit)
+                    .build()?;
+
+                let mut tray_builder =
+                    TrayIconBuilder::with_id("main")
+                        .tooltip(product.display_name())
+                        .menu(&menu)
+                        .on_menu_event(move |app, event| match event.id.as_ref() {
+                            "show" => {
+                                if let Some(win) = app.get_webview_window("main") {
+                                    let _ = win.show();
+                                    let _ = win.set_focus();
+                                }
+                            }
+                            "hide" => {
+                                if let Some(win) = app.get_webview_window("main") {
+                                    let _ = win.hide();
+                                }
+                            }
+                            "open_dashboard" => {
+                                open_platform_dashboard(app);
+                            }
+                            "disconnect" => {
+                                let handle = app.clone();
+                                // A tray callback runs on the main thread, which is not
+                                // inside the Tokio runtime. tokio::spawn panics there.
+                                tauri::async_runtime::spawn(async move {
+                                    let (
+                                        local_proxy_slot,
+                                        desktop_tun_slot,
+                                        status_generation,
+                                        engine,
+                                    ) = {
+                                        let state = handle.state::<AppState>();
+                                        state.connect_op.lock().cancel_current();
+                                        let engine = state.engine.write().take();
+                                        (
+                                            state.local_proxy.clone(),
+                                            state.desktop_tun.clone(),
+                                            state.status_generation.clone(),
+                                            engine,
+                                        )
+                                    };
+                                    disconnect_runtime(
+                                        local_proxy_slot,
+                                        desktop_tun_slot,
+                                        engine,
+                                        status_generation,
+                                    )
+                                    .await;
+                                });
+                            }
+                            "quit" => {
+                                let handle = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    let (
+                                        local_proxy_slot,
+                                        desktop_tun_slot,
+                                        status_generation,
+                                        engine,
+                                    ) = {
+                                        let state = handle.state::<AppState>();
+                                        state.connect_op.lock().cancel_current();
+                                        let engine = state.engine.write().take();
+                                        (
+                                            state.local_proxy.clone(),
+                                            state.desktop_tun.clone(),
+                                            state.status_generation.clone(),
+                                            engine,
+                                        )
+                                    };
+                                    disconnect_runtime(
+                                        local_proxy_slot,
+                                        desktop_tun_slot,
+                                        engine,
+                                        status_generation,
+                                    )
+                                    .await;
+                                    handle.exit(0);
+                                });
+                            }
+                            _ => {}
+                        })
+                        .on_tray_icon_event(|tray, event| {
+                            if let TrayIconEvent::Click {
+                                button: MouseButton::Left,
+                                button_state: MouseButtonState::Up,
+                                ..
+                            } = event
+                            {
+                                if let Some(win) = tray.app_handle().get_webview_window("main") {
+                                    if win.is_visible().unwrap_or(false) {
+                                        let _ = win.hide();
+                                    } else {
+                                        let _ = win.show();
+                                        let _ = win.set_focus();
+                                    }
+                                }
+                            }
+                        });
+                if let Some(icon) = app.default_window_icon().cloned() {
+                    tray_builder = tray_builder.icon(icon);
+                }
+                let _tray = tray_builder.build(app)?;
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+                spawn_startup_auto_connect(app.handle().clone(), startup_auto_connect);
+                Ok(())
+            })
+            .on_window_event(|window, event| {
+                // Intercept close and hide, so the tray keeps the app alive.
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            })
+            .invoke_handler(tauri::generate_handler![
+                list_peer_profiles,
+                forget_peer_profile,
+                import_peer_profile,
+                connect_peer_profile,
+                disconnect,
+                get_status,
+                get_proxy_status,
+                get_clash_config,
+                write_clipboard_text,
+                get_settings,
+                save_settings,
+                set_auto_start,
+                set_auto_connect,
+                get_logs,
+                clear_logs,
+                set_log_level,
+                get_log_config,
+                get_log_file_path,
+                get_product_info,
+                get_capabilities,
+                get_desktop_tun_capability,
+                get_tun_helper_status,
+                install_tun_helper,
+                validate_auto_start,
+            ])
+            .run(tauri::generate_context!())
+            .expect("error running tauri application");
+    }
 }

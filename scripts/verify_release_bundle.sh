@@ -31,6 +31,14 @@ artifacts=(
     "lantunnel-gateway-${version}-x86_64-unknown-linux-musl"
     "lantunnel-admin-${version}-aarch64-apple-darwin"
     "lantunnel-admin-${version}-x86_64-unknown-linux-musl"
+    "lantunnel-client-headless-${version}-x86_64-pc-windows-msvc.exe"
+    "lantunnel-client-headless-${version}-x86_64-apple-darwin"
+    "lantunnel-client-headless-${version}-aarch64-apple-darwin"
+    "lantunnel-client-headless-${version}-x86_64-unknown-linux-musl"
+    "lantunnel-client-headless-${version}-aarch64-unknown-linux-musl"
+    "lantunnel-client-openwrt-${version}-aarch64.tar.gz"
+    "lantunnel-client-openwrt-${version}-armv7.tar.gz"
+    "lantunnel-client-openwrt-${version}-x86_64.tar.gz"
 )
 expected=("${artifacts[@]}" checksums.txt CHANGELOG.md)
 
@@ -39,8 +47,8 @@ while IFS= read -r file; do
     actual[${#actual[@]}]="${file##*/}"
 done < <(find "$release_dir" -maxdepth 1 -type f | sort)
 
-if [ "${#actual[@]}" -ne 12 ]; then
-    echo "Error: expected exactly 12 local release files, got ${#actual[@]}" >&2
+if [ "${#actual[@]}" -ne 20 ]; then
+    echo "Error: expected exactly 20 local release files, got ${#actual[@]}" >&2
     exit 1
 fi
 
@@ -66,8 +74,8 @@ done
 
 checksum_file="$release_dir/checksums.txt"
 checksum_count="$(awk 'NF { count++ } END { print count + 0 }' "$checksum_file")"
-if [ "$checksum_count" -ne 10 ]; then
-    echo "Error: checksums.txt must contain exactly 10 non-empty entries" >&2
+if [ "$checksum_count" -ne 18 ]; then
+    echo "Error: checksums.txt must contain exactly 18 non-empty entries" >&2
     exit 1
 fi
 if ! awk '

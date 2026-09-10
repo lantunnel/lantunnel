@@ -24,11 +24,12 @@ New to the project? Start with the [README](../README.md). Want the design behin
 6. [Sharing a whole LAN](#sharing-a-whole-lan)
 7. [Deciding who reaches you](#deciding-who-reaches-you)
 8. [Running on a server (headless)](#running-on-a-server-headless)
-9. [Phones](#phones)
-10. [Command reference](#command-reference)
-11. [Settings reference](#settings-reference)
-12. [Where files live](#where-files-live)
-13. [Troubleshooting](#troubleshooting)
+9. [On a router (OpenWrt)](#on-a-router-openwrt)
+10. [Phones](#phones)
+11. [Command reference](#command-reference)
+12. [Settings reference](#settings-reference)
+13. [Where files live](#where-files-live)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -438,6 +439,18 @@ what the UI's "block all incoming" writes, so the saved file matches what you as
 `--headless` (alias `--no-ui`) runs the identical runtime with no window, tray, or WebView
 — same reconnect logic, same PeerLink and relay behaviour, same SOCKS5 and TUN surfaces.
 
+Download `lantunnel-client-headless-<version>-<triple>` rather than the desktop package.
+It is the same runtime built with the UI compiled out: no Tauri, no WebView, 5-7MB
+instead of a ~97MB AppImage, and it needs no graphical libraries on the host. The Linux
+builds are statically linked against musl. Every launch of that binary is headless, so
+`--headless` is implied and the flag is only there for scripts shared with desktop hosts.
+
+One capability does not come with it: installing the macOS privileged TUN helper is a
+desktop-app action, so a headless macOS host can use native routing only if the desktop
+Client installed the helper first. Linux and Windows are unaffected — they resolve the
+TUN sidecar the same way the desktop build does — and an exporting Peer needs no TUN at
+all.
+
 ```bash
 lantunnel-client tunnel import /etc/lantunnel/nas.peer
 lantunnel-client connect <tunnel-id>          # foreground, no UI
@@ -467,13 +480,58 @@ WantedBy=multi-user.target
 Headless has no settings UI, so edit `settings.json` in the config directory directly —
 see [Settings reference](#settings-reference).
 
-**On Windows**, release builds use the GUI subsystem, so a normal launch opens no console
-window and `cmd.exe` does not wait for it. When a short command's output and exit status
-matter, use `start /wait`:
+**On Windows**, the desktop build uses the GUI subsystem, so a normal launch opens no
+console window and `cmd.exe` does not wait for it. When a short command's output and exit
+status matter, use `start /wait`. The headless build keeps the console subsystem and needs
+none of this:
 
 ```
 start /wait "" "C:\Program Files\Lantunnel\lantunnel-client.exe" status --json
 ```
+
+---
+
+## On a router (OpenWrt)
+
+The router is already always on and already sits on the LAN, which makes it the natural
+place to run the Peer that [exports that LAN](#sharing-a-whole-lan). Nothing behind it
+needs an install of its own.
+
+Exporting a subnet only dials outbound, so this needs no TUN device, no `kmod-tun`, no
+`ip-full`, and no route or firewall change.
+
+Pick the tarball matching `uname -m` — `aarch64`, `armv7l`, or `x86_64` — and unpack it
+at the filesystem root:
+
+```sh
+tar -xzf lantunnel-client-openwrt-<version>-<arch>.tar.gz -C /
+```
+
+That installs `/usr/bin/lantunnel-client`, a procd service at `/etc/init.d/lantunnel`,
+and `/etc/config/lantunnel`. Import the profile, then start the service:
+
+```sh
+TUNNEL_PROXY_APP_CONFIG_DIR=/etc/lantunnel \
+  /usr/bin/lantunnel-client tunnel import /tmp/router.peer
+/etc/init.d/lantunnel enable
+/etc/init.d/lantunnel start
+logread -e lantunnel
+```
+
+With one imported profile the service connects it. With more than one, name it with
+`uci set lantunnel.main.tunnel_id=<TUNNEL_ID> && uci commit lantunnel`.
+
+Config lives on the flash overlay at `/etc/lantunnel`; logs go to `/var/log/lantunnel`,
+which is tmpfs, so a daily rotating log file never touches the flash. `/etc/config` is
+kept across sysupgrade automatically — add `/etc/lantunnel` to `/etc/sysupgrade.conf` to
+keep the imported profile too. The binary is never kept; reinstall it after an upgrade.
+
+The installed binary is 5.5MB on armv7, 5.7MB on aarch64 and 7.1MB on x86_64. That
+rules out 16MB-flash routers, which is most `ath79` and `ramips` hardware, and MIPS is
+not built at all.
+
+The full install notes ship inside the tarball at
+`/usr/share/lantunnel/README.md`.
 
 ---
 
@@ -515,7 +573,7 @@ profile. Private key material is not serializable and never appears.
 | `-V`, `--help` | Version, help |
 
 Environment overrides: `LANTUNNEL_LOCAL_SOCKS5_LISTEN`, `LANTUNNEL_DESKTOP_NETWORK_MODE`,
-`LANTUNNEL_LAN_ROUTES`, `TUNNEL_PROXY_APP_CONFIG_DIR`.
+`LANTUNNEL_LAN_ROUTES`, `TUNNEL_PROXY_APP_CONFIG_DIR`, `LANTUNNEL_LOG_DIR`.
 
 ### `lantunnel-admin`
 
@@ -605,6 +663,7 @@ doing nothing.
 |---|---|
 | Client config, imported profiles, secrets | `~/.lantunnel/app/` (override: `TUNNEL_PROXY_APP_CONFIG_DIR`) |
 | Client settings | `~/.lantunnel/app/settings.json` |
+| Client logs | beside the config (override: `LANTUNNEL_LOG_DIR`, which is how the router package keeps them off flash) |
 | Gateway config | `configs/gateway.yaml` (or `--config`) |
 | Gateway Tunnel admission | `state/scopes.d/*.scope` |
 | Gateway relay usage ledger | `state/relay-usage.wal` |

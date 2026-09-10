@@ -22,6 +22,14 @@ assets=(
   lantunnel-gateway-2.0.0-x86_64-unknown-linux-musl
   lantunnel-admin-2.0.0-aarch64-apple-darwin
   lantunnel-admin-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-x86_64-pc-windows-msvc.exe
+  lantunnel-client-headless-2.0.0-x86_64-apple-darwin
+  lantunnel-client-headless-2.0.0-aarch64-apple-darwin
+  lantunnel-client-headless-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-aarch64-unknown-linux-musl
+  lantunnel-client-openwrt-2.0.0-aarch64.tar.gz
+  lantunnel-client-openwrt-2.0.0-armv7.tar.gz
+  lantunnel-client-openwrt-2.0.0-x86_64.tar.gz
   checksums.txt
   CHANGELOG.md
 )
@@ -31,7 +39,7 @@ for asset in "${assets[@]}"; do
 done
 (
   cd "$release_dir"
-  shasum -a 256 "${assets[@]:0:10}" > checksums.txt
+  shasum -a 256 "${assets[@]:0:18}" > checksums.txt
 )
 printf '%s\n' '# Changelog' '' '## [2.0.0] - 2026-09-04' '' '- Accepted.' \
   > "$release_dir/CHANGELOG.md"
@@ -137,11 +145,11 @@ expect_failure() {
 
 : > "$TEST_DIR/gh.log"
 verify "$TEST_DIR/draft.json" "$asset_dir" 42 true "$TEST_DIR/verify-draft"
-test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 16
+test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 24
 
 : > "$TEST_DIR/gh.log"
 verify "$TEST_DIR/published.json" "$asset_dir" 42 false "$TEST_DIR/verify-published"
-test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 16
+test "$(wc -l < "$TEST_DIR/gh.log" | tr -d ' ')" -eq 24
 
 expect_failure 'release database ID mismatch' \
   verify "$TEST_DIR/draft.json" "$asset_dir" 43 true "$TEST_DIR/verify-wrong-id"

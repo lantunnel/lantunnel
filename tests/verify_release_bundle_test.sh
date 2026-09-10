@@ -18,6 +18,14 @@ artifacts=(
   lantunnel-gateway-2.0.0-x86_64-unknown-linux-musl
   lantunnel-admin-2.0.0-aarch64-apple-darwin
   lantunnel-admin-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-x86_64-pc-windows-msvc.exe
+  lantunnel-client-headless-2.0.0-x86_64-apple-darwin
+  lantunnel-client-headless-2.0.0-aarch64-apple-darwin
+  lantunnel-client-headless-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-aarch64-unknown-linux-musl
+  lantunnel-client-openwrt-2.0.0-aarch64.tar.gz
+  lantunnel-client-openwrt-2.0.0-armv7.tar.gz
+  lantunnel-client-openwrt-2.0.0-x86_64.tar.gz
 )
 
 create_bundle() {
