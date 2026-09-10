@@ -10,6 +10,44 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+## [2.0.11] - 2026-09-10
+
+### Added
+
+- Headless Client packages for Windows, macOS (Intel and Apple Silicon), and
+  Linux (x86_64 and aarch64), published as
+  `lantunnel-client-headless-<version>-<triple>`. It is the same runtime with
+  the UI compiled out — no Tauri, no WebView, 5-7MB instead of a ~97MB
+  AppImage — so a server with no desktop can run a Peer without unpacking a
+  desktop package first. The Linux builds are statically linked against musl and
+  need nothing from the host. Every launch of that binary is headless, so
+  `--headless` is implied rather than required.
+- OpenWrt packages for `aarch64`, `armv7`, and `x86_64`, published as
+  `lantunnel-client-openwrt-<version>-<arch>.tar.gz`. Unpack one at `/` and the
+  router runs the Peer that exports the LAN it already sits on, so the NAS, the
+  printer, and everything else behind it stay reachable without an install of
+  their own. The package carries a procd service and a UCI file; exporting a
+  subnet only dials outbound, so it needs no TUN device, no `kmod-tun`, and no
+  route or firewall change. MIPS is not built: those routers have 8-16MB of
+  flash and the firmware already claims most of it.
+- `LANTUNNEL_LOG_DIR` moves the Client's rotating log files off the config
+  directory. The router package points it at tmpfs, so a daily log file never
+  reaches the flash that holds the configuration.
+
+### Changed
+
+- The headless Windows build keeps the console subsystem, so its output and exit
+  status reach the terminal that launched it without `start /wait`. The desktop
+  build is unchanged.
+- The German, Spanish, French, Japanese, Simplified Chinese, and Traditional
+  Chinese usage guides document the headless download and the OpenWrt router
+  package alongside the English guide.
+
+### Fixed
+
+- Windows builds no longer emit a dead-code warning for the route-command
+  helper, which only the macOS and Linux route paths ever call.
+
 ## [2.0.10] - 2026-09-08
 
 ### Added
