@@ -1068,6 +1068,10 @@ fn run_windows_route_action(
     )
 }
 
+// Route programming is the only caller, and Windows goes through
+// `run_command_with_env` instead, so this is dead there — same reason that
+// function carries the mirror-image gate.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn run_command(program: &str, args: &[&str]) -> Result<(), String> {
     run_command_with_timeout(program, args, ROUTE_COMMAND_TIMEOUT, &[])
 }
