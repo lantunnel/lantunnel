@@ -35,11 +35,29 @@ FROM rust:${RUST_VERSION}-bookworm
 # arm64 (persistent 502s on the -updates Packages index) and we don't need
 # freshness from it for a toolchain image. `bookworm` + `bookworm-security`
 # are enough for every package below.
-# Switch deb.debian.org → TUNA (Tsinghua) mirror; drop bookworm-updates
-# suite; retry apt-get update + apt-get install up to 5× / 3× to ride out
-# mirror blips. Override APT_MIRROR at build time for different regions:
+# Switch deb.debian.org → TUNA (Tsinghua) mirror and drop the bookworm-updates
+# suite. Override APT_MIRROR at build time for a different region:
 #   --build-arg APT_MIRROR=https://mirrors.ustc.edu.cn/debian
 #   --build-arg APT_MIRROR=http://ftp.us.debian.org/debian
+#
+# The default suits a developer near the TUNA mirror; a GitHub runner is not,
+# and nothing here ever passed the override. When TUNA was unreachable from a
+# runner every source failed to fetch, the package lists stayed empty, and the
+# build carried on regardless — so the error surfaced a step later as
+# `ln -sf "$(which clang)"` with an empty argument, naming neither apt nor the
+# mirror. That cost a release run.
+#
+# So: whichever mirror answers wins, and a build that cannot install its
+# packages says so where it happened instead of limping to the next step.
+#
+# Two details this depends on, both learned the hard way:
+#   * `apt-get update` exits 0 even when every single source failed — the
+#     failures are only `W: Failed to fetch ... They have been ignored`. Its
+#     exit code cannot drive the retry, so each attempt is judged by whether
+#     the lists it produced can actually resolve a package.
+#   * Each attempt rewrites the sources, so the second one has to start from
+#     the pristine deb.debian.org copy rather than from the first attempt's
+#     substitution. Hence the snapshot.
 #
 # NSIS intentionally NOT installed — it pulls ~300 tiny node-* packages
 # that amplify any mirror flakiness, and Tauri can produce raw .exe
@@ -48,33 +66,63 @@ FROM rust:${RUST_VERSION}-bookworm
 ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian
 ARG APT_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
 RUN set -eux; \
-    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i -E "s|http://deb.debian.org/debian-security|${APT_SECURITY_MIRROR}|g; \
-                   s|http://deb.debian.org/debian|${APT_MIRROR}|g; \
-                   s/(^Suites:.*) bookworm-updates/\1/" \
-            /etc/apt/sources.list.d/debian.sources; \
-    fi; \
-    if [ -f /etc/apt/sources.list ]; then \
-        sed -i "/bookworm-updates/d; \
-                s|http://deb.debian.org/debian-security|${APT_SECURITY_MIRROR}|g; \
-                s|http://deb.debian.org/debian|${APT_MIRROR}|g" \
-            /etc/apt/sources.list; \
-    fi; \
-    for i in 1 2 3 4 5; do apt-get update && break || { echo "apt update retry $i"; sleep $((i*5)); }; done; \
-    for i in 1 2 3; do \
-        apt-get install -y --no-install-recommends \
-            build-essential pkg-config curl git ca-certificates xz-utils \
-            clang lld llvm \
-            libssl-dev \
-            protobuf-compiler \
-            nodejs npm \
-            libayatana-appindicator3-dev \
-            libwebkit2gtk-4.1-dev \
-            librsvg2-dev \
-        && break \
-        || { echo "apt install retry $i"; sleep $((i*10)); }; \
+    PKGS="build-essential pkg-config curl git ca-certificates xz-utils \
+          clang lld llvm \
+          libssl-dev \
+          protobuf-compiler \
+          nodejs npm \
+          libayatana-appindicator3-dev \
+          libwebkit2gtk-4.1-dev \
+          librsvg2-dev"; \
+    mkdir -p /tmp/apt-pristine; \
+    for f in /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list; do \
+        if [ -f "$f" ]; then cp -a "$f" "/tmp/apt-pristine/$(basename "$f")"; fi; \
     done; \
-    rm -rf /var/lib/apt/lists/*
+    try_mirror() { \
+        deb="$1"; sec="$2"; \
+        if [ -f /tmp/apt-pristine/debian.sources ]; then \
+            cp -a /tmp/apt-pristine/debian.sources /etc/apt/sources.list.d/debian.sources; \
+            sed -i -E "s|http://deb.debian.org/debian-security|${sec}|g; \
+                       s|http://deb.debian.org/debian|${deb}|g; \
+                       s/(^Suites:.*) bookworm-updates/\1/" \
+                /etc/apt/sources.list.d/debian.sources; \
+        fi; \
+        if [ -f /tmp/apt-pristine/sources.list ]; then \
+            cp -a /tmp/apt-pristine/sources.list /etc/apt/sources.list; \
+            sed -i "/bookworm-updates/d; \
+                    s|http://deb.debian.org/debian-security|${sec}|g; \
+                    s|http://deb.debian.org/debian|${deb}|g" \
+                /etc/apt/sources.list; \
+        fi; \
+        for i in 1 2 3; do \
+            rm -rf /var/lib/apt/lists/*; \
+            apt-get update || true; \
+            if apt-get install -s -y --no-install-recommends $PKGS >/dev/null 2>&1; then \
+                return 0; \
+            fi; \
+            echo "### package lists from ${deb} unusable, retry $i"; \
+            sleep $((i*5)); \
+        done; \
+        return 1; \
+    }; \
+    if ! try_mirror "${APT_MIRROR}" "${APT_SECURITY_MIRROR}"; then \
+        echo "### ${APT_MIRROR} unusable — falling back to deb.debian.org"; \
+        if ! try_mirror http://deb.debian.org/debian http://deb.debian.org/debian-security; then \
+            echo "### no usable Debian mirror: ${APT_MIRROR} and deb.debian.org both failed"; \
+            exit 1; \
+        fi; \
+    fi; \
+    installed=0; \
+    for i in 1 2 3; do \
+        if apt-get install -y --no-install-recommends $PKGS; then installed=1; break; fi; \
+        echo "### apt-get install retry $i"; \
+        sleep $((i*10)); \
+    done; \
+    if [ "$installed" != 1 ]; then \
+        echo "### apt-get install failed three times; the toolchain image would be incomplete"; \
+        exit 1; \
+    fi; \
+    rm -rf /var/lib/apt/lists/* /tmp/apt-pristine
 
 # ---- clang-cl symlink -----------------------------------------------------
 # cargo-xwin passes MSVC-style flags (/imsvc …) that clang only parses in
