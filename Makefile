@@ -175,6 +175,7 @@ TRIPLE_MACOS_ARM64       := aarch64-apple-darwin
 TRIPLE_MACOS_AMD64       := x86_64-apple-darwin
 TRIPLE_LINUX_AMD64_MUSL  := x86_64-unknown-linux-musl
 TRIPLE_LINUX_ARM64_MUSL  := aarch64-unknown-linux-musl
+TRIPLE_LINUX_ARMV7_MUSL  := armv7-unknown-linux-musleabihf
 TRIPLE_LINUX_AMD64_GNU   := x86_64-unknown-linux-gnu
 TRIPLE_LINUX_ARM64_GNU   := aarch64-unknown-linux-gnu
 TRIPLE_WINDOWS_AMD64     := x86_64-pc-windows-msvc
@@ -189,7 +190,15 @@ PUBLIC_RELEASE_FILES := \
 	lantunnel-gateway-$(VERSION)-aarch64-apple-darwin \
 	lantunnel-gateway-$(VERSION)-x86_64-unknown-linux-musl \
 	lantunnel-admin-$(VERSION)-aarch64-apple-darwin \
-	lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl
+	lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl \
+	lantunnel-client-headless-$(VERSION)-x86_64-pc-windows-msvc.exe \
+	lantunnel-client-headless-$(VERSION)-x86_64-apple-darwin \
+	lantunnel-client-headless-$(VERSION)-aarch64-apple-darwin \
+	lantunnel-client-headless-$(VERSION)-x86_64-unknown-linux-musl \
+	lantunnel-client-headless-$(VERSION)-aarch64-unknown-linux-musl \
+	lantunnel-client-openwrt-$(VERSION)-aarch64.tar.gz \
+	lantunnel-client-openwrt-$(VERSION)-armv7.tar.gz \
+	lantunnel-client-openwrt-$(VERSION)-x86_64.tar.gz
 
 CHECKSUM_FILES ?= $(PUBLIC_RELEASE_FILES)
 
@@ -412,6 +421,157 @@ _release-lantunnel-client-linux-arm64:
 .PHONY: release-lantunnel-client-linux-arm64
 release-lantunnel-client-linux-arm64:  ## Release lantunnel-client for Linux arm64
 	@$(MAKE) --no-print-directory _release-lantunnel-client-linux-arm64
+	@$(MAKE) --no-print-directory checksums
+
+# ---- headless Client (no Tauri, no WebView) ---------------------------------
+# Same runtime as the desktop Client with the `ui` feature off. This is the
+# only shape that fits a server or a router: the Linux UI build is a ~97MB
+# AppImage because it carries webkit2gtk.
+CLIENT_HEADLESS_ARTIFACT   := lantunnel-client-headless
+CLIENT_HEADLESS_CARGO_ARGS := --no-default-features --bin lantunnel-client
+# Headless artifacts use the size profile rather than release-perf. The whole
+# reason this build exists is fitting where the UI build cannot, and
+# opt-level="z" is 4.7MB against 8.1MB — on a 128MB router that gap is the
+# product.
+CLIENT_HEADLESS_PROFILE    := release
+
+.PHONY: _release-lantunnel-client-headless-macos-arm64
+_release-lantunnel-client-headless-macos-arm64:
+	@$(MAKE) --no-print-directory _build-cli \
+	    PKG=lantunnel-client BIN=lantunnel-client \
+	    ARTIFACT=$(CLIENT_HEADLESS_ARTIFACT) \
+	    CARGO_ARGS="$(CLIENT_HEADLESS_CARGO_ARGS)" \
+	    BUILD_PROFILE=$(CLIENT_HEADLESS_PROFILE) \
+	    TRIPLES="$(TRIPLE_MACOS_ARM64)"
+
+.PHONY: release-lantunnel-client-headless-macos-arm64
+release-lantunnel-client-headless-macos-arm64:  ## Release the headless lantunnel-client for macOS arm64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-macos-arm64
+	@$(MAKE) --no-print-directory checksums
+
+.PHONY: _release-lantunnel-client-headless-macos-amd64
+_release-lantunnel-client-headless-macos-amd64:
+	@$(MAKE) --no-print-directory _build-cli \
+	    PKG=lantunnel-client BIN=lantunnel-client \
+	    ARTIFACT=$(CLIENT_HEADLESS_ARTIFACT) \
+	    CARGO_ARGS="$(CLIENT_HEADLESS_CARGO_ARGS)" \
+	    BUILD_PROFILE=$(CLIENT_HEADLESS_PROFILE) \
+	    TRIPLES="$(TRIPLE_MACOS_AMD64)"
+
+.PHONY: release-lantunnel-client-headless-macos-amd64
+release-lantunnel-client-headless-macos-amd64:  ## Release the headless lantunnel-client for macOS amd64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-macos-amd64
+	@$(MAKE) --no-print-directory checksums
+
+.PHONY: _release-lantunnel-client-headless-windows-amd64
+_release-lantunnel-client-headless-windows-amd64:
+	@$(MAKE) --no-print-directory _build-cli \
+	    PKG=lantunnel-client BIN=lantunnel-client \
+	    ARTIFACT=$(CLIENT_HEADLESS_ARTIFACT) \
+	    CARGO_ARGS="$(CLIENT_HEADLESS_CARGO_ARGS)" \
+	    BUILD_PROFILE=$(CLIENT_HEADLESS_PROFILE) \
+	    TRIPLES="$(TRIPLE_WINDOWS_AMD64)"
+
+.PHONY: release-lantunnel-client-headless-windows-amd64
+release-lantunnel-client-headless-windows-amd64:  ## Release the headless lantunnel-client for Windows amd64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-windows-amd64
+	@$(MAKE) --no-print-directory checksums
+
+.PHONY: _release-lantunnel-client-headless-linux-amd64
+_release-lantunnel-client-headless-linux-amd64:
+	@$(MAKE) --no-print-directory _build-cli \
+	    PKG=lantunnel-client BIN=lantunnel-client \
+	    ARTIFACT=$(CLIENT_HEADLESS_ARTIFACT) \
+	    CARGO_ARGS="$(CLIENT_HEADLESS_CARGO_ARGS)" \
+	    BUILD_PROFILE=$(CLIENT_HEADLESS_PROFILE) \
+	    TRIPLES="$(TRIPLE_LINUX_AMD64_MUSL)"
+
+.PHONY: release-lantunnel-client-headless-linux-amd64
+release-lantunnel-client-headless-linux-amd64:  ## Release the headless lantunnel-client for Linux amd64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-linux-amd64
+	@$(MAKE) --no-print-directory checksums
+
+.PHONY: _release-lantunnel-client-headless-linux-arm64
+_release-lantunnel-client-headless-linux-arm64:
+	@$(MAKE) --no-print-directory _build-cli \
+	    PKG=lantunnel-client BIN=lantunnel-client \
+	    ARTIFACT=$(CLIENT_HEADLESS_ARTIFACT) \
+	    CARGO_ARGS="$(CLIENT_HEADLESS_CARGO_ARGS)" \
+	    BUILD_PROFILE=$(CLIENT_HEADLESS_PROFILE) \
+	    TRIPLES="$(TRIPLE_LINUX_ARM64_MUSL)"
+
+.PHONY: release-lantunnel-client-headless-linux-arm64
+release-lantunnel-client-headless-linux-arm64:  ## Release the headless lantunnel-client for Linux arm64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-linux-arm64
+	@$(MAKE) --no-print-directory checksums
+
+# ---- OpenWrt exporting Peer -------------------------------------------------
+# The same headless musl binary plus a procd service and a UCI file, so a
+# router can front the LAN it already sits on. Exporting a subnet needs only
+# outbound dials — no TUN, no kmod-tun, no route changes.
+#
+# MIPS is deliberately absent: those routers have 8-16MB of flash, and the
+# firmware already claims most of it.
+#
+# tar must record root ownership. OpenWrt installs with `tar -xzf … -C /` as
+# root, so a tarball remembering the build user's uid drops files owned by a
+# uid the router has never heard of.
+TAR_ROOT_OWNER := $(shell tar --version 2>/dev/null | grep -qi gnu \
+                    && echo '--owner=0 --group=0' || echo '--uid 0 --gid 0')
+
+.PHONY: _package-openwrt
+_package-openwrt:
+	@set -e; \
+	 mkdir -p $(RELEASE_DIR); \
+	 stage="$(DIST_DIR)/openwrt-stage-$(ARCH)"; \
+	 rm -rf "$$stage"; \
+	 mkdir -p "$$stage/usr/bin"; \
+	 cp -R packaging/openwrt/. "$$stage/"; \
+	 cp "target/$(TRIPLE)/$(CLIENT_HEADLESS_PROFILE)/lantunnel-client" \
+	    "$$stage/usr/bin/lantunnel-client"; \
+	 chmod 0755 "$$stage/usr/bin/lantunnel-client" "$$stage/etc/init.d/lantunnel"; \
+	 chmod 0644 "$$stage/etc/config/lantunnel" "$$stage/usr/share/lantunnel/README.md"; \
+	 out="$(RELEASE_DIR)/lantunnel-client-openwrt-$(VERSION)-$(ARCH).tar.gz"; \
+	 tar -czf "$$out" $(TAR_ROOT_OWNER) -C "$$stage" etc usr; \
+	 rm -rf "$$stage"; \
+	 echo "  ✓ $$out"
+
+.PHONY: _release-lantunnel-client-openwrt-aarch64
+_release-lantunnel-client-openwrt-aarch64:
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-linux-arm64
+	@$(MAKE) --no-print-directory _package-openwrt \
+	    TRIPLE=$(TRIPLE_LINUX_ARM64_MUSL) ARCH=aarch64
+
+.PHONY: release-lantunnel-client-openwrt-aarch64
+release-lantunnel-client-openwrt-aarch64:  ## Release the OpenWrt exporting Peer for aarch64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-openwrt-aarch64
+	@$(MAKE) --no-print-directory checksums
+
+.PHONY: _release-lantunnel-client-openwrt-x86-64
+_release-lantunnel-client-openwrt-x86-64:
+	@$(MAKE) --no-print-directory _release-lantunnel-client-headless-linux-amd64
+	@$(MAKE) --no-print-directory _package-openwrt \
+	    TRIPLE=$(TRIPLE_LINUX_AMD64_MUSL) ARCH=x86_64
+
+.PHONY: release-lantunnel-client-openwrt-x86-64
+release-lantunnel-client-openwrt-x86-64:  ## Release the OpenWrt exporting Peer for x86_64
+	@$(MAKE) --no-print-directory _release-lantunnel-client-openwrt-x86-64
+	@$(MAKE) --no-print-directory checksums
+
+.PHONY: _release-lantunnel-client-openwrt-armv7
+_release-lantunnel-client-openwrt-armv7:
+	@$(MAKE) --no-print-directory _build-cli \
+	    PKG=lantunnel-client BIN=lantunnel-client \
+	    ARTIFACT=$(CLIENT_HEADLESS_ARTIFACT) \
+	    CARGO_ARGS="$(CLIENT_HEADLESS_CARGO_ARGS)" \
+	    BUILD_PROFILE=$(CLIENT_HEADLESS_PROFILE) \
+	    TRIPLES="$(TRIPLE_LINUX_ARMV7_MUSL)"
+	@$(MAKE) --no-print-directory _package-openwrt \
+	    TRIPLE=$(TRIPLE_LINUX_ARMV7_MUSL) ARCH=armv7
+
+.PHONY: release-lantunnel-client-openwrt-armv7
+release-lantunnel-client-openwrt-armv7:  ## Release the OpenWrt exporting Peer for armv7
+	@$(MAKE) --no-print-directory _release-lantunnel-client-openwrt-armv7
 	@$(MAKE) --no-print-directory checksums
 
 .PHONY: _release-lantunnel-client-raw-linux-amd64
@@ -660,38 +820,41 @@ release-all:  ## Validate a complete pre-aggregated cross-OS public V2 release; 
 
 # ---- internal: CLI build dispatcher ----------------------------------------
 # Args: PKG (cargo -p), BIN (binary name), TRIPLES (space-separated)
+#       CARGO_ARGS (optional; extra cargo flags, e.g. --no-default-features)
+#       ARTIFACT   (optional; release file base name, defaults to BIN)
 
 .PHONY: _build-cli
 _build-cli:
 	@set -e; for t in $(TRIPLES); do \
-	    echo "→ $(BIN) @ $$t"; \
+	    echo "→ $(if $(ARTIFACT),$(ARTIFACT),$(BIN)) @ $$t"; \
 	    case "$$t" in \
 	      *-apple-darwin) \
 	        if [ "$(HOST_OS)" != "darwin" ]; then \
 	            echo "  ! skip $$t — requires macOS host"; continue; \
 	        fi; \
 	        rustup target add $$t >/dev/null 2>&1 || true; \
-	        $(CARGO) build --profile $(BUILD_PROFILE) --target $$t -p $(PKG) ;; \
-	      *-unknown-linux-musl) \
+	        $(CARGO) build --profile $(BUILD_PROFILE) --target $$t -p $(PKG) $(CARGO_ARGS) ;; \
+	      *-unknown-linux-musl*) \
 	        $(MAKE) --no-print-directory _ensure-builder; \
 	        $(DOCKER_RUN_BUILDER) bash -c "set -e; \
 	            rustup target add $$t; \
-	            cargo zigbuild --profile $(BUILD_PROFILE) --target $$t -p $(PKG)" ;; \
+	            cargo zigbuild --profile $(BUILD_PROFILE) --target $$t -p $(PKG) $(CARGO_ARGS)" ;; \
 	      *-pc-windows-msvc) \
 	        $(MAKE) --no-print-directory _ensure-builder; \
 	        $(DOCKER_RUN_BUILDER) bash -c "set -e; \
 	            rustup target add $$t; \
-	            cargo xwin build --profile $(BUILD_PROFILE) --target $$t -p $(PKG)" ;; \
+	            cargo xwin build --profile $(BUILD_PROFILE) --target $$t -p $(PKG) $(CARGO_ARGS)" ;; \
 	      *) echo "  ! unsupported triple: $$t"; exit 2 ;; \
 	    esac; \
-	    $(MAKE) --no-print-directory _package-cli BIN=$(BIN) TRIPLE=$$t; \
+	    $(MAKE) --no-print-directory _package-cli BIN=$(BIN) TRIPLE=$$t ARTIFACT=$(ARTIFACT); \
 	done
 
 .PHONY: _package-cli
 _package-cli:
 	@mkdir -p $(RELEASE_DIR); \
 	 ext=""; case "$(TRIPLE)" in *windows*) ext=".exe" ;; esac; \
-	 name="$(BIN)-$(VERSION)-$(TRIPLE)$$ext"; out="$(RELEASE_DIR)/$$name"; \
+	 name="$(if $(ARTIFACT),$(ARTIFACT),$(BIN))-$(VERSION)-$(TRIPLE)$$ext"; \
+	 out="$(RELEASE_DIR)/$$name"; \
 	 cp "target/$(TRIPLE)/$(BUILD_PROFILE)/$(BIN)$$ext" "$$out"; \
 	 chmod 0755 "$$out"; \
 	 echo "  ✓ $$out"

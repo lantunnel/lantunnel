@@ -143,7 +143,15 @@ for artifact in \
   'lantunnel-gateway-$(VERSION)-aarch64-apple-darwin' \
   'lantunnel-gateway-$(VERSION)-x86_64-unknown-linux-musl' \
   'lantunnel-admin-$(VERSION)-aarch64-apple-darwin' \
-  'lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl'
+  'lantunnel-admin-$(VERSION)-x86_64-unknown-linux-musl' \
+  'lantunnel-client-headless-$(VERSION)-x86_64-pc-windows-msvc.exe' \
+  'lantunnel-client-headless-$(VERSION)-x86_64-apple-darwin' \
+  'lantunnel-client-headless-$(VERSION)-aarch64-apple-darwin' \
+  'lantunnel-client-headless-$(VERSION)-x86_64-unknown-linux-musl' \
+  'lantunnel-client-headless-$(VERSION)-aarch64-unknown-linux-musl' \
+  'lantunnel-client-openwrt-$(VERSION)-aarch64.tar.gz' \
+  'lantunnel-client-openwrt-$(VERSION)-armv7.tar.gz' \
+  'lantunnel-client-openwrt-$(VERSION)-x86_64.tar.gz'
 do
   grep -Fq "$artifact" <<<"$public_manifest"
 done
@@ -192,6 +200,8 @@ grep -q 'build-client-linux:' "$RELEASE_WORKFLOW"
 grep -q 'build-client-macos:' "$RELEASE_WORKFLOW"
 grep -q 'build-client-windows:' "$RELEASE_WORKFLOW"
 grep -q 'product: lantunnel-admin' "$RELEASE_WORKFLOW"
+grep -q 'product: lantunnel-client-headless' "$RELEASE_WORKFLOW"
+grep -q 'product: lantunnel-client-openwrt' "$RELEASE_WORKFLOW"
 for forbidden in 'product: anyproxy-client' 'continue-on-error: true'; do
   if grep -q "$forbidden" "$RELEASE_WORKFLOW"; then
     echo "release workflow contains forbidden surface: $forbidden" >&2

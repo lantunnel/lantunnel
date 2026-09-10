@@ -1,0 +1,7 @@
+# Lantunnel Client. Files under /etc/config survive sysupgrade, so this is the
+# one place a Tunnel ID is safe to keep.
+#
+# Leave tunnel_id empty when the router has exactly one imported Peer profile:
+# the init script picks that one. Set it explicitly once there is more than one.
+config lantunnel 'main'
+	option tunnel_id ''

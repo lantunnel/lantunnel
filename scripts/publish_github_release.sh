@@ -46,8 +46,8 @@ desired=()
 while IFS= read -r asset_path; do
     desired[${#desired[@]}]="${asset_path##*/}"
 done < <(find "$release_dir" -maxdepth 1 -type f | sort)
-if [ "${#desired[@]}" -ne 12 ]; then
-    echo "Error: expected exactly 12 local release assets, got ${#desired[@]}" >&2
+if [ "${#desired[@]}" -ne 20 ]; then
+    echo "Error: expected exactly 20 local release assets, got ${#desired[@]}" >&2
     exit 1
 fi
 test -f "$release_dir/CHANGELOG.md"

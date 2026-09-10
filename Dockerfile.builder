@@ -117,6 +117,7 @@ RUN rustup toolchain install stable --profile minimal \
     && rustup target add --toolchain stable \
         x86_64-unknown-linux-musl \
         aarch64-unknown-linux-musl \
+        armv7-unknown-linux-musleabihf \
         x86_64-pc-windows-msvc
 
 # ---- tauri cli (used by the windows UI build) -----------------------------

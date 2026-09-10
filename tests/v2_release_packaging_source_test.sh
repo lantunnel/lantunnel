@@ -261,7 +261,8 @@ grep -Fq '/mingw64/bin/protoc.exe --version' <<<"$windows_nsis_build"
 grep -Fq 'ALLOW_UNSIGNED_WINDOWS_INSTALLER=1 SKIP_UI_FRONTEND=1 make' <<<"$windows_nsis_build"
 
 # The separate manual candidate build invokes the existing Make targets for
-# the supported product/platform matrix: two Gateway, two Admin, six Client.
+# the supported product/platform matrix: two Gateway, two Admin, six Client,
+# five headless Client, three OpenWrt.
 for target in \
   _release-lantunnel-gateway-macos-arm64 \
   _release-lantunnel-gateway-linux-amd64 \
@@ -272,6 +273,14 @@ for target in \
   _release-lantunnel-client-windows-amd64 \
   _release-lantunnel-client-linux-amd64 \
   _release-lantunnel-client-linux-arm64 \
+  _release-lantunnel-client-headless-macos-arm64 \
+  _release-lantunnel-client-headless-macos-amd64 \
+  _release-lantunnel-client-headless-windows-amd64 \
+  _release-lantunnel-client-headless-linux-amd64 \
+  _release-lantunnel-client-headless-linux-arm64 \
+  _release-lantunnel-client-openwrt-aarch64 \
+  _release-lantunnel-client-openwrt-armv7 \
+  _release-lantunnel-client-openwrt-x86-64 \
   _release-android-proxy-apk
 do
   grep -q "$target" "$RELEASE_WORKFLOW"
@@ -280,7 +289,11 @@ if grep -Eq 'cargo (build|zigbuild|xwin build)' "$RELEASE_WORKFLOW"; then
   echo 'GitHub Release duplicates the Makefile production build path' >&2
   exit 1
 fi
-if grep -q '\.tar\.gz' "$RELEASE_WORKFLOW"; then
+# The OpenWrt package is the one tarball allowed, and only because it is not a
+# wrapped binary: it ships a filesystem layout — the binary, a procd service,
+# and a UCI file — that a router installs with `tar -xzf … -C /`. Every other
+# product still has to be published as the artifact users actually run.
+if grep -F '.tar.gz' "$RELEASE_WORKFLOW" | grep -vq 'lantunnel-client-openwrt-'; then
   echo 'GitHub Release wraps the established product artifacts in generic tarballs' >&2
   exit 1
 fi
@@ -295,7 +308,15 @@ for artifact in \
   'lantunnel-client-${version}-windows-amd64.exe' \
   'lantunnel-client-${version}-linux-amd64.AppImage' \
   'lantunnel-client-${version}-linux-arm64.AppImage' \
-  'lantunnel-client-${version}-android-arm64.apk'
+  'lantunnel-client-${version}-android-arm64.apk' \
+  'lantunnel-client-headless-${version}-x86_64-pc-windows-msvc.exe' \
+  'lantunnel-client-headless-${version}-x86_64-apple-darwin' \
+  'lantunnel-client-headless-${version}-aarch64-apple-darwin' \
+  'lantunnel-client-headless-${version}-x86_64-unknown-linux-musl' \
+  'lantunnel-client-headless-${version}-aarch64-unknown-linux-musl' \
+  'lantunnel-client-openwrt-${version}-aarch64.tar.gz' \
+  'lantunnel-client-openwrt-${version}-armv7.tar.gz' \
+  'lantunnel-client-openwrt-${version}-x86_64.tar.gz'
 do
   grep -Fq "$artifact" "$RELEASE_WORKFLOW"
 done
@@ -396,7 +417,7 @@ grep -Fq 'lightweight release tag resolves directly' "$PUBLISH_GITHUB_RELEASE_TE
 test ! -e "$ROOT_DIR/scripts/upload.sh"
 test ! -e "$ROOT_DIR/tests/upload_script_test.sh"
 test ! -e "$ROOT_DIR/tests/download_existing_release_test.sh"
-grep -Fq 'expected exactly 12 local release files' "$VERIFY_RELEASE_BUNDLE"
+grep -Fq 'expected exactly 20 local release files' "$VERIFY_RELEASE_BUNDLE"
 grep -Fq 'checksums.txt must contain exactly one entry' "$VERIFY_RELEASE_BUNDLE"
 grep -Fq 'changelog must contain exactly one version section' "$VERIFY_RELEASE_BUNDLE"
 grep -Fq 'https://lantunnel.app/docs/installation' "$RENDER_GITHUB_RELEASE_NOTES"

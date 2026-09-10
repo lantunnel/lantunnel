@@ -24,6 +24,14 @@ artifacts=(
   lantunnel-gateway-2.0.0-x86_64-unknown-linux-musl
   lantunnel-admin-2.0.0-aarch64-apple-darwin
   lantunnel-admin-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-x86_64-pc-windows-msvc.exe
+  lantunnel-client-headless-2.0.0-x86_64-apple-darwin
+  lantunnel-client-headless-2.0.0-aarch64-apple-darwin
+  lantunnel-client-headless-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-aarch64-unknown-linux-musl
+  lantunnel-client-openwrt-2.0.0-aarch64.tar.gz
+  lantunnel-client-openwrt-2.0.0-armv7.tar.gz
+  lantunnel-client-openwrt-2.0.0-x86_64.tar.gz
 )
 for artifact in "${artifacts[@]}"; do
   printf 'accepted bytes for %s\n' "$artifact" > "$release_dir/$artifact"
@@ -76,7 +84,7 @@ grep -Fq "https://github.com/${repository}/releases/download/${tag}/CHANGELOG.md
 
 grep -Fq 'macOS Client DMGs are Developer ID signed, notarized, and stapled.' "$notes_one"
 grep -Fq 'Windows Client executable is an intentionally unsigned preview' "$notes_one"
-grep -Fq 'Gateway and Admin command-line binaries and Linux AppImages are not code-signed.' "$notes_one"
+grep -Fq 'Gateway, Admin, headless Client, and OpenWrt command-line artifacts and Linux AppImages are not code-signed.' "$notes_one"
 grep -Fq 'macOS Gateway and Admin CLI binaries are unsigned and not notarized.' "$notes_one"
 grep -Fq "https://github.com/${repository}#building-from-source" "$notes_one"
 grep -Fq 'Do not bypass Gatekeeper or an organization policy.' "$notes_one"

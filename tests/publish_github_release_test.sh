@@ -41,6 +41,14 @@ assets=(
   lantunnel-gateway-2.0.0-x86_64-unknown-linux-musl
   lantunnel-admin-2.0.0-aarch64-apple-darwin
   lantunnel-admin-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-x86_64-pc-windows-msvc.exe
+  lantunnel-client-headless-2.0.0-x86_64-apple-darwin
+  lantunnel-client-headless-2.0.0-aarch64-apple-darwin
+  lantunnel-client-headless-2.0.0-x86_64-unknown-linux-musl
+  lantunnel-client-headless-2.0.0-aarch64-unknown-linux-musl
+  lantunnel-client-openwrt-2.0.0-aarch64.tar.gz
+  lantunnel-client-openwrt-2.0.0-armv7.tar.gz
+  lantunnel-client-openwrt-2.0.0-x86_64.tar.gz
   checksums.txt
   CHANGELOG.md
 )
@@ -50,7 +58,7 @@ for asset in "${assets[@]}"; do
 done
 (
   cd "$release_dir"
-  shasum -a 256 "${assets[@]:0:10}" > checksums.txt
+  shasum -a 256 "${assets[@]:0:18}" > checksums.txt
 )
 printf '%s\n' '# Changelog' '' '## [2.0.0] - 2026-09-04' '' '- Accepted.' \
   > "$release_dir/CHANGELOG.md"
@@ -316,9 +324,9 @@ assert_no_mutation_after_race() {
 # and verifies the published bytes without any destructive API operation.
 : > "$TEST_DIR/gh.log"
 publish "$TEST_DIR/work-new"
-jq -e '.draft == false and (.assets | length) == 12' "$state_json" >/dev/null
+jq -e '.draft == false and (.assets | length) == 20' "$state_json" >/dev/null
 test "$(grep -Ec '^POST repos/.*/releases$' "$TEST_DIR/gh.log")" -eq 1
-test "$(grep -Ec '^POST https://uploads.github.com/' "$TEST_DIR/gh.log")" -eq 12
+test "$(grep -Ec '^POST https://uploads.github.com/' "$TEST_DIR/gh.log")" -eq 20
 test "$(grep -Ec '^PATCH repos/.*/releases/42$' "$TEST_DIR/gh.log")" -eq 1
 test "$(grep -E '^(POST|PATCH|DELETE) ' "$TEST_DIR/gh.log" | tail -n 1)" = \
   'PATCH repos/example/lantunnel/releases/42'
@@ -349,8 +357,8 @@ reset_race_state
 write_release_state true 4
 : > "$TEST_DIR/gh.log"
 publish "$TEST_DIR/work-partial"
-jq -e '.draft == false and (.assets | length) == 12' "$state_json" >/dev/null
-test "$(grep -Ec '^POST https://uploads.github.com/' "$TEST_DIR/gh.log")" -eq 8
+jq -e '.draft == false and (.assets | length) == 20' "$state_json" >/dev/null
+test "$(grep -Ec '^POST https://uploads.github.com/' "$TEST_DIR/gh.log")" -eq 16
 test "$(grep -Ec '^POST repos/.*/releases$' "$TEST_DIR/gh.log" || true)" -eq 0
 
 # A conflicting existing byte fails before any upload or publish operation.
@@ -417,14 +425,14 @@ assert_no_mutation_after_race
 
 # Publication by another actor after draft verification is observed through
 # the numeric release ID immediately before our PATCH, so we perform no write.
-write_release_state true 12
+write_release_state true 20
 reset_race_state
 : > "$TEST_DIR/gh.log"
 MOCK_AFTER_DRAFT_VERIFY_RACE=publish
 expect_failure 'draft published concurrently' publish "$TEST_DIR/work-draft-published"
 unset MOCK_AFTER_DRAFT_VERIFY_RACE
 grep -Fq 'changed before write' "$TEST_DIR/expected-failure.log"
-if ! jq -e '.draft == false and (.assets | length) == 12' "$state_json" >/dev/null; then
+if ! jq -e '.draft == false and (.assets | length) == 20' "$state_json" >/dev/null; then
   echo 'concurrent publisher did not leave the complete release published' >&2
   jq '{draft, asset_count: (.assets | length)}' "$state_json" >&2
   cat "$TEST_DIR/expected-failure.log" >&2

@@ -107,6 +107,15 @@ jobs:
       - name: cargo test
         run: cargo test --workspace
 
+      # The headless Client is a second feature set, and the release ships it
+      # for five desktop platforms plus three OpenWrt architectures. Nothing
+      # above compiles it, so a Tauri type leaking into a shared code path
+      # would otherwise surface only at release time.
+      - name: cargo clippy + test (headless Client, no UI feature)
+        run: |
+          cargo clippy -p lantunnel-client --no-default-features --all-targets -- -D warnings
+          cargo test -p lantunnel-client --no-default-features
+
       - name: Windows secret ACL source contract
         run: bash tests/v2_windows_secret_acl_source_test.sh
 
