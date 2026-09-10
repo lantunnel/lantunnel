@@ -22,11 +22,12 @@
 6. [LAN 全体を共有する](#lan-全体を共有する)
 7. [誰に到達を許すか](#誰に到達を許すか)
 8. [サーバーで動かす（headless）](#サーバーで動かすheadless)
-9. [スマートフォン](#スマートフォン)
-10. [コマンドリファレンス](#コマンドリファレンス)
-11. [設定リファレンス](#設定リファレンス)
-12. [ファイルの置き場所](#ファイルの置き場所)
-13. [トラブルシューティング](#トラブルシューティング)
+9. [ルーターで動かす（OpenWrt）](#ルーターで動かすopenwrt)
+10. [スマートフォン](#スマートフォン)
+11. [コマンドリファレンス](#コマンドリファレンス)
+12. [設定リファレンス](#設定リファレンス)
+13. [ファイルの置き場所](#ファイルの置き場所)
+14. [トラブルシューティング](#トラブルシューティング)
 
 ---
 
@@ -351,6 +352,10 @@ Peer は、自分が接続しているプライベートサブネットを広告
 
 `--headless`（別名 `--no-ui`）は、ウィンドウもトレイも WebView も持たない、まったく同じランタイムを実行します。再接続ロジックも、PeerLink とリレーの挙動も、SOCKS5 と TUN も同一です。
 
+デスクトップ版パッケージではなく `lantunnel-client-headless-<version>-<triple>` をダウンロードしてください。UI をコンパイル時に外しただけの同じランタイムで、Tauri も WebView もなく、~97MB の AppImage ではなく 5〜7MB、ホストにグラフィックス関連ライブラリも要りません。Linux 版は musl に静的リンクされています。このバイナリはどう起動しても headless なので `--headless` は省略でき、フラグはデスクトップ機と共有するスクリプトのために残してあるだけです。
+
+ひとつだけ付いてこない機能があります。macOS の特権 TUN ヘルパーのインストールはデスクトップアプリの操作なので、headless の macOS ホストでネイティブルーティングを使えるのは、デスクトップ版 Client が先にヘルパーを入れてある場合だけです。Linux と Windows は影響を受けません（TUN サイドカーの解決方法はデスクトップ版と同じです）。そしてエクスポート側の Peer に TUN は不要です。
+
 ```bash
 lantunnel-client tunnel import /etc/lantunnel/nas.peer
 lantunnel-client connect <tunnel-id>          # フォアグラウンド、UI なし
@@ -379,11 +384,44 @@ WantedBy=multi-user.target
 
 headless モードに設定画面はないので、設定ディレクトリの `settings.json` を直接編集してください。[設定リファレンス](#設定リファレンス)を参照。
 
-**Windows では**、リリースビルドが GUI サブシステムを使うため、通常起動でコンソールウィンドウは開かず、`cmd.exe` はプロセスの終了を待ちません。短いコマンドの出力と終了ステータスが必要な場合は `start /wait` を使ってください。
+**Windows では**、デスクトップ版ビルドが GUI サブシステムを使うため、通常起動でコンソールウィンドウは開かず、`cmd.exe` はプロセスの終了を待ちません。短いコマンドの出力と終了ステータスが必要な場合は `start /wait` を使ってください。headless 版はコンソールサブシステムのままなので、この手順は不要です。
 
 ```
 start /wait "" "C:\Program Files\Lantunnel\lantunnel-client.exe" status --json
 ```
+
+---
+
+## ルーターで動かす（OpenWrt）
+
+ルーターはもともと 24 時間動いていて、もともと LAN 上にいます。だからこそ、その[LAN をエクスポートする](#lan-全体を共有する) Peer を動かす場所として一番自然です。その先にある機器には何もインストールする必要がありません。
+
+サブネットのエクスポートは外向きにダイヤルするだけなので、TUN デバイスも `kmod-tun` も `ip-full` も要らず、ルートやファイアウォールの変更も要りません。
+
+`uname -m` に合う tarball（`aarch64`、`armv7l`、`x86_64`）を選び、ファイルシステムのルートで展開します。
+
+```sh
+tar -xzf lantunnel-client-openwrt-<version>-<arch>.tar.gz -C /
+```
+
+これで `/usr/bin/lantunnel-client`、`/etc/init.d/lantunnel` の procd サービス、`/etc/config/lantunnel` が入ります。プロファイルを取り込んでサービスを起動します。
+
+```sh
+TUNNEL_PROXY_APP_CONFIG_DIR=/etc/lantunnel \
+  /usr/bin/lantunnel-client tunnel import /tmp/router.peer
+/etc/init.d/lantunnel enable
+/etc/init.d/lantunnel start
+logread -e lantunnel
+```
+
+取り込んだプロファイルが 1 つだけなら、サービスはそれに接続します。複数ある場合は
+`uci set lantunnel.main.tunnel_id=<TUNNEL_ID> && uci commit lantunnel` で指定してください。
+
+設定は flash オーバーレイ上の `/etc/lantunnel` に置かれます。ログは tmpfs である `/var/log/lantunnel` に出るので、日次ローテーションのログファイルが flash に触れることはありません。`/etc/config` は sysupgrade をまたいで自動的に残ります。取り込んだプロファイルも残すには `/etc/lantunnel` を `/etc/sysupgrade.conf` に追加してください。バイナリは残らないので、アップグレード後に再インストールします。
+
+インストール後のバイナリは armv7 で 5.5MB、aarch64 で 5.7MB、x86_64 で 7.1MB です。16MB フラッシュのルーター、つまり `ath79` と `ramips` のほとんどには収まりません。MIPS はそもそもビルドしていません。
+
+インストール手順の全文は tarball 内の `/usr/share/lantunnel/README.md` にあります。
 
 ---
 
@@ -420,7 +458,7 @@ lantunnel-client tunnel list              取り込み済みプロファイル�
 | `--enable-lan-p2p` | LAN アドレスを直結候補として使うことを許可 |
 | `-V`、`--help` | バージョン、ヘルプ |
 
-環境変数による上書き：`LANTUNNEL_LOCAL_SOCKS5_LISTEN`、`LANTUNNEL_DESKTOP_NETWORK_MODE`、`LANTUNNEL_LAN_ROUTES`、`TUNNEL_PROXY_APP_CONFIG_DIR`。
+環境変数による上書き：`LANTUNNEL_LOCAL_SOCKS5_LISTEN`、`LANTUNNEL_DESKTOP_NETWORK_MODE`、`LANTUNNEL_LAN_ROUTES`、`TUNNEL_PROXY_APP_CONFIG_DIR`、`LANTUNNEL_LOG_DIR`。
 
 ### `lantunnel-admin`
 
@@ -498,6 +536,7 @@ Client の設定ディレクトリにある `settings.json`。すべてのキー
 |---|---|
 | Client 設定、取り込んだプロファイル、秘密情報 | `~/.lantunnel/app/`（`TUNNEL_PROXY_APP_CONFIG_DIR` で変更可） |
 | Client の設定ファイル | `~/.lantunnel/app/settings.json` |
+| Client のログ | 設定と同じディレクトリ（`LANTUNNEL_LOG_DIR` で変更可。ルーター用パッケージはこれでログをフラッシュから逃がしています） |
 | Gateway の設定 | `configs/gateway.yaml`（または `--config` で指定） |
 | Gateway の Tunnel 受け入れ | `state/scopes.d/*.scope` |
 | Gateway のリレー使用量台帳 | `state/relay-usage.wal` |

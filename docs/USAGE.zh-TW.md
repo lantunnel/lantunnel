@@ -22,11 +22,12 @@
 6. [把整個內網分享出去](#把整個內網分享出去)
 7. [決定誰能連到你](#決定誰能連到你)
 8. [跑在伺服器上（headless）](#跑在伺服器上headless)
-9. [手機端](#手機端)
-10. [指令速查](#指令速查)
-11. [設定項速查](#設定項速查)
-12. [檔案放在哪](#檔案放在哪)
-13. [疑難排解](#疑難排解)
+9. [跑在路由器上（OpenWrt）](#跑在路由器上openwrt)
+10. [手機端](#手機端)
+11. [指令速查](#指令速查)
+12. [設定項速查](#設定項速查)
+13. [檔案放在哪](#檔案放在哪)
+14. [疑難排解](#疑難排解)
 
 ---
 
@@ -349,6 +350,10 @@ lantunnel-client --desktop-network-mode lan_routes_tun \
 
 `--headless`（別名 `--no-ui`）執行的是完全相同的執行環境，只是沒有視窗、系統匣和 WebView —— 重連邏輯一樣，PeerLink 與中繼行為一樣，SOCKS5 和 TUN 也一樣。
 
+下載 `lantunnel-client-headless-<版本>-<triple>`，而不是桌面端安裝包。它是同一套執行環境，只是把介面編譯掉了：沒有 Tauri，沒有 WebView，5–7MB 而不是 ~97MB 的 AppImage，主機上也不需要任何圖形函式庫。Linux 版本靜態連結 musl。這個二進位檔每次啟動都是無介面的，所以 `--headless` 是隱含的，那個參數只是為了和桌面主機共用指令稿時不用改。
+
+有一項能力不隨套件提供：安裝 macOS 的特權 TUN 助手是桌面應用才能做的動作，所以無介面的 macOS 主機只有在桌面版 Client 事先裝過助手時才能用原生路由。Linux 和 Windows 不受影響 —— 它們解析 TUN sidecar 的方式和桌面版一致 —— 而匯出端 Peer 根本不需要 TUN。
+
 ```bash
 lantunnel-client tunnel import /etc/lantunnel/nas.peer
 lantunnel-client connect <tunnel-id>          # 前景執行，無介面
@@ -377,11 +382,44 @@ WantedBy=multi-user.target
 
 headless 模式沒有設定介面，直接改設定目錄裡的 `settings.json` —— 見[設定項速查](#設定項速查)。
 
-**Windows 上**，正式版建置使用 GUI 子系統，所以正常啟動不會跳出主控台視窗，`cmd.exe` 也不會等它結束。當你在意某個短指令的輸出與結束代碼時，用 `start /wait`：
+**Windows 上**，桌面版建置使用 GUI 子系統，所以正常啟動不會跳出主控台視窗，`cmd.exe` 也不會等它結束。當你在意某個短指令的輸出與結束代碼時，用 `start /wait`。無介面版本保留主控台子系統，不需要這一步：
 
 ```
 start /wait "" "C:\Program Files\Lantunnel\lantunnel-client.exe" status --json
 ```
+
+---
+
+## 跑在路由器上（OpenWrt）
+
+路由器本來就 7×24 開著，本來就在內網裡，所以它是執行那個[匯出內網](#把整個內網分享出去)的 Peer 的天然位置。它後面的裝置什麼都不用裝。
+
+匯出子網只需要向外撥號，所以這裡不需要 TUN 裝置，不需要 `kmod-tun`，不需要 `ip-full`，也不用改路由或防火牆。
+
+按 `uname -m` 挑對應的 tarball —— `aarch64`、`armv7l` 或 `x86_64` —— 在檔案系統根目錄解開：
+
+```sh
+tar -xzf lantunnel-client-openwrt-<版本>-<架構>.tar.gz -C /
+```
+
+這會裝上 `/usr/bin/lantunnel-client`、位於 `/etc/init.d/lantunnel` 的 procd 服務，以及 `/etc/config/lantunnel`。匯入設定檔，然後啟動服務：
+
+```sh
+TUNNEL_PROXY_APP_CONFIG_DIR=/etc/lantunnel \
+  /usr/bin/lantunnel-client tunnel import /tmp/router.peer
+/etc/init.d/lantunnel enable
+/etc/init.d/lantunnel start
+logread -e lantunnel
+```
+
+只匯入了一份設定檔時，服務直接連它。匯入多份時用
+`uci set lantunnel.main.tunnel_id=<TUNNEL_ID> && uci commit lantunnel` 指定。
+
+設定放在 flash overlay 上的 `/etc/lantunnel`；日誌寫到 `/var/log/lantunnel`，那是 tmpfs，所以每天輪替的日誌檔永遠碰不到 flash。`/etc/config` 會自動跨 sysupgrade 保留 —— 把 `/etc/lantunnel` 加進 `/etc/sysupgrade.conf` 才能一併保住匯入的設定檔。二進位檔不會被保留，升級後重新安裝。
+
+裝好的二進位檔在 armv7 上 5.5MB，aarch64 上 5.7MB，x86_64 上 7.1MB。這排除了 16MB flash 的路由器，也就是大部分 `ath79` 和 `ramips` 硬體；MIPS 則根本不建置。
+
+完整安裝說明隨 tarball 一起，在 `/usr/share/lantunnel/README.md`。
 
 ---
 
@@ -418,7 +456,7 @@ lantunnel-client tunnel list              以 JSON 列出已匯入的設定檔
 | `--enable-lan-p2p` | 允許把內網位址作為直連候選 |
 | `-V`、`--help` | 版本、說明 |
 
-環境變數覆寫：`LANTUNNEL_LOCAL_SOCKS5_LISTEN`、`LANTUNNEL_DESKTOP_NETWORK_MODE`、`LANTUNNEL_LAN_ROUTES`、`TUNNEL_PROXY_APP_CONFIG_DIR`。
+環境變數覆寫：`LANTUNNEL_LOCAL_SOCKS5_LISTEN`、`LANTUNNEL_DESKTOP_NETWORK_MODE`、`LANTUNNEL_LAN_ROUTES`、`TUNNEL_PROXY_APP_CONFIG_DIR`、`LANTUNNEL_LOG_DIR`。
 
 ### `lantunnel-admin`
 
@@ -496,6 +534,7 @@ Client 設定目錄下的 `settings.json`。每一項都是選填的。
 |---|---|
 | Client 設定、已匯入的設定檔、密鑰 | `~/.lantunnel/app/`（可用 `TUNNEL_PROXY_APP_CONFIG_DIR` 覆寫） |
 | Client 設定檔 | `~/.lantunnel/app/settings.json` |
+| Client 日誌 | 與設定同目錄（可用 `LANTUNNEL_LOG_DIR` 覆寫，路由器套件正是靠它把日誌挪出 flash） |
 | Gateway 設定 | `configs/gateway.yaml`（或 `--config` 指定） |
 | Gateway 的 Tunnel 放行檔案 | `state/scopes.d/*.scope` |
 | Gateway 中繼用量帳本 | `state/relay-usage.wal` |
