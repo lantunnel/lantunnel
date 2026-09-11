@@ -228,3 +228,34 @@ if grep -qE 'src="/assets/|href="/assets/' "$UI_INDEX"; then
   echo "the packaged bundle uses absolute asset paths" >&2
   exit 1
 fi
+
+# --- the Platform account panel answers for real on a phone ------------------
+# `platformAccount` is true here, so a stub that replies "not available" would
+# draw a control that never works. These assert the real path exists.
+STORE="$ANDROID_DIR/PlatformAccountStore.kt"
+test -f "$STORE"
+grep -qF '"platformAccount", true' "$BRIDGE"
+if grep -qF 'platform_account_status" ->' "$BRIDGE" && \
+   grep -qF 'platform_account_status is not available' "$BRIDGE"; then
+  echo 'the Android bridge both answers and refuses the account panel' >&2
+  exit 1
+fi
+
+# One HTTP round trip each, dispatched from the main thread, so they have to
+# leave it or the UI freezes for the length of the request.
+grep -qF 'accountWorker' "$ACTIVITY"
+grep -qF 'Executors.newSingleThreadExecutor' "$ACTIVITY"
+
+# The browser is how the owner approves; without this the code has nowhere to go.
+grep -qF 'Intent.ACTION_VIEW' "$ACTIVITY"
+
+# An expired token is signed out rather than handed to a caller as a live one.
+grep -qF 'EXPIRY_GRACE_SECONDS' "$STORE"
+grep -qF 'signOut(context)' "$STORE"
+
+# The account token is a bearer credential for every Tunnel on the account. It
+# is read back out of the store on each call and never crosses into the WebView.
+if grep -qE 'replyOk\([^)]*access_token' "$ACTIVITY"; then
+  echo 'the Android bridge hands the account token to the WebView' >&2
+  exit 1
+fi

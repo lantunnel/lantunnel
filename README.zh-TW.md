@@ -57,6 +57,29 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
 
 ---
 
+<!-- lantunnel:toc -->
+<a id="contents"></a>
+## 目錄
+
+**第一次來？** 直接看 [快速上手](#quick-start)。那裡按上手難度由低到高列了四種玩法 —— 最簡單的那種只有三步，不用你準備任何伺服器。
+
+- [Client 長這樣](#the-client) —— 介面是什麼樣
+- [快速上手](#quick-start) —— **從這裡開始**
+  - [1. 用平台的 Gateway](#mode-1) —— *最省事，什麼都不用部署*
+  - [2. 自己的 Gateway，交給平台託管](#mode-2)
+  - [3. 全部自己來](#mode-3)
+  - [4. 加入別人的 Tunnel](#mode-4)
+- [你會得到什麼](#what-you-get) · [大家實際拿它做什麼](#use-cases)
+- [運作方式](#how-it-works) —— 三個元件，以及為什麼直連優先
+- [儲存庫內容](#whats-inside)
+- [從原始碼建置](#building) · [版本相容性](#compatibility)
+- [相關專案](#related) · [參與貢獻](#contributing) · [授權](#license)
+
+**想看得更深：** [完整使用指南](./docs/USAGE.zh-TW.md) · [架構與術語](./CONTEXT.md) · [線路協定](./docs/PROTOCOL.md)
+
+---
+
+<a id="the-client"></a>
 ## Client 長這樣
 
 <table>
@@ -68,6 +91,7 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
   </tr>
 </table>
 
+<a id="what-you-get"></a>
 ## 你會得到什麼
 
 | | |
@@ -80,12 +104,14 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
 | **一個程式，有無介面皆可** | `lantunnel-client` 預設開啟桌面視窗，加上 `--headless` 就是同一套執行環境，跑在伺服器上。 |
 | **平台齊全** | macOS、Windows、Linux、Android、iOS。 |
 
+<a id="use-cases"></a>
 ### 大家實際拿它做什麼
 
 - **遊戲與影音串流** —— 連回家中那台機器上的 Sunshine/Moonlight、Jellyfin、Plex。
 - **私有 AI 與開發工具** —— Ollama、Open WebUI、內部 API、測試機、絕不能離開內網的資料庫。
 - **家庭與辦公服務** —— NAS、Home Assistant、攝影機、內部儀表板、SSH。
 
+<a id="how-it-works"></a>
 ## 運作方式
 
 ```mermaid
@@ -108,56 +134,65 @@ flowchart LR
 
 📖 **[架構與概念 →](./CONTEXT.md)**  ·  📐 **[線格式規範 →](./docs/PROTOCOL.md)**
 
+<!-- lantunnel:modes -->
+<a id="quick-start"></a>
 ## 快速上手
 
-### 最快的路 —— 使用託管 Gateway
+四種玩法，按你要動手的多寡由少到多排。**大多數人要的是第一種** —— 不用伺服器、不用憑證、不用設定 DNS。
 
-1. 到 **[lantunnel.app](https://lantunnel.app/)** 建立一條免費 Tunnel。
-2. 為每台裝置新增一個 Peer，下載對應的 `.peer` 設定檔。
-3. 從 **[lantunnel.app/download](https://lantunnel.app/download)** 安裝 Client，匯入設定檔。
+| | 你要跑什麼 | 你需要什麼 | 花多少錢 |
+|---|---|---|---|
+| **1. [平台的 Gateway](#mode-1)** | 只跑 Client | 一個帳號 | 免費 Tunnel，直連不限量，每月 5 GB 中繼 |
+| **2. [自己的 Gateway，平台託管](#mode-2)** | Client 加一台 Gateway 主機 | 帳號，外加一台有公網位址的機器 | 付費方案；你自己的中繼不計量 |
+| **3. [全部自己來](#mode-3)** | 三個元件全都自己跑 | 一台有公網位址的機器 | 免費，Apache-2.0，不用帳號，永不連線平台 |
+| **4. [別人的 Tunnel](#mode-4)** | 只跑 Client | 對方傳給你的一個 `.peer` 檔 | 看對方怎麼跑 |
 
-這樣就好。把應用程式的代理指向 `127.0.0.1:1080`，或開啟原生路由直接用內網位址連線。
+<a id="mode-1"></a>
+### 1. 用平台的 Gateway —— *最省事*
 
-### 自己來 —— 你的 Gateway，你的規則
+什麼都不用部署。平台替你跑 Gateway 叢集，你只跑 Client。
 
-```bash
-# 1. 在 Gateway 主機上離線初始化獨立 Gateway。
-lantunnel-gateway init --public-ip <PUBLIC_IP>
-#   預設：QUIC/8443、UDP mapping/8444。若使用其他連接埠，請在這裡加上
-#   --mapping-port <PORT>，並把同一個值傳給下方的 --gateway-mapping-port
-#   產生 configs/gateway.yaml、certs/server.crt、certs/server.key 與 state/scopes.d
+1. **裝上 Client** —— [lantunnel.app/download](https://lantunnel.app/download)。
+2. **登入** —— 在連線頁點「Sign in」。Client 會開啟你的瀏覽器，你核對並批准它顯示的那串碼，就登入好了。不用下載任何檔案。
+3. **加一個 Peer** —— 點「Add a Peer」，選好 Tunnel，給這台裝置取個名字。Client 會一步建好 Peer 並匯入進來。
+4. **連線。**
 
-# 2. 只把 server.crt 複製到可信任 owner 主機上的 ./server.crt，再在那裡離線建立 Tunnel。
-lantunnel-admin init-tunnel \
-  --gateway-transport quic \
-  --gateway-ip <PUBLIC_IP> \
-  --gateway-port 8443 \
-  --gateway-mapping-port 8444 \
-  --gateway-cert ./server.crt
-#   → <tunnel-id>.tunnel   這是 Tunnel 的簽章私鑰，務必妥善保管
-#   → <tunnel-id>.scope    公開檔案，Gateway 只需要這個
+每台想加進 Tunnel 的裝置都重複一遍。然後把程式的代理指到 `127.0.0.1:1080`，或者開啟系統路由直接用內網位址存取。
 
-# 3. 為每台裝置簽發一份設定檔。
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
+<details>
+<summary>更習慣在瀏覽器裡操作？或者要從手機加入？</summary>
 
-# 4. 只把公開 scope 放到 Gateway 主機上，先驗證設定，再啟動。
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
-lantunnel-gateway --config configs/gateway.yaml --check-config
-lantunnel-gateway --config configs/gateway.yaml
+到 [lantunnel.app](https://lantunnel.app/) 建好 Peer，下載它的 `.peer` 檔，在 Client 裡用「Import .peer」匯入。Android 和 iOS 上掃這份設定的 QR Code 同樣能匯入。
+</details>
 
-# 5. 每台裝置匯入自己那份設定檔並連線。
-lantunnel-client tunnel import ./laptop.peer
-lantunnel-client                          # 桌面介面
-lantunnel-client connect '<tunnel_id>'    # 同一套執行環境，不開視窗
-```
+<a id="mode-2"></a>
+### 2. 自己的 Gateway，交給平台託管
 
-`init` 全程離線執行，不會連線到 lantunnel.app 或任何 Platform。`certs/server.key` 始終留在 Gateway 主機上。以完全相同的指令再次執行時，會保留原有私鑰、憑證與設定，不會覆寫。只要指定同一個 `--config` 檔案，再次執行、設定驗證與啟動就不依賴目前的工作目錄。如需使用主機名或公開 CA 憑證，請繼續依完整指南中的手動進階流程設定。
+流量走你自己的機器，所以中繼不算在你頭上；帳號、Tunnel 簽章金鑰和 Peer 簽發仍然由平台負責。用一份一次性的配對檔把 Gateway 註冊一次，之後它保持向外的長連線 —— 平台這邊不用開入站埠，也沒有需要你手動續期的憑證。
 
-一台裝置一份設定檔 —— `.peer` 不是拿來到處複製的。
+**[→ 平台託管 Gateway 安裝指南](https://lantunnel.app/docs/installation#platform-connected)**  ·  [儲存庫裡的同一套步驟](./docs/USAGE.zh-TW.md#managed-onboarding)
+
+<a id="mode-3"></a>
+### 3. 全部自己來
+
+不用帳號，不碰平台，什麼都不外連。用 `lantunnel-admin` 離線建立 Tunnel，給每台裝置簽發一份 `.peer`，再在一台有公網位址的主機上跑 `lantunnel-gateway`。需要的東西全在這個儲存庫裡，Apache-2.0 授權。
+
+**[→ 完整自行託管流程](./docs/USAGE.zh-TW.md#self-hosted)**
+
+<a id="mode-4"></a>
+### 4. 加入別人的 Tunnel
+
+什麼都不用架。Tunnel 的主人給你簽發一份 `.peer` 設定，透過私密管道傳給你；你裝上 Client 匯入即可。對方的 Gateway 是自建的還是平台的，對你來說沒差別。
+
+1. 從 [lantunnel.app/download](https://lantunnel.app/download) 裝上 Client。
+2. **Import .peer** —— 手機上也可以掃 QR Code。
+3. **連線。**
+
+> 一台裝置一份設定。`.peer` 裡帶著這台裝置的私鑰，不是拿來到處複製的 —— 找對方要一份你自己的，別去共用別人的。
 
 📘 **[完整使用指南 —— 安裝、內網發布、存取規則、伺服器部署、手機端、疑難排解 →](./docs/USAGE.zh-TW.md)**
 
+<a id="whats-inside"></a>
 ## 儲存庫內容
 
 自行執行 Lantunnel 所需的一切，全部 Apache-2.0：
@@ -176,6 +211,7 @@ lantunnel-client connect '<tunnel_id>'    # 同一套執行環境，不開視窗
 
 lantunnel.app 上的託管平台 —— 帳號、計費、託管 Gateway 叢集 —— 是獨立的閉源服務，**不在**這個儲存庫裡。這裡的程式碼不依賴它。自行託管的部署全程不會連線到它。
 
+<a id="building"></a>
 ## 從原始碼建置
 
 需要 Rust 1.89+、`protoc`（gRPC 傳輸用）、Node（建置 Client 前端）。
@@ -202,10 +238,12 @@ cargo test --workspace
 tests/e2e/v2_docker/run.sh
 ```
 
+<a id="compatibility"></a>
 ## 版本相容性
 
 Peer、Gateway 與設定檔必須來自同一條 2.0.x 線 —— 線格式不做跨版本協商。從 1.x 升上來？舊的設定檔匯不進來，請用 `lantunnel-admin` 重新簽發。
 
+<a id="related"></a>
 ## 相關專案
 
 在 NAT 後面存取自己的機器，是一個熱鬧又友善的領域。Lantunnel 走的是 P2P 優先、端到端加密這條路；下面這些專案用不同的方式解決相鄰的問題，其中不少還能和 Lantunnel 搭配使用。
@@ -246,10 +284,12 @@ Peer、Gateway 與設定檔必須來自同一條 2.0.x 線 —— 線格式不�
 
 維護著本該出現在這裡的專案？歡迎提 issue，我們很樂意加上。
 
+<a id="contributing"></a>
 ## 參與貢獻
 
 歡迎提出 issue 與 PR —— 建置、測試與程式風格見 [CONTRIBUTING.md](./CONTRIBUTING.md)。發現安全漏洞？請依 [SECURITY.md](./SECURITY.md) 走私密回報，不要開公開 issue。
 
+<a id="license"></a>
 ## 授權
 
 Apache License 2.0 —— 見 [LICENSE](./LICENSE) 與 [NOTICE](./NOTICE)。

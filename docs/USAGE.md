@@ -88,6 +88,7 @@ Skip to [Reaching things](#reaching-things).
 
 ---
 
+<a id="self-hosted"></a>
 ## Path B — self-hosted Gateway
 
 Everything below is in this repository under Apache-2.0. Nothing contacts lantunnel.app.
@@ -621,6 +622,7 @@ runtime config. Follow the [Platform-connected Gateway installation
 guide](https://lantunnel.app/docs/installation#platform-connected), or use the same safe
 sequence:
 
+<a id="managed-onboarding"></a>
 ```bash
 mkdir -m 700 lantunnel-gateway-state
 mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml

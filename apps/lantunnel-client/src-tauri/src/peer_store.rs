@@ -1,11 +1,12 @@
 //! Verified local storage for imported Lantunnel 2.0 Peer profiles.
 
+use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tp_core::provisioning::{
     normalize_certificate_pem, PeerBootstrapV2, PeerProfileV2, ProvisioningError,
@@ -25,12 +26,128 @@ pub enum PeerBootstrapKindV2 {
 
 /// Public Peer information only. Private keys and membership credentials are
 /// intentionally absent.
+///
+/// The two names are local. A `.peer` file has never carried either one, and
+/// it cannot start: `PeerProfileV2` is `deny_unknown_fields`, so a Client
+/// already installed would reject a profile that grew a field. See
+/// [`PeerLabelsV2`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ImportedPeerSummaryV2 {
     pub tunnel_id: String,
     pub peer_id: String,
     pub overlay_ip: Ipv4Addr,
     pub bootstrap_kind: PeerBootstrapKindV2,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tunnel_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_name: Option<String>,
+}
+
+/// The longest name kept for one Tunnel or Peer.
+///
+/// The Platform bounds its own names; this bounds what an imported profile can
+/// be labelled with locally, so a pasted essay cannot bloat the sidecar or the
+/// list it feeds.
+pub const MAX_PEER_LABEL_CHARS: usize = 64;
+
+/// Where the local names live, beside the profiles they name.
+const PEER_LABELS_FILE: &str = "labels.json";
+
+/// Names the Platform knows and a `.peer` file does not.
+///
+/// Written when the Platform mints a Peer through the Client, and editable for
+/// a profile that arrived as a file. Absent names are not an error: the UI
+/// falls back to the Overlay IP, which every profile has.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PeerLabelsV2 {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tunnel_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer_name: Option<String>,
+}
+
+impl PeerLabelsV2 {
+    /// Trims, drops the empty, and caps the long.
+    pub fn normalized(self) -> Self {
+        Self {
+            tunnel_name: normalize_label(self.tunnel_name),
+            peer_name: normalize_label(self.peer_name),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tunnel_name.is_none() && self.peer_name.is_none()
+    }
+}
+
+fn normalize_label(value: Option<String>) -> Option<String> {
+    let trimmed = value?.trim().to_owned();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.chars().take(MAX_PEER_LABEL_CHARS).collect())
+}
+
+fn peer_labels_path(client_config_root: &Path) -> PathBuf {
+    client_config_root.join("peers").join(PEER_LABELS_FILE)
+}
+
+/// Reads the local names, treating anything unreadable as "no names".
+///
+/// A profile list that refuses to render because a cosmetic sidecar is corrupt
+/// would lock the owner out of their own Tunnels. The names are the only thing
+/// at stake here, so the failure is silent by design.
+pub fn read_peer_labels(client_config_root: &Path) -> BTreeMap<String, PeerLabelsV2> {
+    let path = peer_labels_path(client_config_root);
+    let Ok(metadata) = fs::symlink_metadata(&path) else {
+        return BTreeMap::new();
+    };
+    if metadata_is_link_or_reparse(&metadata) || !metadata.is_file() {
+        return BTreeMap::new();
+    }
+    if metadata.len() > MAX_GATEWAY_FILE_BYTES {
+        return BTreeMap::new();
+    }
+    fs::read(&path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<BTreeMap<String, PeerLabelsV2>>(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Records the local names for one Tunnel. Empty names remove the entry.
+pub fn set_peer_labels(
+    client_config_root: &Path,
+    tunnel_id: &str,
+    labels: PeerLabelsV2,
+) -> Result<(), PeerImportError> {
+    if !safe_filename_id(tunnel_id) {
+        return Err(PeerImportError::UnsafeTunnelId);
+    }
+    let mut stored = read_peer_labels(client_config_root);
+    let labels = labels.normalized();
+    if labels.is_empty() {
+        stored.remove(tunnel_id);
+    } else {
+        stored.insert(tunnel_id.to_owned(), labels);
+    }
+    write_peer_labels(client_config_root, &stored)
+}
+
+fn write_peer_labels(
+    client_config_root: &Path,
+    labels: &BTreeMap<String, PeerLabelsV2>,
+) -> Result<(), PeerImportError> {
+    let path = peer_labels_path(client_config_root);
+    if labels.is_empty() {
+        return match fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(PeerImportError::WriteDestination { path, source }),
+        };
+    }
+    ensure_private_directory(client_config_root)?;
+    replace_private_json_file(&path, labels)
 }
 
 /// A verified identity secret and the connection bootstrap selected for this
@@ -73,12 +190,16 @@ pub fn forget_peer_profile(
     let path = client_config_root
         .join("peers")
         .join(format!("{tunnel_id}.peer"));
-    match fs::remove_file(&path) {
+    let removed = match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         // Already gone is the state the caller asked for.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(source) => Err(PeerImportError::WriteDestination { path, source }),
-    }
+    };
+    // Leaving the names behind would relabel whatever Peer is imported for
+    // this Tunnel next with the forgotten one's identity.
+    set_peer_labels(client_config_root, tunnel_id, PeerLabelsV2::default())?;
+    removed
 }
 
 pub fn load_peer_profile(
@@ -187,6 +308,7 @@ pub fn list_peer_profiles(
         }
     };
 
+    let labels = read_peer_labels(client_config_root);
     let mut summaries = Vec::new();
     for entry in directory {
         let entry = entry.map_err(|source| PeerImportError::ReadStorage {
@@ -201,7 +323,8 @@ pub fn list_peer_profiles(
         if path.file_stem().and_then(|stem| stem.to_str()) != Some(profile.tunnel_id.as_str()) {
             return Err(PeerImportError::StoredTunnelMismatch(path));
         }
-        summaries.push(public_summary(&profile));
+        let named = labels.get(&profile.tunnel_id);
+        summaries.push(public_summary(&profile, named));
     }
     summaries.sort_by(|left, right| left.tunnel_id.cmp(&right.tunnel_id));
     Ok(summaries)
@@ -231,11 +354,49 @@ pub fn import_peer_profile(
     let destination = peers_dir.join(format!("{}.peer", profile.tunnel_id));
     replace_private_file(&destination, canonical.as_bytes())?;
 
-    Ok(public_summary(&profile))
+    let labels = read_peer_labels(client_config_root);
+    let named = labels.get(&profile.tunnel_id);
+    Ok(public_summary(&profile, named))
 }
 
-fn public_summary(profile: &PeerProfileV2) -> ImportedPeerSummaryV2 {
+/// Stores a `.peer` the Platform just minted, without it touching the disk
+/// unprotected first.
+///
+/// The Platform returns the profile in the response body. Writing that body to
+/// a temporary file so [`import_peer_profile`] could read it back would put a
+/// Peer private key on disk outside the owner-only tree for as long as the
+/// import took, which is exactly the window this store exists to close.
+pub fn import_peer_profile_bytes(
+    bytes: &[u8],
+    client_config_root: &Path,
+    labels: PeerLabelsV2,
+) -> Result<ImportedPeerSummaryV2, PeerImportError> {
+    if bytes.len() as u64 > MAX_PEER_FILE_BYTES {
+        return Err(PeerImportError::InvalidProfile);
+    }
+    let profile: PeerProfileV2 =
+        serde_yaml::from_slice(bytes).map_err(|_| PeerImportError::InvalidProfile)?;
+    profile.verify()?;
+    if !safe_filename_id(&profile.tunnel_id) {
+        return Err(PeerImportError::UnsafeTunnelId);
+    }
+
+    let canonical = serde_yaml::to_string(&profile).map_err(|_| PeerImportError::InvalidProfile)?;
+    let peers_dir = client_config_root.join("peers");
+    ensure_private_directory(client_config_root)?;
+    ensure_private_directory(&peers_dir)?;
+    let destination = peers_dir.join(format!("{}.peer", profile.tunnel_id));
+    replace_private_file(&destination, canonical.as_bytes())?;
+
+    let labels = labels.normalized();
+    set_peer_labels(client_config_root, &profile.tunnel_id, labels.clone())?;
+    Ok(public_summary(&profile, Some(&labels)))
+}
+
+fn public_summary(profile: &PeerProfileV2, labels: Option<&PeerLabelsV2>) -> ImportedPeerSummaryV2 {
     ImportedPeerSummaryV2 {
+        tunnel_name: labels.and_then(|labels| labels.tunnel_name.clone()),
+        peer_name: labels.and_then(|labels| labels.peer_name.clone()),
         tunnel_id: profile.tunnel_id.clone(),
         peer_id: profile.peer.peer_id.clone(),
         overlay_ip: profile.peer.overlay_ip,
@@ -634,5 +795,177 @@ mod windows_security {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::*;
+    use tp_core::provisioning::{GatewayBootstrapV2, TunnelOwnerFileV2};
+
+    fn owner() -> TunnelOwnerFileV2 {
+        TunnelOwnerFileV2::generate(GatewayBootstrapV2 {
+            transport: "quic".into(),
+            dial_address: "gateway.example".into(),
+            port: 8443,
+            mapping_port: None,
+            tls_server_name: Some("gateway.example".into()),
+            trusted_certificate_pem: None,
+        })
+        .expect("Tunnel")
+    }
+
+    fn profile_bytes(owner: &mut TunnelOwnerFileV2) -> (String, Vec<u8>) {
+        let profile = owner.add_peer(None, 1, None).expect("Peer");
+        let tunnel_id = profile.tunnel_id.clone();
+        let bytes = serde_yaml::to_string(&profile)
+            .expect("profile yaml")
+            .into_bytes();
+        (tunnel_id, bytes)
+    }
+
+    #[test]
+    fn a_platform_minted_peer_keeps_the_names_the_file_cannot_carry() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut owner = owner();
+        let (tunnel_id, bytes) = profile_bytes(&mut owner);
+
+        let summary = import_peer_profile_bytes(
+            &bytes,
+            dir.path(),
+            PeerLabelsV2 {
+                tunnel_name: Some("  Home Lab  ".into()),
+                peer_name: Some("laptop".into()),
+            },
+        )
+        .expect("import");
+        assert_eq!(summary.tunnel_name.as_deref(), Some("Home Lab"));
+        assert_eq!(summary.peer_name.as_deref(), Some("laptop"));
+
+        // The names survive a restart, because the list is what the UI reads.
+        let listed = list_peer_profiles(dir.path()).expect("list");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].tunnel_id, tunnel_id);
+        assert_eq!(listed[0].tunnel_name.as_deref(), Some("Home Lab"));
+        assert_eq!(listed[0].peer_name.as_deref(), Some("laptop"));
+    }
+
+    #[test]
+    fn forgetting_a_tunnel_does_not_leave_its_names_behind() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut owner = owner();
+        let (tunnel_id, bytes) = profile_bytes(&mut owner);
+        import_peer_profile_bytes(
+            &bytes,
+            dir.path(),
+            PeerLabelsV2 {
+                tunnel_name: Some("Home Lab".into()),
+                peer_name: Some("laptop".into()),
+            },
+        )
+        .expect("import");
+
+        forget_peer_profile(dir.path(), &tunnel_id).expect("forget");
+        assert!(!read_peer_labels(dir.path()).contains_key(&tunnel_id));
+
+        // Re-importing the same Tunnel by hand must not inherit the old names:
+        // it is a different Peer with a different address.
+        let (_, second) = profile_bytes(&mut owner);
+        let path = dir.path().join("second.peer");
+        fs::write(&path, &second).expect("write");
+        let reimported = import_peer_profile(&path, dir.path()).expect("import file");
+        assert_eq!(reimported.tunnel_name, None);
+        assert_eq!(reimported.peer_name, None);
+    }
+
+    #[test]
+    fn an_over_long_or_blank_name_is_bounded_before_it_is_stored() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut owner = owner();
+        let (tunnel_id, bytes) = profile_bytes(&mut owner);
+        import_peer_profile_bytes(&bytes, dir.path(), PeerLabelsV2::default()).expect("import");
+
+        set_peer_labels(
+            dir.path(),
+            &tunnel_id,
+            PeerLabelsV2 {
+                tunnel_name: Some("x".repeat(500)),
+                peer_name: Some("   ".into()),
+            },
+        )
+        .expect("set");
+        let stored = read_peer_labels(dir.path());
+        let entry = stored.get(&tunnel_id).expect("entry");
+        assert_eq!(
+            entry.tunnel_name.as_deref().map(str::len),
+            Some(MAX_PEER_LABEL_CHARS)
+        );
+        // A name that is only whitespace is no name at all.
+        assert_eq!(entry.peer_name, None);
+    }
+
+    #[test]
+    fn clearing_both_names_removes_the_entry_rather_than_storing_an_empty_one() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut owner = owner();
+        let (tunnel_id, bytes) = profile_bytes(&mut owner);
+        import_peer_profile_bytes(
+            &bytes,
+            dir.path(),
+            PeerLabelsV2 {
+                tunnel_name: Some("Home Lab".into()),
+                peer_name: Some("laptop".into()),
+            },
+        )
+        .expect("import");
+
+        set_peer_labels(dir.path(), &tunnel_id, PeerLabelsV2::default()).expect("clear");
+        assert!(read_peer_labels(dir.path()).is_empty());
+        assert!(!dir.path().join("peers").join(PEER_LABELS_FILE).exists());
+    }
+
+    #[test]
+    fn a_corrupt_label_file_costs_the_names_and_nothing_else() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut owner = owner();
+        let (_, bytes) = profile_bytes(&mut owner);
+        import_peer_profile_bytes(
+            &bytes,
+            dir.path(),
+            PeerLabelsV2 {
+                tunnel_name: Some("Home Lab".into()),
+                peer_name: Some("laptop".into()),
+            },
+        )
+        .expect("import");
+        fs::write(
+            dir.path().join("peers").join(PEER_LABELS_FILE),
+            b"{ not json",
+        )
+        .expect("corrupt");
+
+        // Refusing to list would lock the owner out of their own Tunnels.
+        let listed = list_peer_profiles(dir.path()).expect("list");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].tunnel_name, None);
+    }
+
+    #[test]
+    fn a_tunnel_id_that_is_unsafe_for_a_filename_cannot_name_a_label_file() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        assert!(matches!(
+            set_peer_labels(dir.path(), "../escape", PeerLabelsV2::default()),
+            Err(PeerImportError::UnsafeTunnelId)
+        ));
+    }
+
+    #[test]
+    fn a_profile_that_is_not_a_valid_peer_is_refused_before_it_is_stored() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        assert!(matches!(
+            import_peer_profile_bytes(b"not a profile", dir.path(), PeerLabelsV2::default()),
+            Err(PeerImportError::InvalidProfile)
+        ));
+        assert!(list_peer_profiles(dir.path()).expect("list").is_empty());
     }
 }

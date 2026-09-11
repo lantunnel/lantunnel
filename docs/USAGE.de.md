@@ -73,6 +73,7 @@ Du kannst direkt zu [Dinge erreichen](#dinge-erreichen) springen.
 
 ---
 
+<a id="self-hosted"></a>
 ## Weg B — eigenes Gateway
 
 Alles Folgende liegt unter Apache-2.0 in diesem Repository. Nichts davon nimmt Kontakt zu lantunnel.app auf.
@@ -482,6 +483,7 @@ lantunnel-gateway mapping serve                  Eigenständiger UDP-Mapping-Ref
 
 Das Onboarding eines verwalteten Gateways muss in einem neuen Arbeitsverzeichnis beginnen, auf das nur der Besitzer zugreifen kann. Dort schreibt es seine Laufzeitkonfiguration. Folge der [Installationsanleitung für ein plattformverbundenes Gateway](https://lantunnel.app/docs/installation#platform-connected) oder verwende dieselbe sichere Befehlsfolge:
 
+<a id="managed-onboarding"></a>
 ```bash
 mkdir -m 700 lantunnel-gateway-state
 mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml

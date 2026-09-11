@@ -19,6 +19,7 @@ pub mod peer_heartbeat;
 pub mod peer_link_manager;
 pub mod peer_runtime;
 pub mod platform;
+pub mod platform_account;
 pub mod proxy_mode;
 pub mod proxy_tunnel;
 pub mod relay_crypto;

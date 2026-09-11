@@ -10,6 +10,42 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+## [2.0.12] - 2026-09-11
+
+### Added
+
+- Sign in to lantunnel.app from the Client itself. Press **Sign in** on the
+  Connection screen: the Client shows a short code, opens your browser, and
+  signs in once you approve it there. No profile file to download, and no
+  loopback port — a headless server or a router signs in the same way, by
+  approving the code on any other device.
+- **Add a Peer** without leaving the Client. Pick a Tunnel by name, then either
+  adopt a Peer the Tunnel has already issued or create a new one, and the
+  profile is imported here in one step. Adopting matters when a device was
+  added from the Console first: minting a second Peer for it would leave the
+  first orphaned on the Platform, still counted against the Tunnel.
+- Imported profiles are listed as `Tunnel - Peer - Overlay IP` rather than an
+  address alone. A `.peer` file carries neither name, so both are stored
+  locally alongside the profile; a profile imported as a file can be named by
+  hand.
+- **Refresh** in the Tunnel picker, for a Tunnel or Peer created in the browser
+  a moment ago.
+
+### Changed
+
+- The README opens with four ways to run Lantunnel, ordered by how much you
+  have to set up, and a contents list. The hosted-Gateway path is three steps
+  and inline; the other three are a paragraph and a link into the usage guide,
+  which is where their full walkthroughs already lived.
+
+### Security
+
+- The account token the Client stores can add a Peer to every Tunnel on the
+  account. It is kept owner-only (mode 0600 on Unix, the Keychain on iOS, and
+  app-private storage on Android), never rendered in logs or diagnostics, never
+  handed to the UI layer, and discarded on sign-out or expiry. The Client
+  refuses to send it to anything but HTTPS, loopback aside.
+
 ## [2.0.11] - 2026-09-10
 
 ### Added

@@ -38,7 +38,31 @@ class WebBridge(private val host: Host) {
         fun clearLogs()
         fun setLogLevel(level: String)
         fun copyToClipboard(text: String)
+
+        /** Local names for one Tunnel; a `.peer` carries neither. */
+        fun setPeerLabels(tunnelId: String, tunnelName: String?, peerName: String?): String
+
+        fun platformAccountStatus(): String
+        fun platformSignOut()
+
+        // These reach the Platform over HTTP, so they answer late rather than
+        // blocking the main thread the rest of this file runs on.
+        fun platformStartSignIn(id: Int)
+        fun platformPollSignIn(id: Int)
+        fun platformListTunnels(id: Int)
+        fun platformListPeers(tunnelId: String, id: Int)
+        fun platformImportPeer(
+            tunnelId: String,
+            peerId: String,
+            tunnelName: String?,
+            peerName: String?,
+            id: Int,
+        )
+        fun platformCreatePeer(tunnelId: String, tunnelName: String?, peerName: String, id: Int)
     }
+
+    private fun JSONObject.optNullableString(key: String): String? =
+        if (isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
 
     @JavascriptInterface
     fun postMessage(payload: String) {
@@ -105,6 +129,50 @@ class WebBridge(private val host: Host) {
                 "get_clash_config", "install_tun_helper" ->
                     host.replyErr(id, "$command is not available on this device")
 
+                // The Platform account panel. A phone has a browser and a
+                // private store, so the device grant works here exactly as it
+                // does on the desktop.
+                "set_peer_labels" -> host.replyOk(
+                    id,
+                    host.setPeerLabels(
+                        args.optString("tunnelId"),
+                        args.optNullableString("tunnelName"),
+                        args.optNullableString("peerName"),
+                    ),
+                )
+                "platform_account_status" -> host.replyOk(id, host.platformAccountStatus())
+                "platform_sign_out" -> {
+                    host.platformSignOut()
+                    host.replyOk(id, "null")
+                }
+
+                // These answer later: each is one HTTP round trip, and dispatch
+                // runs on the main thread.
+                "platform_start_sign_in" -> host.platformStartSignIn(id)
+                "platform_poll_sign_in" -> host.platformPollSignIn(id)
+                "platform_list_tunnels" -> host.platformListTunnels(id)
+                "platform_list_peers" -> host.platformListPeers(args.optString("tunnelId"), id)
+                "platform_import_peer" -> host.platformImportPeer(
+                    args.optString("tunnelId"),
+                    args.optString("peerId"),
+                    args.optNullableString("tunnelName"),
+                    args.optNullableString("peerName"),
+                    id,
+                )
+                "platform_create_peer" -> {
+                    val peerName = args.optString("peerName")
+                    if (peerName.isBlank()) {
+                        host.replyErr(id, "a Peer needs a name")
+                    } else {
+                        host.platformCreatePeer(
+                            args.optString("tunnelId"),
+                            args.optNullableString("tunnelName"),
+                            peerName,
+                            id,
+                        )
+                    }
+                }
+
                 else -> host.replyErr(id, "unknown command: $command")
             }
         } catch (e: Throwable) {
@@ -132,6 +200,7 @@ class WebBridge(private val host: Host) {
             .put("startAtLogin", false)
             .put("localProxy", false)
             .put("exportReadiness", false)
+            .put("platformAccount", true)
             .toString()
 
         fun jsonArrayOfStrings(values: List<String>): String =

@@ -68,6 +68,31 @@ port is opened, and no traffic is decrypted in the middle.
 
 ---
 
+<!-- lantunnel:toc -->
+<a id="contents"></a>
+## Contents
+
+**New here?** Go straight to [Quick start](#quick-start). It lists four ways to run
+Lantunnel, easiest first — and the first one is three steps with no server to set up.
+
+- [The Client](#the-client) — what the app looks like
+- [Quick start](#quick-start) — **start here**
+  - [1. Use the Platform's Gateway](#mode-1) — *easiest, nothing to deploy*
+  - [2. Host the Gateway, let the Platform run it](#mode-2)
+  - [3. Run the Gateway yourself](#mode-3)
+  - [4. Join a Tunnel someone else runs](#mode-4)
+- [What you get](#what-you-get) · [Things people actually use it for](#use-cases)
+- [How it works](#how-it-works) — the three pieces, and why direct comes first
+- [What's in this repository](#whats-inside)
+- [Building from source](#building) · [Compatibility](#compatibility)
+- [Related projects](#related) · [Contributing](#contributing) · [License](#license)
+
+**Going deeper:** [Full usage guide](./docs/USAGE.md) ·
+[Architecture and vocabulary](./CONTEXT.md) · [Wire protocol](./docs/PROTOCOL.md)
+
+---
+
+<a id="the-client"></a>
 ## The Client
 
 <table>
@@ -79,6 +104,79 @@ port is opened, and no traffic is decrypted in the middle.
   </tr>
 </table>
 
+<!-- lantunnel:modes -->
+<a id="quick-start"></a>
+## Quick start
+
+Four ways to run Lantunnel, ordered by how much you have to set up. **Most people want
+the first one** — it needs no server, no certificates, and no DNS.
+
+| | You run | You need | What it costs |
+|---|---|---|---|
+| **1. [The Platform's Gateway](#mode-1)** | The Client | An account | Free Tunnel, unlimited direct traffic, 5 GB/month relay |
+| **2. [Your Gateway, run by the Platform](#mode-2)** | The Client, and a Gateway host | An account, and a machine with a public address | Paid plan; your relay is not metered |
+| **3. [Everything yourself](#mode-3)** | All three pieces | A machine with a public address | Free, Apache-2.0, no account, never contacts the Platform |
+| **4. [Somebody else's Tunnel](#mode-4)** | The Client | A `.peer` file they send you | Whatever they run |
+
+<a id="mode-1"></a>
+### 1. Use the Platform's Gateway — *easiest*
+
+Nothing to deploy. The Platform runs the Gateway fleet; you run the Client.
+
+1. **Install the Client** — [lantunnel.app/download](https://lantunnel.app/download).
+2. **Sign in** — press *Sign in* on the Connection screen. The Client opens your browser,
+   you approve the code it shows, and it is signed in. No file to download.
+3. **Add a Peer** — press *Add a Peer*, choose your Tunnel, and name this device. The
+   Client creates the Peer and imports it in one step.
+4. **Connect.**
+
+Repeat on every device you want in the Tunnel. Then point an app at `127.0.0.1:1080`, or
+turn on native routing and use the LAN addresses directly.
+
+<details>
+<summary>Prefer the browser, or joining from a phone?</summary>
+
+Create the Peer at [lantunnel.app](https://lantunnel.app/), download its `.peer` file, and
+use **Import .peer** in the Client. On Android and iOS the same profile imports by
+scanning its QR code.
+</details>
+
+<a id="mode-2"></a>
+### 2. Host the Gateway, let the Platform run it
+
+Your machine carries the traffic, so relay is not metered against you, and the Platform
+still handles accounts, Tunnel keys, and Peer issuance. You register the Gateway once with
+a one-time pairing file and it stays connected outbound — no inbound port on the Platform
+side, no certificate to renew by hand.
+
+**[→ Platform-connected Gateway installation guide](https://lantunnel.app/docs/installation#platform-connected)**  ·  [the same sequence, in this repository](./docs/USAGE.md#managed-onboarding)
+
+<a id="mode-3"></a>
+### 3. Run the Gateway yourself
+
+No account, no Platform, nothing phones home. You create the Tunnel offline with
+`lantunnel-admin`, issue one `.peer` per device, and run `lantunnel-gateway` on a host with
+a public address. Everything you need is in this repository under Apache-2.0.
+
+**[→ Full self-hosted walkthrough](./docs/USAGE.md#self-hosted)**
+
+<a id="mode-4"></a>
+### 4. Join a Tunnel someone else runs
+
+Nothing to set up at all. Whoever owns the Tunnel issues you a `.peer` profile and sends
+it over a private channel; you install the Client and import it. It makes no difference to
+you whether their Gateway is theirs or the Platform's.
+
+1. Install the Client from [lantunnel.app/download](https://lantunnel.app/download).
+2. **Import .peer** — or scan its QR code on a phone.
+3. **Connect.**
+
+> One profile per device. A `.peer` carries that device's private key and is not meant to
+> be copied around; ask for one of your own rather than sharing someone else's.
+
+📘 **[Full usage guide — installation, LAN exports, access rules, servers, mobile, troubleshooting →](./docs/USAGE.md)**
+
+<a id="what-you-get"></a>
 ## What you get
 
 | | |
@@ -91,12 +189,14 @@ port is opened, and no traffic is decrypted in the middle.
 | **One binary, UI or headless** | `lantunnel-client` opens a desktop window by default and runs the exact same runtime under `--headless` on a server. |
 | **Everywhere** | macOS, Windows, Linux, Android, and iOS. |
 
+<a id="use-cases"></a>
 ### Things people actually use it for
 
 - **Game and media streaming** — Sunshine/Moonlight, Jellyfin, Plex from the machine at home.
 - **Private AI and dev tools** — Ollama, Open WebUI, an internal API, a staging box, a database that must never leave the LAN.
 - **Home and office services** — NAS, Home Assistant, cameras, internal dashboards, SSH.
 
+<a id="how-it-works"></a>
 ## How it works
 
 ```mermaid
@@ -127,65 +227,7 @@ attachment, and that key never leaves the machine that generated it.
 
 📖 **[Architecture and concepts →](./CONTEXT.md)**  ·  📐 **[Wire protocol →](./docs/PROTOCOL.md)**
 
-## Quick start
-
-### The fast way — hosted Gateway
-
-1. Create your free Tunnel at **[lantunnel.app](https://lantunnel.app/)**.
-2. Add a Peer for each device and download its `.peer` profile.
-3. Install the Client from **[lantunnel.app/download](https://lantunnel.app/download)** and
-   import the profile.
-
-That's it. Point an app at `127.0.0.1:1080`, or turn on native routing and use the LAN
-addresses directly.
-
-### The self-hosted way — your Gateway, your rules
-
-```bash
-# 1. On the public Gateway host, initialize a fixed-IP independent Gateway.
-#    This creates configs/gateway.yaml, certs/server.crt, certs/server.key,
-#    and state/scopes.d without contacting lantunnel.app.
-lantunnel-gateway init --public-ip <PUBLIC_IP>
-# Defaults: QUIC on UDP 8443 and mapping on UDP 8444.
-# To use another mapping port, append --mapping-port <PORT> here and pass
-# that same value to --gateway-mapping-port below.
-
-# 2. Copy only certs/server.crt to the trusted owner machine, then create
-#    the Tunnel there. The private key never leaves the Gateway host.
-lantunnel-admin init-tunnel \
-  --gateway-transport quic \
-  --gateway-ip <PUBLIC_IP> \
-  --gateway-port 8443 \
-  --gateway-mapping-port 8444 \
-  --gateway-cert ./server.crt
-#   → <tunnel-id>.tunnel   keep this secret, it is the Tunnel's signing key
-#   → <tunnel-id>.scope    public, this is all the Gateway ever needs
-
-# 3. Issue one profile per device on the trusted owner machine.
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
-
-# 4. Copy only the public scope to the Gateway host, validate, and run.
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
-lantunnel-gateway --config configs/gateway.yaml --check-config
-lantunnel-gateway --config configs/gateway.yaml
-
-# 5. On each device, import its own profile and connect.
-lantunnel-client tunnel import ./laptop.peer
-lantunnel-client                          # desktop UI
-lantunnel-client connect '<tunnel_id>'    # same runtime, no window
-```
-
-Running the same `init` command again preserves the existing config, certificate, and key.
-At the same config path, changed IP, transport, data-port, or mapping-port values are refused
-rather than replacing the Gateway identity. With the same `--config` file, exact replay,
-validation, and startup work from any directory.
-
-One profile per device — a `.peer` is not meant to be copied around. Hostnames and publicly
-trusted certificates remain available through the manual setup in the full usage guide.
-
-📘 **[Full usage guide — installation, LAN exports, access rules, servers, mobile, troubleshooting →](./docs/USAGE.md)**
-
+<a id="whats-inside"></a>
 ## What's in this repository
 
 Everything needed to run Lantunnel yourself, under Apache-2.0:
@@ -207,6 +249,7 @@ The hosted Lantunnel Platform at lantunnel.app — accounts, billing, managed Ga
 — is a separate closed-source service and is **not** in this repository. Nothing here
 depends on it. A self-hosted deployment never contacts it.
 
+<a id="building"></a>
 ## Building from source
 
 Requires Rust 1.89+, `protoc` for the gRPC transport, and Node for the Client frontend.
@@ -240,12 +283,14 @@ cargo test --workspace
 tests/e2e/v2_docker/run.sh
 ```
 
+<a id="compatibility"></a>
 ## Compatibility
 
 Peers, Gateways, and profiles must come from the same 2.0.x line — the wire format is not
 negotiated across versions. Coming from a 1.x install? Its profiles cannot be imported;
 create new ones with `lantunnel-admin`.
 
+<a id="related"></a>
 ## Related projects
 
 Reaching your own machines behind NAT is a crowded and friendly problem space. Lantunnel
@@ -291,12 +336,14 @@ client.
 
 Maintain something that belongs here? Open an issue — we are happy to add it.
 
+<a id="contributing"></a>
 ## Contributing
 
 Issues and pull requests are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for build,
 test, and style guidance. Found a vulnerability? Please report it privately per
 [SECURITY.md](./SECURITY.md) rather than in a public issue.
 
+<a id="license"></a>
 ## License
 
 Apache License 2.0 — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

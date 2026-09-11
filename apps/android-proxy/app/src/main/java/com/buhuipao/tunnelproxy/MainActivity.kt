@@ -25,6 +25,7 @@ import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
+import java.util.concurrent.Executors
 
 /**
  * The Android Client is the shared UI in a WebView.
@@ -37,6 +38,28 @@ import java.io.InputStream
  */
 class MainActivity : Activity(), WebBridge.Host {
     private val handler = Handler(Looper.getMainLooper())
+
+    /**
+     * One thread for the Platform account calls.
+     *
+     * Every one of them is a single blocking HTTP round trip and the bridge
+     * dispatches on the main thread, so they have to leave it. One thread is
+     * enough: the panel makes one request at a time and the UI owns the
+     * polling cadence.
+     */
+    private val accountWorker = Executors.newSingleThreadExecutor()
+
+    /**
+     * Shut down with the Activity.
+     *
+     * A single-thread executor never reaps its core thread, and the manifest
+     * declares no `configChanges`, so every rotation, theme change and locale
+     * change would otherwise leave one live thread and the Activity the queued
+     * runnable captured.
+     */
+    private fun stopAccountWorker() {
+        accountWorker.shutdownNow()
+    }
     private lateinit var webView: WebView
 
     /**
@@ -89,6 +112,7 @@ class MainActivity : Activity(), WebBridge.Host {
 
     override fun onDestroy() {
         handler.removeCallbacks(pollRunnable)
+        stopAccountWorker()
         WebBridge.HOST_LOG_CONTEXT = null
         super.onDestroy()
     }
@@ -407,11 +431,15 @@ class MainActivity : Activity(), WebBridge.Host {
     }
 
     private fun peerSummary(identity: MobileConfig.Companion.PeerIdentity): JSONObject =
-        JSONObject()
-            .put("tunnel_id", identity.tunnelId)
-            .put("peer_id", identity.peerId)
-            .put("overlay_ip", identity.overlayIp)
-            .put("bootstrap_kind", bootstrapKind())
+        PlatformAccountStore.decorate(
+            this,
+            JSONObject()
+                .put("tunnel_id", identity.tunnelId)
+                .put("peer_id", identity.peerId)
+                .put("overlay_ip", identity.overlayIp)
+                .put("bootstrap_kind", bootstrapKind()),
+            identity.tunnelId,
+        )
 
     private fun bootstrapKind(): String =
         runCatching {
@@ -427,9 +455,262 @@ class MainActivity : Activity(), WebBridge.Host {
             MobileConfig.fromPreferences(this)
                 .copy(peerProfileJson = "")
                 .saveConfig(MobileConfig.preferences(this))
+            PlatformAccountStore.forgetLabels(this, tunnelId)
             ProxyServiceState.appendLog(this, "Removed Peer profile")
         }
         return peerProfilesJson()
+    }
+
+    // ------------------------------------------------- Platform account
+
+    override fun setPeerLabels(tunnelId: String, tunnelName: String?, peerName: String?): String {
+        PlatformAccountStore.setLabels(this, tunnelId, tunnelName, peerName)
+        return peerProfilesJson()
+    }
+
+    override fun platformAccountStatus(): String = PlatformAccountStore.statusJson(this)
+
+    override fun platformSignOut() = PlatformAccountStore.signOut(this)
+
+    /**
+     * The FFI answers a JSON object either way; `ok: false` is its failure
+     * shape. Unwrapping it here means the panel sees the Platform's own words
+     * rather than a generic bridge error.
+     */
+    private fun nativeError(payload: JSONObject): String? =
+        if (payload.optBoolean("ok", true)) null
+        else payload.optString("error").ifBlank { "the Platform call failed" }
+
+    private fun onAccountWorker(id: Int, work: () -> String) {
+        accountWorker.execute {
+            val raw = runCatching(work).getOrElse { error ->
+                handler.post { replyErr(id, error.message ?: "the Platform call failed") }
+                return@execute
+            }
+            val payload = runCatching { JSONObject(raw) }.getOrElse {
+                handler.post { replyErr(id, "the Platform answered something unreadable") }
+                return@execute
+            }
+            handler.post { finishAccountCall(id, payload) }
+        }
+    }
+
+    /** Runs on the main thread, because every branch touches Activity state. */
+    private fun finishAccountCall(id: Int, payload: JSONObject) {
+        nativeError(payload)?.let { return replyErr(id, it) }
+        when (payload.optString("__kind")) {
+            "start" -> {
+                PlatformAccountStore.rememberPendingDeviceCode(payload.optString("device_code"))
+                val approvalUrl = payload.optString("verification_uri_complete")
+                    .ifBlank { payload.optString("verification_uri") }
+                val opened = openInBrowser(approvalUrl)
+                replyOk(
+                    id,
+                    JSONObject()
+                        .put("user_code", payload.optString("user_code"))
+                        .put("verification_uri", payload.optString("verification_uri"))
+                        .put("expires_in", payload.optLong("expires_in"))
+                        .put("interval", payload.optLong("interval").coerceAtLeast(1))
+                        .put("browser_opened", opened)
+                        .toString(),
+                )
+            }
+            "poll" -> {
+                val state = payload.optString("state")
+                val polledCode = payload.optString("__device_code")
+                var answered = state
+                when (state) {
+                    "granted" ->
+                        if (PlatformAccountStore.releasePendingDeviceCode(polledCode)) {
+                            PlatformAccountStore.store(
+                                this,
+                                PlatformAccountStore.Session(
+                                    platformUrl = payload.optString("platform_url"),
+                                    accessToken = payload.optString("access_token"),
+                                    expiresAtUnix = payload.optLong("expires_at_unix"),
+                                    email = payload.optString("email").ifBlank { null },
+                                ),
+                            )
+                        } else {
+                            // Signed out or restarted while this was in flight.
+                            // The token is dropped rather than written down.
+                            answered = "not_started"
+                        }
+                    // The Platform is asking for a slower cadence; the panel
+                    // owns the timer, so this travels to it unchanged.
+                    "pending", "slow_down" -> Unit
+                    else -> PlatformAccountStore.releasePendingDeviceCode(polledCode)
+                }
+                // The token itself is never handed to the WebView.
+                val answer = JSONObject().put("state", answered)
+                payload.optString("email").takeIf { it.isNotBlank() }
+                    ?.let { answer.put("email", it) }
+                if (answered == "granted") {
+                    answer.put("expires_at_unix", payload.optLong("expires_at_unix"))
+                }
+                replyOk(id, answer.toString())
+            }
+            "tunnels" -> replyOk(id, payload.optString("tunnels"))
+            "peers" -> replyOk(id, payload.optString("peers"))
+            "peer" -> {
+                val summary = adoptProfile(payload.optString("profile"), "the Platform")
+                if (summary == null) {
+                    replyErr(id, "the Platform issued a Peer profile this Client cannot read")
+                } else {
+                    // Names arrive with the Peer and belong to this device only.
+                    PlatformAccountStore.setLabels(
+                        this,
+                        JSONObject(summary).optString("tunnel_id"),
+                        payload.optString("tunnel_name").ifBlank { null },
+                        payload.optString("peer_name").ifBlank { null },
+                    )
+                    replyOk(id, JSONObject(summary).let {
+                        PlatformAccountStore.decorate(this, it, it.optString("tunnel_id"))
+                    }.toString())
+                }
+            }
+            else -> replyErr(id, "the Platform answered something unexpected")
+        }
+    }
+
+    private fun openInBrowser(url: String): Boolean {
+        if (url.isBlank()) return false
+        return runCatching {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun platformUrl(): String =
+        PlatformAccountStore.session(this)?.platformUrl
+            ?: PlatformAccountStore.DEFAULT_PLATFORM_URL
+
+    override fun platformStartSignIn(id: Int) {
+        val url = platformUrl()
+        onAccountWorker(id) {
+            JSONObject(TunnelProxyNative.platformStartSignIn(url))
+                .put("__kind", "start")
+                .toString()
+        }
+    }
+
+    override fun platformPollSignIn(id: Int) {
+        val url = platformUrl()
+        val code = PlatformAccountStore.pendingDeviceCode()
+        if (code == null) {
+            replyOk(id, JSONObject().put("state", "not_started").toString())
+            return
+        }
+        onAccountWorker(id) {
+            JSONObject(TunnelProxyNative.platformPollSignIn(url, code))
+                .put("__kind", "poll")
+                .put("platform_url", url)
+                .put("__device_code", code)
+                .toString()
+        }
+    }
+
+    override fun platformListTunnels(id: Int) {
+        val session = PlatformAccountStore.session(this)
+        if (session == null) {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        onAccountWorker(id) {
+            val raw = TunnelProxyNative.platformListTunnels(
+                session.platformUrl,
+                session.accessToken,
+                session.expiresAtUnix,
+            )
+            // A list comes back as an array; only a failure is an object.
+            if (raw.trimStart().startsWith("[")) {
+                JSONObject().put("__kind", "tunnels").put("tunnels", raw).toString()
+            } else {
+                JSONObject(raw).toString()
+            }
+        }
+    }
+
+    override fun platformListPeers(tunnelId: String, id: Int) {
+        val session = PlatformAccountStore.session(this)
+        if (session == null) {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        onAccountWorker(id) {
+            val raw = TunnelProxyNative.platformListPeers(
+                session.platformUrl,
+                session.accessToken,
+                session.expiresAtUnix,
+                tunnelId,
+            )
+            // A list comes back as an array; only a failure is an object.
+            if (raw.trimStart().startsWith("[")) {
+                JSONObject().put("__kind", "peers").put("peers", raw).toString()
+            } else {
+                JSONObject(raw).toString()
+            }
+        }
+    }
+
+    override fun platformImportPeer(
+        tunnelId: String,
+        peerId: String,
+        tunnelName: String?,
+        peerName: String?,
+        id: Int,
+    ) {
+        val session = PlatformAccountStore.session(this)
+        if (session == null) {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        onAccountWorker(id) {
+            JSONObject(
+                TunnelProxyNative.platformImportPeer(
+                    session.platformUrl,
+                    session.accessToken,
+                    session.expiresAtUnix,
+                    tunnelId,
+                    peerId,
+                ),
+            )
+                .put("__kind", "peer")
+                .put("tunnel_name", tunnelName.orEmpty())
+                .put("peer_name", peerName.orEmpty())
+                .toString()
+        }
+    }
+
+    override fun platformCreatePeer(
+        tunnelId: String,
+        tunnelName: String?,
+        peerName: String,
+        id: Int,
+    ) {
+        val session = PlatformAccountStore.session(this)
+        if (session == null) {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        onAccountWorker(id) {
+            JSONObject(
+                TunnelProxyNative.platformCreatePeer(
+                    session.platformUrl,
+                    session.accessToken,
+                    session.expiresAtUnix,
+                    tunnelId,
+                    peerName,
+                ),
+            )
+                .put("__kind", "peer")
+                .put("tunnel_name", tunnelName.orEmpty())
+                .put("peer_name", peerName)
+                .toString()
+        }
     }
 
     override fun pickPeerProfile(id: Int) {

@@ -4,6 +4,7 @@ pub mod desktop_routes;
 #[cfg_attr(target_os = "macos", allow(dead_code))]
 pub mod desktop_tun;
 pub mod peer_store;
+pub mod platform_session;
 
 #[cfg(target_os = "macos")]
 pub mod macos_tun_helper;

@@ -49,6 +49,7 @@ fs2 = "0.4"
 rustls.workspace = true
 chrono.workspace = true
 uuid.workspace = true
+zeroize.workspace = true
 libc = "0.2"
 rfd = { version = "0.16", default-features = false, features = ["common-controls-v6"], optional = true }
 

@@ -88,6 +88,8 @@ final class WebHostCoordinator: NSObject, WKScriptMessageHandler {
     private var pendingPickCallID: Int?
     private var pendingScanCallID: Int?
     private var statusPump: Task<Void, Never>?
+    private let accounts = PlatformAccountStore()
+    private let nativeBridge = TunnelProxyNativeBridge()
 
     init(model: TunnelAppModel) {
         self.model = model
@@ -166,7 +168,284 @@ final class WebHostCoordinator: NSObject, WKScriptMessageHandler {
         // hang if a future bundle does.
         case "get_clash_config", "install_tun_helper":
             replyErr(id, "\(command) is not available on this device")
+        // The Platform account panel. A phone has a browser and a Keychain, so
+        // the device grant works here exactly as it does on the desktop.
+        case "set_peer_labels":
+            accounts.setLabels(
+                tunnelID: args["tunnelId"] as? String ?? "",
+                tunnelName: args["tunnelName"] as? String,
+                peerName: args["peerName"] as? String
+            )
+            replyOk(id, peerProfilesJSON())
+        case "platform_account_status":
+            replyOk(id, Self.encode(accounts.statusPayload()))
+        case "platform_sign_out":
+            accounts.signOut()
+            replyOk(id, "null")
+        case "platform_start_sign_in": startPlatformSignIn(id)
+        case "platform_poll_sign_in": pollPlatformSignIn(id)
+        case "platform_list_tunnels": listPlatformTunnels(id)
+        case "platform_list_peers":
+            listPlatformPeers(id, tunnelID: args["tunnelId"] as? String ?? "")
+        case "platform_import_peer":
+            importPlatformPeer(
+                id,
+                tunnelID: args["tunnelId"] as? String ?? "",
+                peerID: args["peerId"] as? String ?? "",
+                tunnelName: args["tunnelName"] as? String,
+                peerName: args["peerName"] as? String
+            )
+        case "platform_create_peer":
+            let peerName = (args["peerName"] as? String ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if peerName.isEmpty {
+                replyErr(id, "a Peer needs a name")
+            } else {
+                createPlatformPeer(
+                    id,
+                    tunnelID: args["tunnelId"] as? String ?? "",
+                    tunnelName: args["tunnelName"] as? String,
+                    peerName: peerName
+                )
+            }
         default: replyErr(id, "unknown command: \(command)")
+        }
+    }
+
+    // MARK: - Platform account
+
+    private func platformURL() -> String {
+        accounts.session()?.platformURL ?? PlatformAccountStore.defaultPlatformURL
+    }
+
+    /// Runs one blocking FFI call off the main actor and answers on it.
+    ///
+    /// Every Platform call is a single HTTP round trip and `dispatch` runs on
+    /// the main actor, so none of them may run there. Only plain strings cross
+    /// the boundary: the raw answer comes back and is decoded on the way in,
+    /// which keeps the detached task free of anything actor-isolated.
+    private func offMainThread(
+        _ id: Int,
+        kind: String,
+        extra: [String: String] = [:],
+        _ work: @escaping @Sendable () -> String
+    ) {
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let raw = work()
+            await MainActor.run { [weak self] in
+                self?.finishAccountCall(id, raw: raw, kind: kind, extra: extra)
+            }
+        }
+    }
+
+    private func finishAccountCall(
+        _ id: Int,
+        raw: String,
+        kind: String,
+        extra: [String: String]
+    ) {
+        // A list comes back as a bare array; only a failure or a record is an
+        // object, so the array case is answered before anything is decoded.
+        if kind == "tunnels" || kind == "peers",
+           raw.trimmingCharacters(in: .whitespaces).hasPrefix("[") {
+            replyOk(id, raw)
+            return
+        }
+        guard let data = raw.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            replyErr(id, "the Platform answered something unreadable")
+            return
+        }
+        // The FFI answers a JSON object either way; `ok: false` is its failure
+        // shape. Unwrapping it means the panel sees the Platform's own words.
+        if (payload["ok"] as? Bool) == false {
+            replyErr(id, payload["error"] as? String ?? "the Platform call failed")
+            return
+        }
+
+        switch kind {
+        case "start":
+            accounts.rememberPendingDeviceCode(payload["device_code"] as? String)
+            let approval = (payload["verification_uri_complete"] as? String)
+                ?? (payload["verification_uri"] as? String ?? "")
+            // `open` reports success only through its completion handler, and
+            // the answer below has already gone out by then. `canOpenURL` is
+            // the synchronous question, and a false claim here tells the owner
+            // to look at a browser that never appeared.
+            var opened = false
+            if !approval.isEmpty, let url = URL(string: approval),
+               UIApplication.shared.canOpenURL(url) {
+                opened = true
+                UIApplication.shared.open(url)
+            }
+            replyOk(id, Self.encode([
+                "user_code": payload["user_code"] as? String ?? "",
+                "verification_uri": payload["verification_uri"] as? String ?? "",
+                "expires_in": payload["expires_in"] as? Int ?? 0,
+                "interval": max(1, payload["interval"] as? Int ?? 5),
+                "browser_opened": opened,
+            ]))
+        case "poll":
+            let state = payload["state"] as? String ?? ""
+            let polledCode = extra["device_code"] ?? ""
+            var answered = state
+            switch state {
+            case "granted":
+                if accounts.releasePendingDeviceCode(matching: polledCode) {
+                    let stored = accounts.store(PlatformAccountStore.Session(
+                        platformURL: extra["platform_url"]
+                            ?? PlatformAccountStore.defaultPlatformURL,
+                        accessToken: payload["access_token"] as? String ?? "",
+                        expiresAtUnix: UInt64(max(0, payload["expires_at_unix"] as? Int ?? 0)),
+                        email: payload["email"] as? String
+                    ))
+                    if !stored {
+                        replyErr(id, "This device could not store the sign-in. Try again.")
+                        return
+                    }
+                } else {
+                    // Signed out or restarted while this was in flight. The
+                    // token is dropped rather than written down.
+                    answered = "not_started"
+                }
+            // The Platform is asking for a slower cadence; the panel owns the
+            // timer, so this travels to it unchanged.
+            case "pending", "slow_down":
+                break
+            default:
+                _ = accounts.releasePendingDeviceCode(matching: polledCode)
+            }
+            // The token itself is never handed to the WebView.
+            var answer: [String: Any] = ["state": answered]
+            if let email = payload["email"] as? String { answer["email"] = email }
+            if answered == "granted", let expiry = payload["expires_at_unix"] as? Int {
+                answer["expires_at_unix"] = expiry
+            }
+            replyOk(id, Self.encode(answer))
+        case "peer":
+            guard let profile = payload["profile"] as? String,
+                  model.importPeerProfile(profile),
+                  let identity = model.peerIdentity
+            else {
+                replyErr(id, model.bannerMessage
+                    ?? "the Platform issued a Peer profile this Client cannot read")
+                return
+            }
+            // Names arrive with the Peer and belong to this device only.
+            accounts.setLabels(
+                tunnelID: identity.tunnelId,
+                tunnelName: extra["tunnel_name"],
+                peerName: extra["peer_name"]
+            )
+            replyOk(id, Self.encode(peerSummary(identity)))
+        default:
+            replyErr(id, "the Platform answered something unexpected")
+        }
+    }
+
+    private func startPlatformSignIn(_ id: Int) {
+        let url = platformURL()
+        let bridge = nativeBridge
+        offMainThread(id, kind: "start") {
+            bridge.platformStartSignIn(platformURL: url)
+        }
+    }
+
+    private func pollPlatformSignIn(_ id: Int) {
+        guard let code = accounts.currentPendingDeviceCode() else {
+            replyOk(id, Self.encode(["state": "not_started"]))
+            return
+        }
+        let url = platformURL()
+        let bridge = nativeBridge
+        offMainThread(
+            id,
+            kind: "poll",
+            extra: ["platform_url": url, "device_code": code]
+        ) {
+            bridge.platformPollSignIn(platformURL: url, deviceCode: code)
+        }
+    }
+
+    private func listPlatformTunnels(_ id: Int) {
+        guard let session = accounts.session() else {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        let bridge = nativeBridge
+        offMainThread(id, kind: "tunnels") {
+            bridge.platformListTunnels(
+                platformURL: session.platformURL,
+                accessToken: session.accessToken,
+                expiresAtUnix: session.expiresAtUnix
+            )
+        }
+    }
+
+    private func listPlatformPeers(_ id: Int, tunnelID: String) {
+        guard let session = accounts.session() else {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        let bridge = nativeBridge
+        offMainThread(id, kind: "peers") {
+            bridge.platformListPeers(
+                platformURL: session.platformURL,
+                accessToken: session.accessToken,
+                expiresAtUnix: session.expiresAtUnix,
+                tunnelID: tunnelID
+            )
+        }
+    }
+
+    private func importPlatformPeer(
+        _ id: Int,
+        tunnelID: String,
+        peerID: String,
+        tunnelName: String?,
+        peerName: String?
+    ) {
+        guard let session = accounts.session() else {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        let bridge = nativeBridge
+        var extra: [String: String] = [:]
+        if let tunnelName { extra["tunnel_name"] = tunnelName }
+        if let peerName { extra["peer_name"] = peerName }
+        offMainThread(id, kind: "peer", extra: extra) {
+            bridge.platformImportPeer(
+                platformURL: session.platformURL,
+                accessToken: session.accessToken,
+                expiresAtUnix: session.expiresAtUnix,
+                tunnelID: tunnelID,
+                peerID: peerID
+            )
+        }
+    }
+
+    private func createPlatformPeer(
+        _ id: Int,
+        tunnelID: String,
+        tunnelName: String?,
+        peerName: String
+    ) {
+        guard let session = accounts.session() else {
+            replyErr(id, "Sign in to the Platform first")
+            return
+        }
+        let bridge = nativeBridge
+        var extra = ["peer_name": peerName]
+        if let tunnelName { extra["tunnel_name"] = tunnelName }
+        offMainThread(id, kind: "peer", extra: extra) {
+            bridge.platformCreatePeer(
+                platformURL: session.platformURL,
+                accessToken: session.accessToken,
+                expiresAtUnix: session.expiresAtUnix,
+                tunnelID: tunnelID,
+                name: peerName
+            )
         }
     }
 
@@ -291,16 +570,22 @@ final class WebHostCoordinator: NSObject, WKScriptMessageHandler {
     }
 
     private func peerSummary(_ identity: MobileConfig.PeerIdentity) -> [String: Any] {
-        [
-            "tunnel_id": identity.tunnelId,
-            "peer_id": identity.peerId,
-            "overlay_ip": identity.overlayIP,
-            "bootstrap_kind": "static_gateway",
-        ]
+        accounts.decorate(
+            [
+                "tunnel_id": identity.tunnelId,
+                "peer_id": identity.peerId,
+                "overlay_ip": identity.overlayIP,
+                "bootstrap_kind": "static_gateway",
+            ],
+            tunnelID: identity.tunnelId
+        )
     }
 
     private func forgetProfile(tunnelID: String) {
         guard let identity = model.peerIdentity, identity.tunnelId == tunnelID else { return }
+        // Leaving the names behind would relabel whatever Peer is imported for
+        // this Tunnel next with the forgotten one's identity.
+        accounts.forgetLabels(tunnelID: tunnelID)
         var next = model.config
         next.peerProfileJSON = ""
         model.config = next
@@ -386,6 +671,7 @@ final class WebHostCoordinator: NSObject, WKScriptMessageHandler {
         "startAtLogin": false,
         "localProxy": false,
         "exportReadiness": false,
+        "platformAccount": true,
     ])
 
     static func encode(_ value: Any) -> String {

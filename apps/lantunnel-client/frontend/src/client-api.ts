@@ -124,6 +124,55 @@ export interface ImportedPeerSummaryV2 {
   peer_id: string
   overlay_ip: string
   bootstrap_kind: 'static_gateway' | 'managed_platform'
+  /** Local only. A `.peer` file has never carried a name for either. */
+  tunnel_name?: string | null
+  peer_name?: string | null
+}
+
+export interface PlatformAccountStatusV2 {
+  signed_in: boolean
+  email?: string | null
+  /** Unix seconds. When the stored sign-in stops working. */
+  expires_at_unix?: number | null
+  platform_url: string
+}
+
+export interface DeviceSignInStartV2 {
+  user_code: string
+  verification_uri: string
+  expires_in: number
+  interval: number
+  /** False on a host with no browser; the owner opens the URL themselves. */
+  browser_opened: boolean
+}
+
+export type DeviceSignInPollV2 =
+  | { state: 'not_started' }
+  | { state: 'pending' }
+  /** RFC 8628 §3.5: add five seconds to the interval and keep waiting. */
+  | { state: 'slow_down' }
+  | { state: 'granted'; email?: string | null; expires_at_unix: number }
+  | { state: 'denied' }
+  | { state: 'expired' }
+
+/** A Peer the Tunnel has already issued, from the Platform's own list. */
+export interface PlatformPeerV2 {
+  peer_id: string
+  name?: string | null
+  overlay_ip?: string | null
+  created_at?: string | null
+}
+
+export interface PlatformTunnelV2 {
+  tunnel_id: string
+  name?: string | null
+  status?: string | null
+  billing?: {
+    grant_kind?: string | null
+    access?: string | null
+    effective_plan?: string | null
+  } | null
+  placement?: { type?: string | null } | null
 }
 
 export interface GatewayBootstrapV2 {
@@ -242,6 +291,30 @@ export const api = {
   clearLogs: () => invoke<void>('clear_logs'),
   getProductInfo: () => invoke<ProductInfo>('get_product_info'),
   installTunHelper: () => invoke<TunHelperStatus>('install_tun_helper'),
+
+  setPeerLabels: (tunnelId: string, tunnelName: string | null, peerName: string | null) =>
+    invoke<ImportedPeerSummaryV2[]>('set_peer_labels', { tunnelId, tunnelName, peerName }),
+  platformAccountStatus: () => invoke<PlatformAccountStatusV2>('platform_account_status'),
+  platformStartSignIn: () => invoke<DeviceSignInStartV2>('platform_start_sign_in'),
+  platformPollSignIn: () => invoke<DeviceSignInPollV2>('platform_poll_sign_in'),
+  platformSignOut: () => invoke<void>('platform_sign_out'),
+  platformListTunnels: () => invoke<PlatformTunnelV2[]>('platform_list_tunnels'),
+  platformListPeers: (tunnelId: string) =>
+    invoke<PlatformPeerV2[]>('platform_list_peers', { tunnelId }),
+  platformImportPeer: (
+    tunnelId: string,
+    peerId: string,
+    tunnelName: string | null,
+    peerName: string | null,
+  ) =>
+    invoke<ImportedPeerSummaryV2>('platform_import_peer', {
+      tunnelId,
+      peerId,
+      tunnelName,
+      peerName,
+    }),
+  platformCreatePeer: (tunnelId: string, tunnelName: string | null, peerName: string) =>
+    invoke<ImportedPeerSummaryV2>('platform_create_peer', { tunnelId, tunnelName, peerName }),
 
   onStatus: (fn: (s: ConnectionStatus) => void): Promise<Unlisten> =>
     listen<ConnectionStatus>('status', fn),

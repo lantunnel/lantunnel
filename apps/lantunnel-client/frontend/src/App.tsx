@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Wifi, WifiOff, RefreshCw, FileText, Trash2, Check, Copy, Search, ChevronDown, QrCode } from 'lucide-react'
 import { api, type ConnectionStatus, type AppSettings, type ProxyStatus, type ProductInfo, type RemotePeerRowV2, type ImportedPeerSummaryV2, type ClientAccessRuleV2 } from './client-api'
+import { peerProfileLabel } from './peer-label'
+import { PlatformOnboarding } from './platform-onboarding'
 import { fallbackCapabilities, loadCapabilities, type Capabilities } from './capabilities'
 
 const defaultSettings: AppSettings = {
@@ -547,7 +549,7 @@ export default function App() {
                     >
                       {peerProfiles.map((profile) => (
                         <option key={profile.tunnel_id} value={profile.tunnel_id}>
-                          {profile.overlay_ip}
+                          {peerProfileLabel(profile)}
                         </option>
                       ))}
                     </select>
@@ -558,7 +560,7 @@ export default function App() {
                         title="Remove this profile"
                         onClick={() => void forgetProfile(selectedPeerProfile.tunnel_id)}
                         disabled={loading || status.connected || status.connecting}
-                        className="shrink-0 border border-border bg-surface-subdued !px-3 !py-3"
+                        className="shrink-0 border border-border bg-surface-subdued !px-2 !py-2.5"
                       >
                         <Trash2 className="w-4 h-4 text-content-muted" />
                       </button>
@@ -566,8 +568,25 @@ export default function App() {
                   </div>
                 </Field>
               )}
-              {selectedPeerProfile?.bootstrap_kind === 'managed_platform' && (
-                <p className="text-xs text-content-muted">Gateway facts are resolved through the managed Platform.</p>
+              {selectedPeerProfile && (
+                // Repeated from the option above, because a narrow control
+                // clips it away and it is the only part that is unique.
+                <p className="text-xs text-content-muted">
+                  <span className="font-mono text-content-secondary">{selectedPeerProfile.overlay_ip}</span>
+                  {selectedPeerProfile.bootstrap_kind === 'managed_platform'
+                    ? ' · Gateway facts are resolved through the managed Platform.'
+                    : ''}
+                </p>
+              )}
+              {caps.platformAccount && (
+                <PlatformOnboarding
+                  profiles={peerProfiles}
+                  locked={loading || status.connected || status.connecting}
+                  onImported={async (summary) => {
+                    setPeerProfiles(await api.listPeerProfiles())
+                    setSelectedTunnelId(summary.tunnel_id)
+                  }}
+                />
               )}
             </div>
 

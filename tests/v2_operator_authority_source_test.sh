@@ -321,13 +321,16 @@ do
   fi
 done
 
-quickstart="$(tr '\n' ' ' < "$ROOT_DIR/README.md" | tr -s '[:space:]' ' ')"
+# The self-hosted walkthrough moved out of the README into the usage guide, so
+# the mapping-port coupling is checked where the commands now live. A Gateway
+# whose mapping port disagrees with the Tunnel's is a Tunnel that attaches and
+# then never punches a direct path, which is the failure this guards.
 for quickstart_mapping_boundary in \
-  'append --mapping-port <PORT> here' \
-  'that same value to --gateway-mapping-port below'
+  'must match `lantunnel-gateway init --mapping-port`' \
+  'the same value to `lantunnel-admin init-tunnel --gateway-mapping-port`'
 do
-  if ! grep -Fq -- "$quickstart_mapping_boundary" <<<"$quickstart"; then
-    echo "self-hosted quickstart mapping ports can diverge: $quickstart_mapping_boundary" >&2
+  if ! grep -Fq -- "$quickstart_mapping_boundary" <<<"$usage_guide"; then
+    echo "self-hosted mapping ports can diverge: $quickstart_mapping_boundary" >&2
     exit 1
   fi
 done

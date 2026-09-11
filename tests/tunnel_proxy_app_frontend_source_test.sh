@@ -297,3 +297,79 @@ if grep -q '<label' <<<"$toggle_body" && grep -q 'InfoHint' <<<"$toggle_body"; t
   }
 fi
 grep -q 'useId' "$APP_TSX"
+
+# --- a profile row names its Tunnel and its Peer ----------------------------
+# The selector printed an Overlay IP and nothing else, so choosing between two
+# imported profiles meant recognising 198.18.0.x by memory. Neither name is in
+# a `.peer` file — both are local — so the label has to tolerate either being
+# absent and must not overflow the 448px column when both are long.
+PEER_LABEL="$ROOT_DIR/apps/lantunnel-client/frontend/src/peer-label.ts"
+ONBOARDING="$ROOT_DIR/apps/lantunnel-client/frontend/src/platform-onboarding.tsx"
+test -f "$PEER_LABEL"
+grep -q 'peerProfileLabel(profile)' "$APP_TSX"
+# Repeated beneath the control, because a narrow one clips the option text.
+grep -q 'selectedPeerProfile.overlay_ip' "$APP_TSX"
+
+node --experimental-strip-types --input-type=module -e "
+import assert from 'node:assert/strict'
+import { peerProfileLabel, truncateName, tunnelPickerLabel, MAX_NAME_CHARS } from '$PEER_LABEL'
+
+const row = (extra) => ({
+  tunnel_id: '018f6e84-e11b-7f3a-8cad-9f68f4482001',
+  peer_id: 'p', overlay_ip: '198.18.0.7', bootstrap_kind: 'managed_platform', ...extra,
+})
+
+assert.equal(peerProfileLabel(row({ tunnel_name: 'Home Lab', peer_name: 'laptop' })),
+  'Home Lab - laptop - 198.18.0.7')
+// An imported .peer carries no names at all; the address still identifies it.
+assert.equal(peerProfileLabel(row({})), '198.18.0.7')
+assert.equal(peerProfileLabel(row({ tunnel_name: 'Home Lab' })), 'Home Lab - 198.18.0.7')
+assert.equal(peerProfileLabel(row({ peer_name: 'laptop' })), 'laptop - 198.18.0.7')
+
+// The option text serves the open picker too, which is full width, so nothing
+// is trimmed to fit the closed control. The address always ends the row, and
+// only a pathological name is capped.
+for (const names of [
+  { tunnel_name: 'x'.repeat(80), peer_name: 'y'.repeat(80) },
+  { tunnel_name: 'Default Tunnel', peer_name: 'a-very-long-device-name' },
+  { tunnel_name: 'z'.repeat(40) },
+]) {
+  const label = peerProfileLabel(row(names))
+  assert.ok(label.endsWith('198.18.0.7'), label)
+  for (const part of label.split(' - ').slice(0, -1)) {
+    assert.ok(part.length <= MAX_NAME_CHARS, part)
+  }
+}
+// A name that fits is shown whole, not shortened for a control it is not in.
+assert.equal(
+  peerProfileLabel(row({ tunnel_name: 'My Gateway Tunnel', peer_name: 'macbook-pro-16' })),
+  'My Gateway Tunnel - macbook-pro-16 - 198.18.0.7',
+)
+assert.equal(truncateName('short'), 'short')
+assert.equal(truncateName('  padded  '), 'padded')
+assert.equal(truncateName('abcdef', 3), 'ab…')
+
+// An unnamed Tunnel still has to be distinguishable from another unnamed one.
+assert.match(tunnelPickerLabel(null, '018f6e84-e11b-7f3a-8cad-9f68f4482001'), /^Tunnel 018f6e84$/)
+assert.equal(tunnelPickerLabel('Home', 'ignored', 'free'), 'Home (free)')
+assert.equal(tunnelPickerLabel('   ', '018f6e84-aaaa'), 'Tunnel 018f6e84')
+"
+
+# --- the in-app account path is a capability, not a platform assumption ------
+# Every Client draws the same screens; a phone reaches the Platform in its own
+# browser, so the flag is what decides, not the host it happens to run on.
+test -f "$ONBOARDING"
+grep -q 'platformAccount: boolean' "$CAPS"
+grep -q 'caps.platformAccount &&' "$APP_TSX"
+# Every Client answers it, so the fallback table says true for both hosts and
+# each host reports it for itself. A `false` here would have to name something
+# the platform genuinely cannot do.
+test "$(grep -c 'platformAccount: true' "$CAPS")" -eq 2
+
+# Replacing a Tunnel's only local profile is silent on disk, so the panel has
+# to say so before it happens.
+grep -q 'already holds a profile for that Tunnel' "$ONBOARDING"
+# Polling must stop with the panel, or it outlives the code the owner can see.
+grep -q 'stopPolling' "$ONBOARDING"
+# The owner has to be able to compare the code the Platform shows with this one.
+grep -q 'Confirm this code matches' "$ONBOARDING"

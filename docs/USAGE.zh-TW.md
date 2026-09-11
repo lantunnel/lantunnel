@@ -73,6 +73,7 @@
 
 ---
 
+<a id="self-hosted"></a>
 ## 路線 B —— 自行託管 Gateway
 
 以下用到的東西全都在這個儲存庫裡，Apache-2.0，全程不連線到 lantunnel.app。
@@ -493,6 +494,7 @@ lantunnel-gateway mapping serve                           獨立的 UDP 對應�
 
 平台託管接入必須從全新且僅擁有者可存取的工作目錄開始，Gateway 才能安全寫入執行階段設定。請依照[平台連線型 Gateway 安裝指南](https://lantunnel.app/docs/installation#platform-connected)，或使用相同的安全步驟：
 
+<a id="managed-onboarding"></a>
 ```bash
 mkdir -m 700 lantunnel-gateway-state
 mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml

@@ -29,4 +29,39 @@ object TunnelProxyNative {
     external fun clashOverlayYaml(): String
 
     external fun runtimeConfigJson(): String
+
+    // The Platform account panel. Each of these blocks on one HTTP round trip,
+    // so every caller has to be off the main thread.
+    external fun platformStartSignIn(platformUrl: String): String
+
+    external fun platformPollSignIn(platformUrl: String, deviceCode: String): String
+
+    external fun platformListTunnels(
+        platformUrl: String,
+        accessToken: String,
+        expiresAtUnix: Long,
+    ): String
+
+    external fun platformListPeers(
+        platformUrl: String,
+        accessToken: String,
+        expiresAtUnix: Long,
+        tunnelId: String,
+    ): String
+
+    external fun platformImportPeer(
+        platformUrl: String,
+        accessToken: String,
+        expiresAtUnix: Long,
+        tunnelId: String,
+        peerId: String,
+    ): String
+
+    external fun platformCreatePeer(
+        platformUrl: String,
+        accessToken: String,
+        expiresAtUnix: Long,
+        tunnelId: String,
+        name: String,
+    ): String
 }

@@ -154,3 +154,34 @@ if grep -qE 'src="/assets/|href="/assets/' "$UI_INDEX"; then
   echo "the packaged bundle uses absolute asset paths" >&2
   exit 1
 fi
+
+# --- the Platform account panel answers for real on a phone ------------------
+# `platformAccount` is true here, so a stub that replies "not available" would
+# draw a control that never works. These assert the real path exists.
+ACCOUNT_STORE="$IOS_DIR/TunnelProxyShared/PlatformAccountStore.swift"
+test -f "$ACCOUNT_STORE"
+grep -qF '"platformAccount": true' "$HOST"
+if grep -qF 'case "platform_account_status"' "$HOST" && \
+   grep -qF 'platform_account_status",' "$HOST"; then
+  echo 'the iOS bridge both answers and refuses the account panel' >&2
+  exit 1
+fi
+
+# One HTTP round trip each, dispatched on the main actor, so they have to leave
+# it or the UI freezes for the length of the request.
+grep -qF 'Task.detached' "$HOST"
+grep -qF 'offMainThread' "$HOST"
+
+# The browser is how the owner approves; without this the code has nowhere to go.
+grep -qF 'UIApplication.shared.open' "$HOST"
+
+# The token belongs in the Keychain, next to the Peer profile already there.
+grep -qF 'keychain.save' "$ACCOUNT_STORE"
+grep -qF 'expiryGraceSeconds' "$ACCOUNT_STORE"
+
+# The account token is a bearer credential for every Tunnel on the account and
+# never crosses into the WebView.
+if grep -qE 'replyOk\([^)]*access_token' "$HOST"; then
+  echo 'the iOS bridge hands the account token to the WebView' >&2
+  exit 1
+fi

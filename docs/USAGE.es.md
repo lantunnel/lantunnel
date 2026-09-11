@@ -73,6 +73,7 @@ Puedes saltar directamente a [Cómo llegar a las cosas](#cómo-llegar-a-las-cosa
 
 ---
 
+<a id="self-hosted"></a>
 ## Camino B — Gateway propio
 
 Todo lo que viene a continuación está en este repositorio bajo Apache-2.0. Nada contacta con lantunnel.app.
@@ -482,6 +483,7 @@ lantunnel-gateway mapping serve                  Reflector UDP de mapeo independ
 
 El alta gestionada debe comenzar en un directorio de trabajo nuevo y accesible solo por su propietario, para que pueda escribir allí su configuración de ejecución. Sigue la [guía de instalación de un Gateway conectado a la plataforma](https://lantunnel.app/docs/installation#platform-connected) o usa la misma secuencia segura:
 
+<a id="managed-onboarding"></a>
 ```bash
 mkdir -m 700 lantunnel-gateway-state
 mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml

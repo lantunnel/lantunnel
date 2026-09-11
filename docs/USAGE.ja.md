@@ -73,6 +73,7 @@
 
 ---
 
+<a id="self-hosted"></a>
 ## ルート B — 自前の Gateway
 
 以下で使うものはすべてこのリポジトリの中にあり、Apache-2.0 です。lantunnel.app には一切接続しません。
@@ -495,6 +496,7 @@ lantunnel-gateway mapping serve                           単体の UDP マッ�
 
 Platform 管理下の Gateway を登録するときは、ランタイム設定を書き込むため、所有者だけがアクセスできる新しい作業ディレクトリから開始してください。[Platform 接続型 Gateway のインストールガイド](https://lantunnel.app/docs/installation#platform-connected)に従うか、次の安全な手順を実行してください。
 
+<a id="managed-onboarding"></a>
 ```bash
 mkdir -m 700 lantunnel-gateway-state
 mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml

@@ -4,7 +4,8 @@ import Foundation
 import TpMobileFfi
 #endif
 
-public struct TunnelProxyNativeBridge {
+/// Stateless: every method is one call into Rust, so this crosses actors freely.
+public struct TunnelProxyNativeBridge: Sendable {
     public static let ok: Int32 = 0
     public static let invalidArgument: Int32 = -1
     public static let invalidJSON: Int32 = -2
@@ -122,6 +123,128 @@ public struct TunnelProxyNativeBridge {
         return Self.nativeString(tp_mobile_runtime_config_json)
         #else
         Self.errorJSON()
+        #endif
+    }
+
+    // MARK: - Platform account
+
+    /// Each of these blocks on one HTTP round trip, so callers must be off the
+    /// main thread. Nothing here retains the token: the Keychain holds it and
+    /// it is passed back in, so signing out is one delete rather than two.
+    public func platformStartSignIn(platformURL: String) -> String {
+        #if canImport(TpMobileFfi)
+        return platformURL.withCString { url in
+            Self.nativeString { tp_mobile_platform_start_sign_in(url) }
+        }
+        #else
+        _ = platformURL
+        return Self.errorJSON()
+        #endif
+    }
+
+    public func platformPollSignIn(platformURL: String, deviceCode: String) -> String {
+        #if canImport(TpMobileFfi)
+        return platformURL.withCString { url in
+            deviceCode.withCString { code in
+                Self.nativeString { tp_mobile_platform_poll_sign_in(url, code) }
+            }
+        }
+        #else
+        _ = (platformURL, deviceCode)
+        return Self.errorJSON()
+        #endif
+    }
+
+    public func platformListTunnels(
+        platformURL: String,
+        accessToken: String,
+        expiresAtUnix: UInt64
+    ) -> String {
+        #if canImport(TpMobileFfi)
+        return platformURL.withCString { url in
+            accessToken.withCString { token in
+                Self.nativeString { tp_mobile_platform_list_tunnels(url, token, expiresAtUnix) }
+            }
+        }
+        #else
+        _ = (platformURL, accessToken, expiresAtUnix)
+        return Self.errorJSON()
+        #endif
+    }
+
+    public func platformListPeers(
+        platformURL: String,
+        accessToken: String,
+        expiresAtUnix: UInt64,
+        tunnelID: String
+    ) -> String {
+        #if canImport(TpMobileFfi)
+        return platformURL.withCString { url in
+            accessToken.withCString { token in
+                tunnelID.withCString { tunnel in
+                    Self.nativeString {
+                        tp_mobile_platform_list_peers(url, token, expiresAtUnix, tunnel)
+                    }
+                }
+            }
+        }
+        #else
+        _ = (platformURL, accessToken, expiresAtUnix, tunnelID)
+        return Self.errorJSON()
+        #endif
+    }
+
+    public func platformImportPeer(
+        platformURL: String,
+        accessToken: String,
+        expiresAtUnix: UInt64,
+        tunnelID: String,
+        peerID: String
+    ) -> String {
+        #if canImport(TpMobileFfi)
+        return platformURL.withCString { url in
+            accessToken.withCString { token in
+                tunnelID.withCString { tunnel in
+                    peerID.withCString { peer in
+                        Self.nativeString {
+                            tp_mobile_platform_import_peer(
+                                url, token, expiresAtUnix, tunnel, peer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        #else
+        _ = (platformURL, accessToken, expiresAtUnix, tunnelID, peerID)
+        return Self.errorJSON()
+        #endif
+    }
+
+    public func platformCreatePeer(
+        platformURL: String,
+        accessToken: String,
+        expiresAtUnix: UInt64,
+        tunnelID: String,
+        name: String
+    ) -> String {
+        #if canImport(TpMobileFfi)
+        return platformURL.withCString { url in
+            accessToken.withCString { token in
+                tunnelID.withCString { tunnel in
+                    name.withCString { peerName in
+                        Self.nativeString {
+                            tp_mobile_platform_create_peer(
+                                url, token, expiresAtUnix, tunnel, peerName
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        #else
+        _ = (platformURL, accessToken, expiresAtUnix, tunnelID, name)
+        return Self.errorJSON()
         #endif
     }
 

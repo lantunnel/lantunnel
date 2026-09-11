@@ -57,6 +57,29 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
 
 ---
 
+<!-- lantunnel:toc -->
+<a id="contents"></a>
+## Inhalt
+
+**Zum ersten Mal hier?** Geh direkt zum [Schnellstart](#quick-start). Dort stehen vier Wege, Lantunnel zu betreiben, sortiert nach Aufwand — und der erste sind drei Schritte ganz ohne Server.
+
+- [Der Client](#the-client) — wie die App aussieht
+- [Schnellstart](#quick-start) — **hier anfangen**
+  - [1. Das Gateway der Platform nutzen](#mode-1) — *am einfachsten, nichts aufzusetzen*
+  - [2. Dein Gateway, betrieben von der Platform](#mode-2)
+  - [3. Alles selbst betreiben](#mode-3)
+  - [4. Einem fremden Tunnel beitreten](#mode-4)
+- [Was du bekommst](#what-you-get) · [Wofür Leute es tatsächlich einsetzen](#use-cases)
+- [Wie es funktioniert](#how-it-works) — die drei Teile und warum zuerst direkt verbunden wird
+- [Was in diesem Repository liegt](#whats-inside)
+- [Aus dem Quellcode bauen](#building) · [Kompatibilität](#compatibility)
+- [Verwandte Projekte](#related) · [Mitwirken](#contributing) · [Lizenz](#license)
+
+**Tiefer einsteigen:** [Vollständige Anleitung](./docs/USAGE.de.md) · [Architektur und Begriffe](./CONTEXT.md) · [Wire-Protokoll](./docs/PROTOCOL.md)
+
+---
+
+<a id="the-client"></a>
 ## Der Client
 
 <table>
@@ -68,6 +91,7 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
   </tr>
 </table>
 
+<a id="what-you-get"></a>
 ## Was du bekommst
 
 | | |
@@ -80,12 +104,14 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
 | **Eine Binary, mit oder ohne Oberfläche** | `lantunnel-client` öffnet standardmäßig ein Desktop-Fenster und führt mit `--headless` dieselbe Laufzeit auf einem Server aus. |
 | **Überall** | macOS, Windows, Linux, Android und iOS. |
 
+<a id="use-cases"></a>
 ### Wofür Leute es tatsächlich einsetzen
 
 - **Spiele- und Medien-Streaming** — Sunshine/Moonlight, Jellyfin oder Plex vom Rechner zu Hause.
 - **Private KI und Entwicklerwerkzeuge** — Ollama, Open WebUI, eine interne API, eine Staging-Umgebung, eine Datenbank, die das LAN niemals verlassen darf.
 - **Dienste zu Hause und im Büro** — NAS, Home Assistant, Kameras, interne Dashboards, SSH.
 
+<a id="how-it-works"></a>
 ## Wie es funktioniert
 
 ```mermaid
@@ -108,57 +134,65 @@ Identität wird signiert, nicht geteilt. Es gibt kein Tunnel-Passwort, kein Grup
 
 📖 **[Architektur und Konzepte →](./CONTEXT.md)**  ·  📐 **[Wire-Protokoll →](./docs/PROTOCOL.md)**
 
+<!-- lantunnel:modes -->
+<a id="quick-start"></a>
 ## Schnellstart
 
-### Der schnelle Weg — gehostetes Gateway
+Vier Wege, sortiert danach, wie viel du aufsetzen musst. **Die meisten wollen den ersten** — kein Server, keine Zertifikate, kein DNS.
 
-1. Lege deinen kostenlosen Tunnel auf **[lantunnel.app](https://lantunnel.app/)** an.
-2. Füge pro Gerät einen Peer hinzu und lade dessen `.peer`-Profil herunter.
-3. Installiere den Client von **[lantunnel.app/download](https://lantunnel.app/download)** und importiere das Profil.
+| | Was du betreibst | Was du brauchst | Was es kostet |
+|---|---|---|---|
+| **1. [Das Gateway der Platform](#mode-1)** | Nur den Client | Ein Konto | Kostenloser Tunnel, unbegrenzter Direktverkehr, 5 GB Relay pro Monat |
+| **2. [Dein Gateway, betrieben von der Platform](#mode-2)** | Client und einen Gateway-Host | Ein Konto und eine Maschine mit öffentlicher Adresse | Bezahltarif; dein Relay wird nicht gezählt |
+| **3. [Alles selbst](#mode-3)** | Alle drei Teile | Eine Maschine mit öffentlicher Adresse | Kostenlos, Apache-2.0, ohne Konto, nimmt nie Kontakt zur Platform auf |
+| **4. [Ein fremder Tunnel](#mode-4)** | Nur den Client | Eine `.peer`-Datei, die man dir schickt | Was der andere betreibt |
 
-Das war's. Richte eine Anwendung auf `127.0.0.1:1080`, oder aktiviere natives Routing und nutze die LAN-Adressen direkt.
+<a id="mode-1"></a>
+### 1. Das Gateway der Platform nutzen — *am einfachsten*
 
-### Der eigene Weg — dein Gateway, deine Regeln
+Es gibt nichts aufzusetzen. Die Platform betreibt die Gateway-Flotte, du betreibst den Client.
 
-```bash
-# 1. Auf dem Gateway-Host ein unabhängiges Gateway offline initialisieren.
-lantunnel-gateway init --public-ip <PUBLIC_IP>
-#   Standard: QUIC/8443 und UDP-Mapping/8444. Für einen anderen Port hier
-#   --mapping-port <PORT> anhängen und denselben Wert unten an --gateway-mapping-port übergeben.
-#   erzeugt configs/gateway.yaml, certs/server.crt, certs/server.key und state/scopes.d
+1. **Client installieren** — [lantunnel.app/download](https://lantunnel.app/download).
+2. **Anmelden** — im Verbindungsbildschirm auf „Sign in“ drücken. Der Client öffnet deinen Browser, du bestätigst den angezeigten Code, fertig. Keine Datei zum Herunterladen.
+3. **Peer hinzufügen** — auf „Add a Peer“ drücken, den Tunnel wählen und diesem Gerät einen Namen geben. Der Client legt den Peer an und importiert ihn in einem Zug.
+4. **Verbinden.**
 
-# 2. Nur server.crt als ./server.crt auf den vertrauenswürdigen Besitzerrechner kopieren und dort
-#    den Tunnel offline anlegen.
-lantunnel-admin init-tunnel \
-  --gateway-transport quic \
-  --gateway-ip <PUBLIC_IP> \
-  --gateway-port 8443 \
-  --gateway-mapping-port 8444 \
-  --gateway-cert ./server.crt
-#   → <tunnel-id>.tunnel   gut verwahren: der Signaturschlüssel des Tunnels
-#   → <tunnel-id>.scope    öffentlich; mehr braucht das Gateway nicht
+Auf jedem Gerät wiederholen, das in den Tunnel soll. Danach eine Anwendung auf `127.0.0.1:1080` zeigen lassen oder natives Routing einschalten und die LAN-Adressen direkt verwenden.
 
-# 3. Pro Gerät ein Profil ausstellen.
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
+<details>
+<summary>Lieber im Browser, oder vom Handy aus beitreten?</summary>
 
-# 4. Nur den öffentlichen Scope auf den Gateway-Host kopieren, prüfen und starten.
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
-lantunnel-gateway --config configs/gateway.yaml --check-config
-lantunnel-gateway --config configs/gateway.yaml
+Leg den Peer auf [lantunnel.app](https://lantunnel.app/) an, lade seine `.peer`-Datei herunter und nutze im Client „Import .peer“. Unter Android und iOS lässt sich dasselbe Profil per QR-Code einlesen.
+</details>
 
-# 5. Auf jedem Gerät das eigene Profil importieren und verbinden.
-lantunnel-client tunnel import ./laptop.peer
-lantunnel-client                          # Desktop-Oberfläche
-lantunnel-client connect '<tunnel_id>'    # dieselbe Laufzeit, ohne Fenster
-```
+<a id="mode-2"></a>
+### 2. Dein Gateway, betrieben von der Platform
 
-`init` arbeitet vollständig offline und kontaktiert weder lantunnel.app noch eine andere Plattform. `certs/server.key` bleibt auf dem Gateway-Host. Ein exakt gleicher erneuter Aufruf behält den Schlüssel, das Zertifikat und die Konfiguration unverändert bei. Mit derselben `--config`-Datei funktionieren die exakte Wiederholung von `init`, Prüfung und Start aus jedem Arbeitsverzeichnis. Die Einrichtung mit einem Hostnamen oder einem öffentlich vertrauenswürdigen Zertifikat bleibt der manuellen erweiterten Anleitung vorbehalten.
+Der Verkehr läuft über deine Maschine, dein Relay wird dir also nicht angerechnet; Konten, Tunnel-Signaturschlüssel und Peer-Ausstellung bleiben bei der Platform. Du meldest das Gateway einmal mit einer einmaligen Pairing-Datei an, danach hält es die Verbindung nach außen offen — kein eingehender Port auf Platform-Seite, kein Zertifikat, das du von Hand erneuerst.
 
-Ein Profil pro Gerät — ein `.peer` ist nicht zum Herumkopieren gedacht.
+**[→ Installationsanleitung für ein Platform-verbundenes Gateway](https://lantunnel.app/docs/installation#platform-connected)**  ·  [dieselbe Abfolge in diesem Repository](./docs/USAGE.de.md#managed-onboarding)
 
-📘 **[Vollständige Anleitung — Installation, LAN-Freigabe, Zugriffsregeln, Server, Mobilgeräte, Fehlersuche →](./docs/USAGE.de.md)**
+<a id="mode-3"></a>
+### 3. Alles selbst betreiben
 
+Kein Konto, keine Platform, nichts funkt nach Hause. Du erzeugst den Tunnel offline mit `lantunnel-admin`, stellst pro Gerät eine `.peer` aus und betreibst `lantunnel-gateway` auf einem Host mit öffentlicher Adresse. Alles Nötige liegt unter Apache-2.0 in diesem Repository.
+
+**[→ Vollständige Anleitung zum Selbstbetrieb](./docs/USAGE.de.md#self-hosted)**
+
+<a id="mode-4"></a>
+### 4. Einem fremden Tunnel beitreten
+
+Hier ist gar nichts aufzusetzen. Wem der Tunnel gehört, stellt dir ein `.peer`-Profil aus und schickt es dir über einen privaten Kanal; du installierst den Client und importierst es. Ob das Gateway der anderen Person gehört oder der Platform, macht für dich keinen Unterschied.
+
+1. Client von [lantunnel.app/download](https://lantunnel.app/download) installieren.
+2. **Import .peer** — auf dem Handy auch per QR-Code.
+3. **Verbinden.**
+
+> Ein Profil pro Gerät. Eine `.peer` enthält den privaten Schlüssel dieses Geräts und ist nicht zum Herumkopieren gedacht: lass dir ein eigenes ausstellen, statt das einer anderen Person mitzubenutzen.
+
+📘 **[Vollständige Anleitung — Installation, LAN-Freigaben, Zugriffsregeln, Server, Mobilgeräte, Fehlersuche →](./docs/USAGE.de.md)**
+
+<a id="whats-inside"></a>
 ## Was in diesem Repository liegt
 
 Alles, was du brauchst, um Lantunnel selbst zu betreiben — unter Apache-2.0:
@@ -177,6 +211,7 @@ Alles, was du brauchst, um Lantunnel selbst zu betreiben — unter Apache-2.0:
 
 Die gehostete Plattform unter lantunnel.app — Konten, Abrechnung, verwaltete Gateway-Flotte — ist ein eigenständiger Closed-Source-Dienst und **nicht** Teil dieses Repositories. Nichts hier hängt davon ab, und eine selbst gehostete Installation nimmt nie Kontakt dorthin auf.
 
+<a id="building"></a>
 ## Aus dem Quellcode bauen
 
 Erforderlich sind Rust 1.89 oder neuer, `protoc` für den gRPC-Transport und Node für das Client-Frontend.
@@ -203,10 +238,12 @@ cargo test --workspace
 tests/e2e/v2_docker/run.sh
 ```
 
+<a id="compatibility"></a>
 ## Kompatibilität
 
 Peers, Gateways und Profile müssen aus derselben 2.0.x-Reihe stammen — das Wire-Format wird nicht zwischen Versionen ausgehandelt. Du kommst von einer 1.x-Installation? Deren Profile lassen sich nicht importieren; erzeuge mit `lantunnel-admin` neue.
 
+<a id="related"></a>
 ## Verwandte Projekte
 
 Die eigenen Maschinen hinter NAT zu erreichen, ist ein belebtes und freundliches Feld. Lantunnel geht den Peer-to-Peer-Weg mit Ende-zu-Ende-Verschlüsselung; die folgenden Projekte lösen benachbarte Probleme anders, und einige davon lassen sich gut mit ihm kombinieren.
@@ -247,10 +284,12 @@ Die andere Antwort auf NAT: ein öffentlicher Server in der Mitte, der in dein L
 
 Du pflegst etwas, das hierher gehört? Mach ein Issue auf — wir nehmen es gern mit auf.
 
+<a id="contributing"></a>
 ## Mitwirken
 
 Issues und Pull Requests sind willkommen — Hinweise zu Build, Tests und Stil stehen in [CONTRIBUTING.md](./CONTRIBUTING.md). Eine Schwachstelle gefunden? Bitte vertraulich gemäß [SECURITY.md](./SECURITY.md) melden, nicht in einem öffentlichen Issue.
 
+<a id="license"></a>
 ## Lizenz
 
 Apache License 2.0 — siehe [LICENSE](./LICENSE) und [NOTICE](./NOTICE).

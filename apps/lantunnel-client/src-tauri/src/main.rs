@@ -31,8 +31,12 @@ use lantunnel_client::client_ui_status::{
 };
 use lantunnel_client::peer_store::{
     import_peer_profile as import_peer_profile_file,
+    import_peer_profile_bytes as import_peer_profile_from_bytes,
     list_peer_profiles as list_peer_profiles_from_store, load_peer_profile,
-    replace_private_json_file, ImportedPeerSummaryV2,
+    replace_private_json_file, ImportedPeerSummaryV2, PeerLabelsV2,
+};
+use lantunnel_client::platform_session::{
+    clear_platform_session, load_platform_session, store_platform_session, PlatformSession,
 };
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
@@ -78,6 +82,7 @@ const LOCAL_SOCKS5_LISTEN_ENV: &str = "LANTUNNEL_LOCAL_SOCKS5_LISTEN";
 const DESKTOP_NETWORK_MODE_ENV: &str = "LANTUNNEL_DESKTOP_NETWORK_MODE";
 const LAN_ROUTES_ENV: &str = "LANTUNNEL_LAN_ROUTES";
 const LOG_DIR_ENV: &str = "LANTUNNEL_LOG_DIR";
+const PLATFORM_URL_ENV: &str = "LANTUNNEL_PLATFORM_URL";
 const DYNAMIC_ROUTE_SYNC_INTERVAL: Duration = Duration::from_millis(250);
 const INSTANCE_TAKEOVER_GRACE: Duration = Duration::from_secs(5);
 const INSTANCE_TAKEOVER_POLL: Duration = Duration::from_millis(100);
@@ -2520,6 +2525,18 @@ struct AppState {
     set_log_level: SetLevelFn,
     log_level: Arc<RwLock<String>>,
     log_dir: PathBuf,
+    /// The Device Authorization Grant this Client is currently waiting on.
+    ///
+    /// In memory only. It is a live credential with a ten-minute life, and a
+    /// Client that was closed mid-approval should start over rather than
+    /// resume a grant whose code the owner has long since lost track of.
+    pending_sign_in: Arc<Mutex<Option<PendingDeviceSignIn>>>,
+}
+
+struct PendingDeviceSignIn {
+    device_code: zeroize::Zeroizing<String>,
+    platform_url: String,
+    expires_at_unix: u64,
 }
 
 struct HeadlessRuntimeState {
@@ -2983,6 +3000,370 @@ fn import_peer_profile(
     state: State<'_, AppState>,
 ) -> Result<ImportedPeerSummaryV2, String> {
     import_peer_profile_file(&path, &config_dir(state.product)).map_err(|error| error.to_string())
+}
+
+/// Which Platform this Client talks to. Overridable for a local Platform.
+fn platform_base_url() -> String {
+    std::env::var(PLATFORM_URL_ENV)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_PLATFORM_URL.to_owned())
+}
+
+/// Renames one imported Tunnel or Peer locally.
+///
+/// A `.peer` file carries no name for either, so a profile that arrived as a
+/// file shows an Overlay IP and nothing else until the owner labels it.
+#[cfg(feature = "ui")]
+#[tauri::command]
+fn set_peer_labels(
+    tunnel_id: String,
+    tunnel_name: Option<String>,
+    peer_name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<ImportedPeerSummaryV2>, String> {
+    let root = config_dir(state.product);
+    lantunnel_client::peer_store::set_peer_labels(
+        &root,
+        &tunnel_id,
+        PeerLabelsV2 {
+            tunnel_name,
+            peer_name,
+        },
+    )
+    .map_err(|error| error.to_string())?;
+    list_peer_profiles_from_store(&root).map_err(|error| error.to_string())
+}
+
+/// What the Connection screen says about the signed-in owner.
+#[derive(Serialize)]
+struct PlatformAccountStatusV2 {
+    signed_in: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
+    /// When the stored session stops working, so the UI can say so before the
+    /// owner discovers it mid-task.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_at_unix: Option<u64>,
+    platform_url: String,
+}
+
+/// What the owner has to be shown to approve this Client.
+#[derive(Serialize)]
+struct DeviceSignInStartV2 {
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: u64,
+    /// Whether the Client managed to open the browser itself. False on a
+    /// headless host, where the owner opens the URL by hand.
+    browser_opened: bool,
+}
+
+/// One poll of a grant the owner has not answered yet.
+#[derive(Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+enum DeviceSignInPollV2 {
+    /// No sign-in is in flight. The UI should offer to start one.
+    NotStarted,
+    Pending,
+    /// This Client polled faster than the Platform allows. RFC 8628 §3.5 says
+    /// add five seconds to the interval — collapsing it into `Pending` keeps
+    /// the same cadence and the sign-in never completes.
+    SlowDown,
+    Granted {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        email: Option<String>,
+        expires_at_unix: u64,
+    },
+    Denied,
+    Expired,
+}
+
+/// Gives up the in-flight grant, but only if it is still the one that started
+/// this poll.
+///
+/// The owner can press Cancel while a request is in the air. Storing the token
+/// that lands afterwards would sign them back in behind their own back, with
+/// the UI still showing signed out until the next launch.
+#[cfg(feature = "ui")]
+fn release_pending_sign_in(
+    slot: &Arc<Mutex<Option<PendingDeviceSignIn>>>,
+    device_code: &str,
+) -> bool {
+    let mut guard = slot.lock();
+    match guard.as_ref() {
+        Some(pending) if pending.device_code.as_str() == device_code => {
+            *guard = None;
+            true
+        }
+        _ => false,
+    }
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or_default()
+}
+
+/// Reads the stored session, signing out rather than returning a dead token.
+///
+/// Every caller below wants a token it can actually use; discarding an expired
+/// one here means no command has to reason about a half-signed-in state.
+#[cfg(feature = "ui")]
+fn usable_platform_session(product: ProductKind) -> Result<PlatformSession, String> {
+    let root = config_dir(product);
+    let session =
+        load_platform_session(&root).ok_or_else(|| "Sign in to the Platform first".to_string())?;
+    if session.token.is_expired_at(unix_now()) {
+        let _ = clear_platform_session(&root);
+        return Err("Platform sign-in has expired; sign in again".into());
+    }
+    Ok(session)
+}
+
+#[cfg(feature = "ui")]
+#[tauri::command]
+fn platform_account_status(state: State<'_, AppState>) -> PlatformAccountStatusV2 {
+    let platform_url = platform_base_url();
+    match load_platform_session(&config_dir(state.product)) {
+        Some(session) if !session.token.is_expired_at(unix_now()) => PlatformAccountStatusV2 {
+            signed_in: true,
+            email: session.email,
+            expires_at_unix: Some(session.token.expires_at_unix),
+            platform_url: session.platform_url,
+        },
+        _ => PlatformAccountStatusV2 {
+            signed_in: false,
+            email: None,
+            expires_at_unix: None,
+            platform_url,
+        },
+    }
+}
+
+/// Opens a Device Authorization Grant and sends the owner to approve it.
+///
+/// The browser is opened as a convenience, not as the mechanism: the code and
+/// the URL are returned either way, so a Client on a machine with no browser
+/// is still signable-in from a phone.
+#[allow(
+    deprecated,
+    reason = "tauri-plugin-shell remains the app's installed URL opener"
+)]
+#[cfg(feature = "ui")]
+#[tauri::command]
+async fn platform_start_sign_in(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DeviceSignInStartV2, String> {
+    let platform_url = platform_base_url();
+    let api = tp_client::platform_account::PlatformAccountApi::new(&platform_url)
+        .map_err(|error| error.to_string())?;
+    let started = api
+        .start_device_login()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    let approval_url = started
+        .verification_uri_complete
+        .clone()
+        .unwrap_or_else(|| started.verification_uri.clone());
+    let browser_opened = app.shell().open(approval_url, None).is_ok();
+
+    *state.pending_sign_in.lock() = Some(PendingDeviceSignIn {
+        device_code: started.device_code.clone(),
+        platform_url,
+        expires_at_unix: unix_now().saturating_add(started.expires_in),
+    });
+
+    Ok(DeviceSignInStartV2 {
+        user_code: started.user_code,
+        verification_uri: started.verification_uri,
+        expires_in: started.expires_in,
+        // Never poll faster than the Platform asked, and never busier than
+        // once a second even if it says zero.
+        interval: started.interval.max(1),
+        browser_opened,
+    })
+}
+
+/// Asks the Platform once whether the owner has approved this Client.
+///
+/// The UI owns the waiting. A single poll per call keeps the cancel button
+/// honest: closing the panel stops the polling, with no task left running.
+#[cfg(feature = "ui")]
+#[tauri::command]
+async fn platform_poll_sign_in(state: State<'_, AppState>) -> Result<DeviceSignInPollV2, String> {
+    let product = state.product;
+    let pending = {
+        let guard = state.pending_sign_in.lock();
+        match guard.as_ref() {
+            None => return Ok(DeviceSignInPollV2::NotStarted),
+            Some(pending) => (
+                pending.device_code.clone(),
+                pending.platform_url.clone(),
+                pending.expires_at_unix,
+            ),
+        }
+    };
+    let (device_code, platform_url, expires_at_unix) = pending;
+    if unix_now() >= expires_at_unix {
+        *state.pending_sign_in.lock() = None;
+        return Ok(DeviceSignInPollV2::Expired);
+    }
+
+    let api = tp_client::platform_account::PlatformAccountApi::new(&platform_url)
+        .map_err(|error| error.to_string())?;
+    let outcome = api
+        .poll_device_login(&device_code)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    use tp_client::platform_account::DeviceLoginPoll;
+    match outcome {
+        DeviceLoginPoll::Pending => Ok(DeviceSignInPollV2::Pending),
+        // Not an error: the Platform is asking for a slower cadence, and the
+        // UI is the thing that owns the timer.
+        DeviceLoginPoll::SlowDown => Ok(DeviceSignInPollV2::SlowDown),
+        DeviceLoginPoll::Denied => {
+            release_pending_sign_in(&state.pending_sign_in, &device_code);
+            Ok(DeviceSignInPollV2::Denied)
+        }
+        DeviceLoginPoll::Expired => {
+            release_pending_sign_in(&state.pending_sign_in, &device_code);
+            Ok(DeviceSignInPollV2::Expired)
+        }
+        DeviceLoginPoll::Granted(token) => {
+            if !release_pending_sign_in(&state.pending_sign_in, &device_code) {
+                // Cancelled or signed out while this request was in flight.
+                // The token is dropped here rather than written to disk.
+                return Ok(DeviceSignInPollV2::NotStarted);
+            }
+            let expires_at_unix = token.expires_at_unix;
+            // Naming the account is worth one extra call: a Client signed into
+            // the wrong account otherwise looks identical to the right one.
+            let email = api
+                .identity(&token)
+                .await
+                .ok()
+                .map(|identity| identity.email);
+            let session = PlatformSession {
+                platform_url,
+                token,
+                email: email.clone(),
+            };
+            store_platform_session(&config_dir(product), &session)
+                .map_err(|error| error.to_string())?;
+            Ok(DeviceSignInPollV2::Granted {
+                email,
+                expires_at_unix,
+            })
+        }
+    }
+}
+
+/// Forgets the stored account token and any grant still in flight.
+#[cfg(feature = "ui")]
+#[tauri::command]
+fn platform_sign_out(state: State<'_, AppState>) -> Result<(), String> {
+    *state.pending_sign_in.lock() = None;
+    clear_platform_session(&config_dir(state.product)).map_err(|error| error.to_string())
+}
+
+#[cfg(feature = "ui")]
+#[tauri::command]
+async fn platform_list_tunnels(
+    state: State<'_, AppState>,
+) -> Result<Vec<tp_client::platform_account::PlatformTunnel>, String> {
+    let session = usable_platform_session(state.product)?;
+    let api = tp_client::platform_account::PlatformAccountApi::new(&session.platform_url)
+        .map_err(|error| error.to_string())?;
+    api.list_tunnels(&session.token)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// Every Peer the chosen Tunnel has already issued.
+///
+/// The owner may have added one from the Console before installing this
+/// Client. Listing them is what lets this machine adopt an identity it already
+/// has, instead of minting a second one and leaving the first orphaned.
+#[cfg(feature = "ui")]
+#[tauri::command]
+async fn platform_list_peers(
+    tunnel_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<tp_client::platform_account::PlatformPeer>, String> {
+    let session = usable_platform_session(state.product)?;
+    let api = tp_client::platform_account::PlatformAccountApi::new(&session.platform_url)
+        .map_err(|error| error.to_string())?;
+    api.list_peers(&session.token, &tunnel_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// Imports a Peer that already exists, without minting another one.
+#[cfg(feature = "ui")]
+#[tauri::command]
+async fn platform_import_peer(
+    tunnel_id: String,
+    peer_id: String,
+    tunnel_name: Option<String>,
+    peer_name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<ImportedPeerSummaryV2, String> {
+    let product = state.product;
+    let session = usable_platform_session(product)?;
+    let api = tp_client::platform_account::PlatformAccountApi::new(&session.platform_url)
+        .map_err(|error| error.to_string())?;
+    let fetched = api
+        .download_peer(&session.token, &tunnel_id, &peer_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    import_peer_profile_from_bytes(
+        &fetched.profile,
+        &config_dir(product),
+        PeerLabelsV2 {
+            tunnel_name,
+            peer_name,
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Adds a Peer to a Tunnel on the Platform and imports it here in one step.
+///
+/// The profile never reaches the disk outside the owner-only store: the
+/// Platform returns it in the response body and it goes straight in.
+#[cfg(feature = "ui")]
+#[tauri::command]
+async fn platform_create_peer(
+    tunnel_id: String,
+    tunnel_name: Option<String>,
+    peer_name: String,
+    state: State<'_, AppState>,
+) -> Result<ImportedPeerSummaryV2, String> {
+    let product = state.product;
+    let session = usable_platform_session(product)?;
+    let api = tp_client::platform_account::PlatformAccountApi::new(&session.platform_url)
+        .map_err(|error| error.to_string())?;
+    let created = api
+        .create_peer(&session.token, &tunnel_id, &peer_name)
+        .await
+        .map_err(|error| error.to_string())?;
+    import_peer_profile_from_bytes(
+        &created.profile,
+        &config_dir(product),
+        PeerLabelsV2 {
+            tunnel_name,
+            peer_name: Some(peer_name),
+        },
+    )
+    .map_err(|error| error.to_string())
 }
 
 struct ConnectRuntimeSource {
@@ -3985,6 +4366,9 @@ fn get_capabilities() -> serde_json::Value {
         "localProxy": true,
         "exportReadiness": true,
         "nativeRoutingSwitch": true,
+        // True here and false on the phones only because the phone half is
+        // unbuilt, not because a phone cannot do it.
+        "platformAccount": true,
     })
 }
 
@@ -4003,6 +4387,41 @@ fn product_info_for_product(product: ProductKind) -> ProductInfo {
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "ui")]
+    fn pending(device_code: &str) -> Arc<Mutex<Option<PendingDeviceSignIn>>> {
+        Arc::new(Mutex::new(Some(PendingDeviceSignIn {
+            device_code: zeroize::Zeroizing::new(device_code.into()),
+            platform_url: "https://lantunnel.app".into(),
+            expires_at_unix: u64::MAX,
+        })))
+    }
+
+    /// A token that lands after the owner cancelled must be dropped.
+    ///
+    /// The poll snapshots the device code, releases the lock, and awaits. Cancel
+    /// and sign-out both clear the slot in that window, and writing the token
+    /// anyway would sign the owner back in behind their own back.
+    #[cfg(feature = "ui")]
+    #[test]
+    fn a_grant_is_only_released_by_the_poll_that_started_it() {
+        let slot = pending("device-a");
+        assert!(release_pending_sign_in(&slot, "device-a"));
+        // Released once, so a duplicate answer for the same grant claims nothing.
+        assert!(!release_pending_sign_in(&slot, "device-a"));
+        assert!(slot.lock().is_none());
+
+        // Cancelled mid-flight: the slot is empty when the answer arrives.
+        let cancelled: Arc<Mutex<Option<PendingDeviceSignIn>>> = Arc::new(Mutex::new(None));
+        assert!(!release_pending_sign_in(&cancelled, "device-a"));
+
+        // Restarted mid-flight: the slot holds a different grant, and the old
+        // answer must not clear it or be stored.
+        let restarted = pending("device-b");
+        assert!(!release_pending_sign_in(&restarted, "device-a"));
+        assert!(restarted.lock().is_some());
+        assert!(release_pending_sign_in(&restarted, "device-b"));
+    }
 
     /// Changing the log level must not take the app down.
     ///
@@ -6353,6 +6772,7 @@ fn main() {
             set_log_level: set_log_level_fn,
             log_level,
             log_dir: log_dir.clone(),
+            pending_sign_in: Arc::new(Mutex::new(None)),
         };
 
         tauri::Builder::default()
@@ -6530,6 +6950,15 @@ fn main() {
                 list_peer_profiles,
                 forget_peer_profile,
                 import_peer_profile,
+                set_peer_labels,
+                platform_account_status,
+                platform_start_sign_in,
+                platform_poll_sign_in,
+                platform_sign_out,
+                platform_list_tunnels,
+                platform_list_peers,
+                platform_import_peer,
+                platform_create_peer,
                 connect_peer_profile,
                 disconnect,
                 get_status,

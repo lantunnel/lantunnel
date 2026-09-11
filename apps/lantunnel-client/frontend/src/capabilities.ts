@@ -20,6 +20,8 @@ export interface Capabilities {
   exportReadiness: boolean
   /** Choose whether this machine installs native routes for the Tunnel. */
   nativeRoutingSwitch: boolean
+  /** Sign in to the Platform and add a Peer without leaving the Client. */
+  platformAccount: boolean
 }
 
 const DESKTOP: Capabilities = {
@@ -28,6 +30,7 @@ const DESKTOP: Capabilities = {
   localProxy: true,
   exportReadiness: true,
   nativeRoutingSwitch: true,
+  platformAccount: true,
 }
 
 /**
@@ -43,6 +46,11 @@ const PHONE: Capabilities = {
   localProxy: false,
   exportReadiness: false,
   nativeRoutingSwitch: false,
+  // A phone has a browser to approve in and a private store to keep the token
+  // in — the Keychain on iOS, app-private preferences on Android, beside the
+  // Peer key already there. The device grant exists for devices that cannot
+  // host a redirect, which is exactly this one.
+  platformAccount: true,
 }
 
 export function fallbackCapabilities(): Capabilities {

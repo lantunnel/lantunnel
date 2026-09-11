@@ -1,3 +1,5 @@
+mod platform_account_ffi;
+
 use std::collections::VecDeque;
 use std::ffi::{c_char, CStr, CString};
 use std::io::Write;
@@ -9,7 +11,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use jni::objects::{JClass, JString};
-use jni::sys::{jint, jstring};
+use jni::sys::{jint, jlong, jstring};
 use jni::JNIEnv;
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
@@ -161,7 +163,7 @@ struct ValidatedStartConfig {
 }
 
 #[derive(Debug, Clone)]
-struct MobileError {
+pub(crate) struct MobileError {
     code: i32,
     message: String,
 }
@@ -726,6 +728,135 @@ pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_clearNati
         .unwrap_or_else(|e| e.code())
 }
 
+/// The phone half of the Platform account panel.
+///
+/// Each of these blocks on one HTTP round trip, so Kotlin must call them off
+/// the main thread; `WebBridge` answers late for exactly this reason.
+#[no_mangle]
+pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_platformStartSignIn(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    platform_url: JString<'_>,
+) -> jstring {
+    let url = match jni_string(&mut env, &platform_url, "Platform URL") {
+        Ok(url) => url,
+        Err(e) => return jstring_from_result(env, Err(e)),
+    };
+    let result = platform_account_ffi::start_sign_in(&url);
+    jstring_from_result(env, result)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_platformPollSignIn(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    platform_url: JString<'_>,
+    device_code: JString<'_>,
+) -> jstring {
+    let result = (|env: &mut JNIEnv<'_>| {
+        let url = jni_string(env, &platform_url, "Platform URL")?;
+        let code = jni_string(env, &device_code, "device code")?;
+        platform_account_ffi::poll_sign_in(&url, &code)
+    })(&mut env);
+    jstring_from_result(env, result)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_platformListTunnels(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    platform_url: JString<'_>,
+    access_token: JString<'_>,
+    expires_at_unix: jlong,
+) -> jstring {
+    let result = (|env: &mut JNIEnv<'_>| {
+        let url = jni_string(env, &platform_url, "Platform URL")?;
+        let token = jni_string(env, &access_token, "access token")?;
+        platform_account_ffi::list_tunnels(&url, token, expires_at_unix.max(0) as u64)
+    })(&mut env);
+    jstring_from_result(env, result)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_platformListPeers(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    platform_url: JString<'_>,
+    access_token: JString<'_>,
+    expires_at_unix: jlong,
+    tunnel_id: JString<'_>,
+) -> jstring {
+    let result = (|env: &mut JNIEnv<'_>| {
+        let url = jni_string(env, &platform_url, "Platform URL")?;
+        let token = jni_string(env, &access_token, "access token")?;
+        let tunnel_id = jni_string(env, &tunnel_id, "Tunnel ID")?;
+        platform_account_ffi::list_peers(&url, token, expires_at_unix.max(0) as u64, &tunnel_id)
+    })(&mut env);
+    jstring_from_result(env, result)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_platformImportPeer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    platform_url: JString<'_>,
+    access_token: JString<'_>,
+    expires_at_unix: jlong,
+    tunnel_id: JString<'_>,
+    peer_id: JString<'_>,
+) -> jstring {
+    let result = (|env: &mut JNIEnv<'_>| {
+        let url = jni_string(env, &platform_url, "Platform URL")?;
+        let token = jni_string(env, &access_token, "access token")?;
+        let tunnel_id = jni_string(env, &tunnel_id, "Tunnel ID")?;
+        let peer_id = jni_string(env, &peer_id, "Peer ID")?;
+        platform_account_ffi::import_peer(
+            &url,
+            token,
+            expires_at_unix.max(0) as u64,
+            &tunnel_id,
+            &peer_id,
+        )
+    })(&mut env);
+    jstring_from_result(env, result)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_platformCreatePeer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    platform_url: JString<'_>,
+    access_token: JString<'_>,
+    expires_at_unix: jlong,
+    tunnel_id: JString<'_>,
+    name: JString<'_>,
+) -> jstring {
+    let result = (|env: &mut JNIEnv<'_>| {
+        let url = jni_string(env, &platform_url, "Platform URL")?;
+        let token = jni_string(env, &access_token, "access token")?;
+        let tunnel_id = jni_string(env, &tunnel_id, "Tunnel ID")?;
+        let name = jni_string(env, &name, "Peer name")?;
+        platform_account_ffi::create_peer(
+            &url,
+            token,
+            expires_at_unix.max(0) as u64,
+            &tunnel_id,
+            &name,
+        )
+    })(&mut env);
+    jstring_from_result(env, result)
+}
+
+fn jni_string(
+    env: &mut JNIEnv<'_>,
+    value: &JString<'_>,
+    label: &str,
+) -> Result<String, MobileError> {
+    env.get_string(value)
+        .map(|raw| raw.to_string_lossy().into_owned())
+        .map_err(|e| MobileError::invalid_argument(format!("{label} is not a string: {e}")))
+}
+
 #[no_mangle]
 pub extern "system" fn Java_com_buhuipao_tunnelproxy_TunnelProxyNative_setLogLevel(
     mut env: JNIEnv<'_>,
@@ -775,7 +906,7 @@ fn jstring_from_result(env: JNIEnv<'_>, result: Result<String, MobileError>) -> 
     }
 }
 
-fn result_string_to_c_ptr(result: Result<String, MobileError>) -> *mut c_char {
+pub(crate) fn result_string_to_c_ptr(result: Result<String, MobileError>) -> *mut c_char {
     let raw = result.unwrap_or_else(|e| error_json(&e));
     CString::new(raw)
         .expect("mobile FFI strings must not contain interior NUL")
@@ -803,7 +934,7 @@ fn start_proxy_from_c(json_ptr: *const c_char) -> Result<(), MobileError> {
     start_proxy_from_str(raw)
 }
 
-fn string_from_c(ptr: *const c_char, label: &str) -> Result<String, MobileError> {
+pub(crate) fn string_from_c(ptr: *const c_char, label: &str) -> Result<String, MobileError> {
     if ptr.is_null() {
         return Err(MobileError::invalid_argument(format!(
             "{label} pointer is null"

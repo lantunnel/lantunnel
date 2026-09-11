@@ -57,6 +57,29 @@ Lantunnel は、そうしたマシンを一つの小さなプライベートメ�
 
 ---
 
+<!-- lantunnel:toc -->
+<a id="contents"></a>
+## 目次
+
+**はじめてなら** [クイックスタート](#quick-start) へどうぞ。用意する手間が少ない順に 4 つのやり方を並べてあります。いちばん簡単なものは 3 ステップで、サーバーは要りません。
+
+- [Client の画面](#the-client) — アプリの見た目
+- [クイックスタート](#quick-start) — **ここから**
+  - [1. Platform の Gateway を使う](#mode-1) — *いちばん簡単、構築ゼロ*
+  - [2. Gateway は自前、運用は Platform に任せる](#mode-2)
+  - [3. すべて自分で動かす](#mode-3)
+  - [4. 誰かの Tunnel に入れてもらう](#mode-4)
+- [できること](#what-you-get) · [実際の使いどころ](#use-cases)
+- [しくみ](#how-it-works) — 3 つの部品と、直結を先に試す理由
+- [リポジトリの中身](#whats-inside)
+- [ソースからビルド](#building) · [互換性](#compatibility)
+- [関連プロジェクト](#related) · [コントリビュート](#contributing) · [ライセンス](#license)
+
+**さらに詳しく：** [使い方ガイド](./docs/USAGE.ja.md) · [アーキテクチャと用語](./CONTEXT.md) · [ワイヤープロトコル](./docs/PROTOCOL.md)
+
+---
+
+<a id="the-client"></a>
 ## Client の画面
 
 <table>
@@ -68,6 +91,7 @@ Lantunnel は、そうしたマシンを一つの小さなプライベートメ�
   </tr>
 </table>
 
+<a id="what-you-get"></a>
 ## できること
 
 | | |
@@ -80,12 +104,14 @@ Lantunnel は、そうしたマシンを一つの小さなプライベートメ�
 | **1 つのバイナリ、GUI でも headless でも** | `lantunnel-client` は既定でデスクトップウィンドウを開き、`--headless` を付ければ同じランタイムがサーバー上で動きます。 |
 | **主要プラットフォーム対応** | macOS、Windows、Linux、Android、iOS。 |
 
+<a id="use-cases"></a>
 ### 実際の使いどころ
 
 - **ゲーム・メディアストリーミング** — 自宅のマシンで動く Sunshine/Moonlight、Jellyfin、Plex。
 - **プライベート AI と開発ツール** — Ollama、Open WebUI、社内 API、ステージング環境、LAN から出してはいけないデータベース。
 - **家庭・オフィスのサービス** — NAS、Home Assistant、カメラ、社内ダッシュボード、SSH。
 
+<a id="how-it-works"></a>
 ## しくみ
 
 ```mermaid
@@ -108,57 +134,65 @@ flowchart LR
 
 📖 **[アーキテクチャと概念 →](./CONTEXT.md)**  ·  📐 **[ワイヤプロトコル →](./docs/PROTOCOL.md)**
 
+<!-- lantunnel:modes -->
+<a id="quick-start"></a>
 ## クイックスタート
 
-### 手っ取り早い方法 — ホスト型 Gateway
+用意する手間が少ない順に 4 つ。**たいていの人は 1 番目で足ります** — サーバーも証明書も DNS も要りません。
 
-1. **[lantunnel.app](https://lantunnel.app/)** で無料 Tunnel を作成。
-2. デバイスごとに Peer を追加し、それぞれの `.peer` プロファイルをダウンロード。
-3. **[lantunnel.app/download](https://lantunnel.app/download)** から Client を入れ、プロファイルを取り込む。
+| | 動かすもの | 必要なもの | 費用 |
+|---|---|---|---|
+| **1. [Platform の Gateway](#mode-1)** | Client だけ | アカウント | 無料 Tunnel、直結は無制限、リレー月 5 GB |
+| **2. [自前の Gateway を Platform が運用](#mode-2)** | Client と Gateway ホスト | アカウントと、グローバルアドレスを持つマシン | 有料プラン。自分のリレーは計量されない |
+| **3. [すべて自分で](#mode-3)** | 3 つの部品すべて | グローバルアドレスを持つマシン | 無料・Apache-2.0・アカウント不要・Platform に一切接続しない |
+| **4. [誰かの Tunnel](#mode-4)** | Client だけ | 相手から届く `.peer` ファイル | 相手の運用しだい |
 
-以上です。アプリのプロキシを `127.0.0.1:1080` に向けるか、ネイティブルートを有効にして LAN アドレスをそのまま使ってください。
+<a id="mode-1"></a>
+### 1. Platform の Gateway を使う — *いちばん簡単*
 
-### 自分で運用する — 自分の Gateway、自分のルール
+構築するものはありません。Gateway 群は Platform が動かし、あなたは Client だけを動かします。
 
-```bash
-# 1. Gateway ホストで独立 Gateway をオフライン初期化。
-lantunnel-gateway init --public-ip <PUBLIC_IP>
-#   デフォルト：QUIC/8443、UDP マッピング/8444。別のポートを使う場合は、ここに
-#   --mapping-port <PORT> を追加し、下の --gateway-mapping-port に同じ値を渡す
-#   configs/gateway.yaml、certs/server.crt、certs/server.key、state/scopes.d を生成
+1. **Client を入れる** — [lantunnel.app/download](https://lantunnel.app/download)。
+2. **サインイン** — 接続画面の「Sign in」を押します。Client がブラウザーを開くので、表示されたコードを見比べて承認すれば完了です。ファイルのダウンロードはありません。
+3. **Peer を追加** — 「Add a Peer」を押し、Tunnel を選び、この端末に名前を付けます。Client が Peer の作成と取り込みを一度に済ませます。
+4. **接続。**
 
-# 2. server.crt だけを ./server.crt として信頼できるオーナーマシンにコピーし、そこで Tunnel を
-#    オフライン作成。
-lantunnel-admin init-tunnel \
-  --gateway-transport quic \
-  --gateway-ip <PUBLIC_IP> \
-  --gateway-port 8443 \
-  --gateway-mapping-port 8444 \
-  --gateway-cert ./server.crt
-#   → <tunnel-id>.tunnel   Tunnel の署名鍵。厳重に保管してください
-#   → <tunnel-id>.scope    公開ファイル。Gateway が必要とするのはこれだけ
+Tunnel に入れたい端末ごとに繰り返します。あとはアプリのプロキシを `127.0.0.1:1080` に向けるか、ネイティブルーティングを有効にして LAN アドレスをそのまま使ってください。
 
-# 3. デバイスごとにプロファイルを発行。
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name laptop --output laptop.peer
-lantunnel-admin add-peer --tunnel <tunnel-id>.tunnel --name nas    --output nas.peer
+<details>
+<summary>ブラウザーで操作したい、あるいはスマホから参加したい場合</summary>
 
-# 4. 公開 scope だけを Gateway ホストにコピーし、設定を検証してから起動。
-mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/
-lantunnel-gateway --config configs/gateway.yaml --check-config
-lantunnel-gateway --config configs/gateway.yaml
+[lantunnel.app](https://lantunnel.app/) で Peer を作り、`.peer` ファイルをダウンロードして、Client の「Import .peer」から取り込みます。Android と iOS では同じプロファイルを QR コードで読み取れます。
+</details>
 
-# 5. 各デバイスで自分のプロファイルを取り込んで接続。
-lantunnel-client tunnel import ./laptop.peer
-lantunnel-client                          # デスクトップ UI
-lantunnel-client connect '<tunnel_id>'    # 同じランタイム、ウィンドウなし
-```
+<a id="mode-2"></a>
+### 2. Gateway は自前、運用は Platform に任せる
 
-`init` は完全にオフラインで実行され、lantunnel.app などのプラットフォームには接続しません。`certs/server.key` は Gateway ホストから出しません。まったく同じコマンドを再実行しても、鍵・証明書・設定は変更されません。同じ `--config` ファイルを指定すれば、再実行・設定検証・起動は現在の作業ディレクトリに依存しません。ホスト名または公開 CA 証明書を使う場合は、完全なガイドの手動上級手順を使ってください。
+トラフィックは自分のマシンを通るのでリレーは課金対象になりません。アカウント、Tunnel の署名鍵、Peer の発行は引き続き Platform が担当します。一度きりのペアリングファイルで Gateway を登録すれば、あとは外向きの接続を保ち続けます。Platform 側で受信ポートを開ける必要も、手で更新する証明書もありません。
 
-プロファイルは 1 デバイスにつき 1 つ。`.peer` は使い回すものではありません。
+**[→ Platform 接続型 Gateway のインストールガイド](https://lantunnel.app/docs/installation#platform-connected)**  ·  [同じ手順をこのリポジトリで](./docs/USAGE.ja.md#managed-onboarding)
 
-📘 **[完全な使い方ガイド — インストール、LAN 公開、アクセスルール、サーバー運用、モバイル、トラブルシューティング →](./docs/USAGE.ja.md)**
+<a id="mode-3"></a>
+### 3. すべて自分で動かす
 
+アカウントなし、Platform なし、外部への通信もなし。`lantunnel-admin` でオフラインのまま Tunnel を作り、端末ごとに `.peer` を発行し、グローバルアドレスを持つホストで `lantunnel-gateway` を動かします。必要なものはすべてこのリポジトリに Apache-2.0 で入っています。
+
+**[→ セルフホストの全手順](./docs/USAGE.ja.md#self-hosted)**
+
+<a id="mode-4"></a>
+### 4. 誰かの Tunnel に入れてもらう
+
+用意するものはありません。Tunnel の持ち主が `.peer` プロファイルを発行し、私的な経路で渡してくれます。あなたは Client を入れて取り込むだけです。相手の Gateway が自前か Platform かは、あなたには関係ありません。
+
+1. [lantunnel.app/download](https://lantunnel.app/download) から Client を入れる。
+2. **Import .peer** — スマホなら QR コードでも。
+3. **接続。**
+
+> プロファイルは 1 端末に 1 つ。`.peer` にはその端末の秘密鍵が入っているので、使い回すものではありません。人のものを共有せず、自分の分を発行してもらってください。
+
+📘 **[使い方ガイド — インストール、LAN 公開、アクセス制御、サーバー、モバイル、トラブルシューティング →](./docs/USAGE.ja.md)**
+
+<a id="whats-inside"></a>
 ## リポジトリの中身
 
 Lantunnel を自分で動かすために必要なものはすべて Apache-2.0 で入っています。
@@ -177,6 +211,7 @@ Lantunnel を自分で動かすために必要なものはすべて Apache-2.0 �
 
 lantunnel.app のホスト型プラットフォーム（アカウント、課金、マネージド Gateway フリート）は独立したクローズドソースのサービスで、このリポジトリには**含まれません**。ここのコードはそれに依存せず、セルフホスト構成が接続することもありません。
 
+<a id="building"></a>
 ## ソースからビルド
 
 Rust 1.89 以上、gRPC トランスポート用の `protoc`、Client フロントエンド用の Node が必要です。
@@ -203,10 +238,12 @@ cargo test --workspace
 tests/e2e/v2_docker/run.sh
 ```
 
+<a id="compatibility"></a>
 ## 互換性
 
 Peer、Gateway、プロファイルは同じ 2.0.x 系列で揃える必要があります。ワイヤフォーマットはバージョン間でネゴシエートしません。1.x からの移行では旧プロファイルを取り込めないため、`lantunnel-admin` で新規に発行してください。
 
+<a id="related"></a>
 ## 関連プロジェクト
 
 NAT の内側にある自分のマシンへ到達する、というのは賑やかで友好的な分野です。Lantunnel は P2P 優先・エンドツーエンド暗号化という道を選んでいます。以下のプロジェクトは近い問題を別のやり方で解いており、いくつかは Lantunnel と併用しても相性が良いものです。
@@ -247,10 +284,12 @@ NAT に対するもうひとつの答え — 公開サーバーを中継に置�
 
 ここに載るべきプロジェクトを開発していますか？ Issue を立ててください。喜んで追加します。
 
+<a id="contributing"></a>
 ## コントリビュート
 
 Issue と Pull Request を歓迎します。ビルド、テスト、コードスタイルについては [CONTRIBUTING.md](./CONTRIBUTING.md) を参照してください。脆弱性を見つけた場合は公開 Issue ではなく、[SECURITY.md](./SECURITY.md) の手順で非公開に報告してください。
 
+<a id="license"></a>
 ## ライセンス
 
 Apache License 2.0 — [LICENSE](./LICENSE) と [NOTICE](./NOTICE) を参照。

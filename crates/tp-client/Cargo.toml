@@ -37,6 +37,7 @@ chacha20poly1305.workspace = true
 quinn.workspace = true
 socket2.workspace = true
 uuid.workspace = true
+zeroize.workspace = true
 x509-parser = { version = "0.16", features = ["verify"] }
 if-addrs = "0.13"
 # Keep this exact: 0.38 switched to Rust 2024 while the workspace MSRV is 1.82.

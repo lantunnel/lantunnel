@@ -73,6 +73,7 @@ Vous pouvez passer directement à [Atteindre vos services](#atteindre-vos-servic
 
 ---
 
+<a id="self-hosted"></a>
 ## Voie B — Gateway autohébergée
 
 Tout ce qui suit se trouve dans ce dépôt sous licence Apache-2.0. Rien ne contacte lantunnel.app.
@@ -482,6 +483,7 @@ lantunnel-gateway mapping serve                  Réflecteur UDP de mappage auto
 
 L'enrôlement géré doit commencer dans un nouveau répertoire de travail accessible uniquement à son propriétaire. La Gateway peut ainsi y écrire sa configuration d'exécution. Suivez le [guide d'installation d'une Gateway connectée à la plateforme](https://lantunnel.app/docs/installation#platform-connected) ou utilisez la même séquence sûre :
 
+<a id="managed-onboarding"></a>
 ```bash
 mkdir -m 700 lantunnel-gateway-state
 mv /path/to/downloaded-pairing.yaml lantunnel-gateway-state/pairing.yaml

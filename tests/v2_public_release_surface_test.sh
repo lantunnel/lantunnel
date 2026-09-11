@@ -77,9 +77,47 @@ for document in "${usage_files[@]}"; do
   fi
 done
 
-for document in "${readme_files[@]:1}"; do
-  grep -Fq 'mkdir -p state/scopes.d && cp <tunnel-id>.scope state/scopes.d/' "$ROOT_DIR/$document"
-  grep -Fq 'lantunnel-gateway --config configs/gateway.yaml --check-config' "$ROOT_DIR/$document"
+# The self-hosted walkthrough moved out of the READMEs, which now name the four
+# modes in order of effort and link the three that are not the easiest. The
+# invariant it guarded — every language documents Tunnel admission and config
+# validation — moved with it rather than being dropped.
+for document in "${usage_files[@]}"; do
+  usage="$ROOT_DIR/docs/$document"
+  grep -Fq 'state/scopes.d/' "$usage"
+  grep -Fq 'lantunnel-gateway --config configs/gateway.yaml --check-config' "$usage"
+done
+
+# Every README opens with a table of contents and orders the four modes by how
+# much the reader has to set up. A reader who is scared off by the third
+# paragraph never reaches the download link.
+# Headings are translated, so their anchors are too. The markers are what every
+# language shares, and they are HTML comments so no reader ever sees them.
+for index in "${!readme_files[@]}"; do
+  document="${readme_files[$index]}"
+  readme="$ROOT_DIR/$document"
+  grep -Fq '<!-- lantunnel:toc -->' "$readme"
+  grep -Fq '<!-- lantunnel:modes -->' "$readme"
+  # Four modes, numbered in order of how much the reader has to set up, each
+  # reachable by the same explicit id in every language. A translated heading
+  # generates a translated anchor, so the ids are what the contents list can
+  # actually point at.
+  for mode in 1 2 3 4; do
+    grep -Eq "^### ${mode}\\. " "$readme" || {
+      echo "${document} is missing mode ${mode} in the ordered quick start" >&2
+      exit 1
+    }
+    grep -Fq "<a id=\"mode-${mode}\"></a>" "$readme"
+    grep -Fq "](#mode-${mode})" "$readme"
+  done
+  grep -Fq '<a id="quick-start"></a>' "$readme"
+  # The three heavier modes link the guide instead of inlining it, and each
+  # language links its own translation of it rather than the English one.
+  grep -Fq "./docs/${usage_files[$index]}" "$readme"
+  # Mode 2 and mode 3 point at anchors the guides actually carry.
+  grep -Fq "./docs/${usage_files[$index]}#managed-onboarding" "$readme"
+  grep -Fq "./docs/${usage_files[$index]}#self-hosted" "$readme"
+  grep -Fq '<a id="self-hosted"></a>' "$ROOT_DIR/docs/${usage_files[$index]}"
+  grep -Fq '<a id="managed-onboarding"></a>' "$ROOT_DIR/docs/${usage_files[$index]}"
 done
 
 for document in "${usage_files[@]:1}"; do

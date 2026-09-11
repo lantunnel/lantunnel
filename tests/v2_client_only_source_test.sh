@@ -143,8 +143,13 @@ if grep -Eq -- '--seed|--seed-file|<tunnel_id>:<tunnel_key>|calls tunnel-proxy-p
   echo 'README still advertises a Legacy V1 Client startup path' >&2
   exit 1
 fi
-grep -q -- 'lantunnel-client tunnel import' "$README"
-grep -q -- "lantunnel-client connect '<tunnel_id>'" "$README"
+# The Client's own import command moved into the usage guide when the README
+# stopped inlining the self-hosted walkthrough. It still has to be documented:
+# it is the only way a headless host joins a Tunnel.
+grep -q -- 'lantunnel-client tunnel import' "$ROOT_DIR/docs/USAGE.md"
+# Headless connect is documented where the walkthrough now lives. The guide
+# spells the placeholder with a hyphen, which is what it shows the reader.
+grep -q -- 'lantunnel-client connect <tunnel-id>' "$ROOT_DIR/docs/USAGE.md"
 if grep -q -- "lantunnel-client --headless connect" "$README"; then
   echo 'README places the headless flag before the connect subcommand, which the public parser rejects' >&2
   exit 1
