@@ -68,7 +68,7 @@ Lantunnel reúne esas máquinas en una pequeña malla privada —un **Tunnel**�
   - [1. Usar el Gateway de la Plataforma](#mode-1) — *lo más sencillo, nada que desplegar*
   - [2. Tu Gateway, gestionado por la Plataforma](#mode-2)
   - [3. Montarlo todo tú](#mode-3)
-  - [4. Entrar en el Tunnel de otra persona](#mode-4)
+  - [4. Tu propio Tunnel, en el Gateway de otra persona](#mode-4)
 - [Qué obtienes](#what-you-get) · [Para qué lo usa la gente](#use-cases)
 - [Cómo funciona](#how-it-works) — las tres piezas y por qué primero se intenta la conexión directa
 - [Qué hay en este repositorio](#whats-inside)
@@ -145,7 +145,7 @@ Cuatro formas de usar Lantunnel, ordenadas por lo que tienes que montar. **La ma
 | **1. [El Gateway de la Plataforma](#mode-1)** | Solo el Cliente | Una cuenta | Tunnel gratuito, tráfico directo ilimitado, 5 GB/mes de relay |
 | **2. [Tu Gateway, gestionado por la Plataforma](#mode-2)** | El Cliente y un host de Gateway | Una cuenta y una máquina con dirección pública | Plan de pago; tu relay no se mide |
 | **3. [Todo por tu cuenta](#mode-3)** | Las tres piezas | Una máquina con dirección pública | Gratis, Apache-2.0, sin cuenta, nunca contacta con la Plataforma |
-| **4. [El Tunnel de otra persona](#mode-4)** | Solo el Cliente | Un archivo `.peer` que te envían | Lo que tenga montado esa persona |
+| **4. [Tu Tunnel, el Gateway de otra persona](#mode-4)** | El Cliente, y `lantunnel-admin` una vez | Alguien que ya tenga un Gateway en marcha | Gratis; el relay lo carga su máquina |
 
 <a id="mode-1"></a>
 ### 1. Usar el Gateway de la Plataforma — *lo más sencillo*
@@ -180,15 +180,26 @@ Sin cuenta, sin Plataforma, sin nada que salga al exterior. Creas el Tunnel sin 
 **[→ Recorrido completo autoalojado](./docs/USAGE.es.md#self-hosted)**
 
 <a id="mode-4"></a>
-### 4. Entrar en el Tunnel de otra persona
+### 4. Tu propio Tunnel, en el Gateway de otra persona
 
-No hay nada que montar. Quien sea dueño del Tunnel emite un perfil `.peer` y te lo envía por un canal privado; tú instalas el Cliente y lo importas. Da igual si su Gateway es suyo o el de la Plataforma.
+El modo 3 sin servidor. El Tunnel sigue siendo tuyo — lo creas sin conexión y emites tus propios `.peer` — y quien ya tiene un Gateway en marcha se limita a admitirlo. Pídele el transporte, la dirección, el puerto de datos, el puerto de mapping y, si su certificado es autofirmado, el `server.crt` público:
 
-1. Instala el Cliente desde [lantunnel.app/download](https://lantunnel.app/download).
-2. **Import .peer** — o escanea su código QR en el móvil.
-3. **Conecta.**
+```bash
+lantunnel-admin init-tunnel --gateway-transport quic \
+  --gateway-ip <SU_IP> --gateway-port 8443 --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt --output-dir ./provision
 
-> Un perfil por dispositivo. Un `.peer` lleva la clave privada de ese dispositivo y no está pensado para andar copiándose: pide uno tuyo en vez de compartir el de otra persona.
+lantunnel-admin add-peer --tunnel ./provision/<tunnel-id>.tunnel \
+  --name laptop --output ./provision/laptop.peer
+```
+
+Envíale `<tunnel-id>.scope` y nada más. Lo deja en su `scopes.d` y recarga; un Gateway admite tantos Tunnels como scopes tenga.
+
+> Un `.scope` es un Tunnel ID y una clave pública de firma. Permite que su Gateway admita tus Peers y no concede nada más: no puede emitir un Peer en tu Tunnel, ni sacar ninguno de él, ni leer tu tráfico — los bytes que pasan por el relay van sellados entre los dos Peers. El `.tunnel` que firma las membresías nunca sale de tu máquina.
+
+**[→ Las dos caras de un Gateway compartido](./docs/USAGE.es.md#shared-gateway)**
+
+Que alguien te pase un `.peer` ya emitido desde su Tunnel no es un modo aparte: instala el Cliente, **Import .peer** — o escanea su código QR en el móvil — y conecta. Eso sí, un perfil por dispositivo: un `.peer` lleva la clave privada de ese dispositivo, así que pide uno tuyo en vez de compartir el de otra persona.
 
 📘 **[Guía de uso completa — instalación, exposición de LAN, reglas de acceso, servidores, móvil, resolución de problemas →](./docs/USAGE.es.md)**
 

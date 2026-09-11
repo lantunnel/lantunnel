@@ -49,7 +49,7 @@ Trois choses dont vous n'aurez jamais besoin : une IP publique sur votre LAN, un
 | Relais | 5 Go par mois offerts, décompté au-delà | le vôtre, sans décompte |
 | P2P direct | illimité | illimité |
 
-Les deux voies utilisent le même Client et le même protocole. Vous pouvez commencer en hébergé puis migrer, ou faire tourner les deux en parallèle : un Tunnel est indépendant de tout compte.
+Les deux voies utilisent le même Client et le même protocole. Vous pouvez commencer en hébergé puis migrer, ou faire tourner les deux en parallèle : un Tunnel est indépendant de tout compte. Une Gateway est tout aussi indépendante d'un Tunnel : si quelqu'un de confiance en fait déjà tourner une, posez-y votre propre Tunnel et faites l'économie du serveur — voir [Partager une Gateway](#shared-gateway).
 
 ---
 
@@ -243,7 +243,7 @@ L'identifiant du Tunnel, le `.scope` installé et les signatures d'appartenance 
 
 Si le `.peer` d'origine manque, utilisez `add-peer` avec le même `.tunnel` pour créer une nouvelle identité Peer.
 
-Pour ajouter un Tunnel plus tard, il suffit de déposer un autre `.scope` dans `scopes_dir`. Des unités systemd d'exemple se trouvent dans [`scripts/remote/`](../scripts/remote/).
+Pour ajouter un Tunnel plus tard, il suffit de déposer un autre `.scope` dans `scopes_dir` : une Gateway admet autant de Tunnels qu'elle a de scopes, et chacun peut appartenir à quelqu'un d'autre. Sous Unix, `kill -HUP <pid>` — avec l'unité fournie, `systemctl reload lantunnel-gateway` — relit le répertoire sans perturber les connexions en cours. Retirer un `.scope` puis recharger déconnecte les Peers de ce Tunnel. Un rechargement qui échoue à la validation est refusé et le dernier ensemble valide reste en vigueur. Des unités systemd d'exemple se trouvent dans [`scripts/remote/`](../scripts/remote/).
 
 ### 6. Connectez les appareils
 
@@ -255,6 +255,15 @@ lantunnel-client tunnel list          # vérification ; n'affiche jamais de clé
 lantunnel-client                      # interface graphique
 lantunnel-client connect <tunnel-id>  # ou en headless
 ```
+
+<a id="shared-gateway"></a>
+### Partager une Gateway entre deux propriétaires
+
+Une Gateway n'est pas liée à un seul Tunnel : la machine de quelqu'un d'autre peut donc porter votre Tunnel sans que l'un ou l'autre cède quoi que ce soit de privé.
+
+**Si la Gateway est la vôtre :** communiquez le transport, l'adresse, le port de données, le port de mapping et, pour un certificat auto-signé, le `certs/server.crt` public. Jamais `certs/server.key`. Déposez chaque `.scope` reçu dans `scopes_dir` et rechargez. Vous admettez ce Tunnel, vous ne le rejoignez pas : vous ne pouvez pas y émettre de Peer et ne voyez que des octets scellés.
+
+**Si c'est vous qui apportez le Tunnel :** exécutez les étapes 3, 4 et 6 avec ses informations de connexion et sautez les étapes 1, 2 et 5. Envoyez seulement le `<tunnel-id>.scope` public et gardez le `.tunnel` — le fichier qui signe les appartenances — sur votre propre machine : personne d'autre que vous ne peut ajouter un Peer à votre Tunnel. Son seul levier est l'admission : en supprimant votre `.scope` et en rechargeant, la Gateway cesse d'accepter vos Peers.
 
 ---
 

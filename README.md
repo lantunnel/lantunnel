@@ -80,7 +80,7 @@ Lantunnel, easiest first — and the first one is three steps with no server to 
   - [1. Use the Platform's Gateway](#mode-1) — *easiest, nothing to deploy*
   - [2. Host the Gateway, let the Platform run it](#mode-2)
   - [3. Run the Gateway yourself](#mode-3)
-  - [4. Join a Tunnel someone else runs](#mode-4)
+  - [4. Your own Tunnel, on a friend's Gateway](#mode-4)
 - [What you get](#what-you-get) · [Things people actually use it for](#use-cases)
 - [How it works](#how-it-works) — the three pieces, and why direct comes first
 - [What's in this repository](#whats-inside)
@@ -116,7 +116,7 @@ the first one** — it needs no server, no certificates, and no DNS.
 | **1. [The Platform's Gateway](#mode-1)** | The Client | An account | Free Tunnel, unlimited direct traffic, 5 GB/month relay |
 | **2. [Your Gateway, run by the Platform](#mode-2)** | The Client, and a Gateway host | An account, and a machine with a public address | Paid plan; your relay is not metered |
 | **3. [Everything yourself](#mode-3)** | All three pieces | A machine with a public address | Free, Apache-2.0, no account, never contacts the Platform |
-| **4. [Somebody else's Tunnel](#mode-4)** | The Client | A `.peer` file they send you | Whatever they run |
+| **4. [Your Tunnel, a friend's Gateway](#mode-4)** | The Client, and `lantunnel-admin` once | A friend already running a Gateway | Free; their machine carries the relay |
 
 <a id="mode-1"></a>
 ### 1. Use the Platform's Gateway — *easiest*
@@ -173,18 +173,36 @@ a public address. Everything you need is in this repository under Apache-2.0.
 **[→ Full self-hosted walkthrough](./docs/USAGE.md#self-hosted)**
 
 <a id="mode-4"></a>
-### 4. Join a Tunnel someone else runs
+### 4. Your own Tunnel, on a friend's Gateway
 
-Nothing to set up at all. Whoever owns the Tunnel issues you a `.peer` profile and sends
-it over a private channel; you install the Client and import it. It makes no difference to
-you whether their Gateway is theirs or the Platform's.
+Mode 3 without the server. The Tunnel stays yours — you create it offline and issue your
+own `.peer` files — and a friend who already runs a Gateway just admits it. Ask them for
+the transport, address, data port, mapping port, and, if their certificate is self-signed,
+the public `server.crt`:
 
-1. Install the Client from [lantunnel.app/download](https://lantunnel.app/download).
-2. **Import .peer** — or scan its QR code on a phone.
-3. **Connect.**
+```bash
+lantunnel-admin init-tunnel --gateway-transport quic \
+  --gateway-ip <THEIR_IP> --gateway-port 8443 --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt --output-dir ./provision
 
-> One profile per device. A `.peer` carries that device's private key and is not meant to
-> be copied around; ask for one of your own rather than sharing someone else's.
+lantunnel-admin add-peer --tunnel ./provision/<tunnel-id>.tunnel \
+  --name laptop --output ./provision/laptop.peer
+```
+
+Send them `<tunnel-id>.scope`, and nothing else. They drop it into their `scopes.d` and
+reload; one Gateway admits as many Tunnels as it has scopes.
+
+> A `.scope` is a Tunnel ID and a signing public key. It lets their Gateway admit your
+> Peers and grants nothing else: they cannot issue a Peer into your Tunnel, move one out of
+> it, or read your traffic — relayed bytes are sealed between the two Peers. The `.tunnel`
+> that signs memberships never leaves your machine.
+
+**[→ Both sides of a shared Gateway](./docs/USAGE.md#shared-gateway)**
+
+Being handed a finished `.peer` from someone else's Tunnel is not a mode of its own:
+install the Client, **Import .peer** — or scan its QR code on a phone — and connect. One
+profile per device, though; a `.peer` carries that device's private key, so ask for your
+own rather than sharing another.
 
 📘 **[Full usage guide — installation, LAN exports, access rules, servers, mobile, troubleshooting →](./docs/USAGE.md)**
 

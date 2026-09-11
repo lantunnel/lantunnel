@@ -49,7 +49,7 @@
 | リレー | 月 5 GB まで無料、超過分は計測 | 自前なので計測なし |
 | P2P 直結 | 無制限 | 無制限 |
 
-どちらも同じ Client、同じプロトコルを使います。まずホスト型で始めて後から移行しても構いませんし、Tunnel はアカウントから独立しているので両方を並行して運用することもできます。
+どちらも同じ Client、同じプロトコルを使います。まずホスト型で始めて後から移行しても構いませんし、Tunnel はアカウントから独立しているので両方を並行して運用することもできます。Gateway も Tunnel から独立しています。信頼できる相手がすでに 1 台動かしているなら、そこに自分の Tunnel を載せてサーバーの用意を丸ごと省けます —— [Gateway を共有する](#shared-gateway)を参照。
 
 ---
 
@@ -254,7 +254,7 @@ Tunnel ID、設置済みの `.scope`、Peer メンバーシップ署名はその
 
 元の `.peer` がない場合に限り、同じ `.tunnel` で `add-peer` を実行して新しい Peer アイデンティティを作成します。
 
-あとから Tunnel を追加するときは、`scopes_dir` にもう 1 つ `.scope` を置くだけです。systemd のユニット例は [`scripts/remote/`](../scripts/remote/) にあります。
+あとから Tunnel を追加するときは、`scopes_dir` にもう 1 つ `.scope` を置くだけです。Gateway 1 台は持っている scope の数だけ Tunnel を通せますし、その持ち主が別人でも構いません。Unix では `kill -HUP <pid>`（同梱の systemd ユニットなら `systemctl reload lantunnel-gateway`）でディレクトリを読み直せます。生きている接続はそのままです。`.scope` を削除して reload すると、その Tunnel の Peer は切断されます。検証に失敗した reload は拒否され、直前の正常な集合がそのまま使われます。systemd のユニット例は [`scripts/remote/`](../scripts/remote/) にあります。
 
 ### 6. 各デバイスを接続する
 
@@ -266,6 +266,15 @@ lantunnel-client tunnel list          # 確認用。秘密鍵は出力されま�
 lantunnel-client                      # UI
 lantunnel-client connect <tunnel-id>  # または headless で
 ```
+
+<a id="shared-gateway"></a>
+### 1 台の Gateway を 2 人で共有する
+
+Gateway は特定の Tunnel に縛られません。だから友人のマシンにあなたの Tunnel を載せても、どちらも秘密を渡さずに済みます。
+
+**Gateway を運用する側なら：** トランスポート、アドレス、データポート、mapping ポートを伝え、証明書が自己署名なら公開用の `certs/server.crt` も渡します。`certs/server.key` は決して渡しません。受け取った `.scope` を `scopes_dir` に置いて reload します。あなたはその Tunnel を通しているだけで、参加しているわけではありません。Peer を発行することはできず、見えるのは封をされたバイト列だけです。
+
+**Tunnel を持ち込む側なら：** 相手の接続情報でステップ 3、4、6 を実行し、1、2、5 は飛ばします。渡すのは公開用の `<tunnel-id>.scope` だけ。メンバーシップに署名する `.tunnel` は自分のマシンに置いたままにします。これで、あなた以外は誰もあなたの Tunnel に Peer を追加できません。相手が持つ力は通すかどうかだけ —— `.scope` を削除して reload すれば、Gateway はあなたの Peer を受け付けなくなります。
 
 ---
 

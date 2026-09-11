@@ -68,7 +68,7 @@ Lantunnel は、そうしたマシンを一つの小さなプライベートメ�
   - [1. Platform の Gateway を使う](#mode-1) — *いちばん簡単、構築ゼロ*
   - [2. Gateway は自前、運用は Platform に任せる](#mode-2)
   - [3. すべて自分で動かす](#mode-3)
-  - [4. 誰かの Tunnel に入れてもらう](#mode-4)
+  - [4. 自分の Tunnel を、友人の Gateway で動かす](#mode-4)
 - [できること](#what-you-get) · [実際の使いどころ](#use-cases)
 - [しくみ](#how-it-works) — 3 つの部品と、直結を先に試す理由
 - [リポジトリの中身](#whats-inside)
@@ -145,7 +145,7 @@ flowchart LR
 | **1. [Platform の Gateway](#mode-1)** | Client だけ | アカウント | 無料 Tunnel、直結は無制限、リレー月 5 GB |
 | **2. [自前の Gateway を Platform が運用](#mode-2)** | Client と Gateway ホスト | アカウントと、グローバルアドレスを持つマシン | 有料プラン。自分のリレーは計量されない |
 | **3. [すべて自分で](#mode-3)** | 3 つの部品すべて | グローバルアドレスを持つマシン | 無料・Apache-2.0・アカウント不要・Platform に一切接続しない |
-| **4. [誰かの Tunnel](#mode-4)** | Client だけ | 相手から届く `.peer` ファイル | 相手の運用しだい |
+| **4. [自分の Tunnel を友人の Gateway に](#mode-4)** | Client と、一度だけオフラインで `lantunnel-admin` | すでに Gateway を動かしている友人 | 無料。リレーは相手のマシンが担う |
 
 <a id="mode-1"></a>
 ### 1. Platform の Gateway を使う — *いちばん簡単*
@@ -180,15 +180,26 @@ Tunnel に入れたい端末ごとに繰り返します。あとはアプリの�
 **[→ セルフホストの全手順](./docs/USAGE.ja.md#self-hosted)**
 
 <a id="mode-4"></a>
-### 4. 誰かの Tunnel に入れてもらう
+### 4. 自分の Tunnel を、友人の Gateway で動かす
 
-用意するものはありません。Tunnel の持ち主が `.peer` プロファイルを発行し、私的な経路で渡してくれます。あなたは Client を入れて取り込むだけです。相手の Gateway が自前か Platform かは、あなたには関係ありません。
+サーバーを持たない 3 番目のやり方です。Tunnel はあくまで自分のもの —— オフラインで作り、`.peer` も自分で発行します —— すでに Gateway を動かしている友人は、それを通すだけ。トランスポート、アドレス、データポート、mapping ポート、そして証明書が自己署名なら公開用の `server.crt` を聞いてください：
 
-1. [lantunnel.app/download](https://lantunnel.app/download) から Client を入れる。
-2. **Import .peer** — スマホなら QR コードでも。
-3. **接続。**
+```bash
+lantunnel-admin init-tunnel --gateway-transport quic \
+  --gateway-ip <相手の IP> --gateway-port 8443 --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt --output-dir ./provision
 
-> プロファイルは 1 端末に 1 つ。`.peer` にはその端末の秘密鍵が入っているので、使い回すものではありません。人のものを共有せず、自分の分を発行してもらってください。
+lantunnel-admin add-peer --tunnel ./provision/<tunnel-id>.tunnel \
+  --name laptop --output ./provision/laptop.peer
+```
+
+相手に渡すのは `<tunnel-id>.scope` だけ。相手はそれを自分の `scopes.d` に置いて reload します。Gateway 1 台は、持っている scope の数だけ Tunnel を通せます。
+
+> `.scope` の中身は Tunnel ID と署名用の公開鍵だけ。相手の Gateway があなたの Peer を通すためのもので、それ以上は何も与えません。あなたの Tunnel に Peer を発行することも、あなたの Peer を持ち出すことも、通信を読むこともできません —— リレーされるバイト列は 2 つの Peer の間で封をされています。メンバーシップに署名する `.tunnel` は、あなたのマシンから出ません。
+
+**[→ Gateway を共有するとき、双方が何をするか](./docs/USAGE.ja.md#shared-gateway)**
+
+誰かが自分の Tunnel から発行した `.peer` を渡してくる場合、それは別のやり方ではありません。Client を入れて **Import .peer**（スマホなら QR コード）、そして接続するだけです。ただしプロファイルは 1 端末に 1 つ。`.peer` にはその端末の秘密鍵が入っているので、人のものを共有せず自分の分を発行してもらってください。
 
 📘 **[使い方ガイド — インストール、LAN 公開、アクセス制御、サーバー、モバイル、トラブルシューティング →](./docs/USAGE.ja.md)**
 

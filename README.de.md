@@ -68,7 +68,7 @@ Lantunnel fasst diese Rechner zu einem kleinen privaten Mesh zusammen — einem 
   - [1. Das Gateway der Platform nutzen](#mode-1) — *am einfachsten, nichts aufzusetzen*
   - [2. Dein Gateway, betrieben von der Platform](#mode-2)
   - [3. Alles selbst betreiben](#mode-3)
-  - [4. Einem fremden Tunnel beitreten](#mode-4)
+  - [4. Dein eigener Tunnel, auf dem Gateway einer anderen Person](#mode-4)
 - [Was du bekommst](#what-you-get) · [Wofür Leute es tatsächlich einsetzen](#use-cases)
 - [Wie es funktioniert](#how-it-works) — die drei Teile und warum zuerst direkt verbunden wird
 - [Was in diesem Repository liegt](#whats-inside)
@@ -145,7 +145,7 @@ Vier Wege, sortiert danach, wie viel du aufsetzen musst. **Die meisten wollen de
 | **1. [Das Gateway der Platform](#mode-1)** | Nur den Client | Ein Konto | Kostenloser Tunnel, unbegrenzter Direktverkehr, 5 GB Relay pro Monat |
 | **2. [Dein Gateway, betrieben von der Platform](#mode-2)** | Client und einen Gateway-Host | Ein Konto und eine Maschine mit öffentlicher Adresse | Bezahltarif; dein Relay wird nicht gezählt |
 | **3. [Alles selbst](#mode-3)** | Alle drei Teile | Eine Maschine mit öffentlicher Adresse | Kostenlos, Apache-2.0, ohne Konto, nimmt nie Kontakt zur Platform auf |
-| **4. [Ein fremder Tunnel](#mode-4)** | Nur den Client | Eine `.peer`-Datei, die man dir schickt | Was der andere betreibt |
+| **4. [Dein Tunnel auf dem Gateway einer Bekannten](#mode-4)** | Den Client, und einmal `lantunnel-admin` | Jemanden, der schon ein Gateway betreibt | Kostenlos; das Relay trägt deren Maschine |
 
 <a id="mode-1"></a>
 ### 1. Das Gateway der Platform nutzen — *am einfachsten*
@@ -180,15 +180,26 @@ Kein Konto, keine Platform, nichts funkt nach Hause. Du erzeugst den Tunnel offl
 **[→ Vollständige Anleitung zum Selbstbetrieb](./docs/USAGE.de.md#self-hosted)**
 
 <a id="mode-4"></a>
-### 4. Einem fremden Tunnel beitreten
+### 4. Dein eigener Tunnel, auf dem Gateway einer anderen Person
 
-Hier ist gar nichts aufzusetzen. Wem der Tunnel gehört, stellt dir ein `.peer`-Profil aus und schickt es dir über einen privaten Kanal; du installierst den Client und importierst es. Ob das Gateway der anderen Person gehört oder der Platform, macht für dich keinen Unterschied.
+Modus 3 ohne Server. Der Tunnel bleibt deiner — du erzeugst ihn offline und stellst deine `.peer`-Dateien selbst aus — und wer schon ein Gateway betreibt, lässt ihn einfach zu. Erfrag Transport, Adresse, Datenport, Mapping-Port und, bei einem selbstsignierten Zertifikat, die öffentliche `server.crt`:
 
-1. Client von [lantunnel.app/download](https://lantunnel.app/download) installieren.
-2. **Import .peer** — auf dem Handy auch per QR-Code.
-3. **Verbinden.**
+```bash
+lantunnel-admin init-tunnel --gateway-transport quic \
+  --gateway-ip <DEREN_IP> --gateway-port 8443 --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt --output-dir ./provision
 
-> Ein Profil pro Gerät. Eine `.peer` enthält den privaten Schlüssel dieses Geräts und ist nicht zum Herumkopieren gedacht: lass dir ein eigenes ausstellen, statt das einer anderen Person mitzubenutzen.
+lantunnel-admin add-peer --tunnel ./provision/<tunnel-id>.tunnel \
+  --name laptop --output ./provision/laptop.peer
+```
+
+Schick ihnen `<tunnel-id>.scope` — sonst nichts. Sie legen die Datei in ihr `scopes.d` und laden neu; ein Gateway lässt so viele Tunnel zu, wie es Scopes hat.
+
+> Eine `.scope` ist eine Tunnel-ID und ein öffentlicher Signaturschlüssel. Sie erlaubt deren Gateway, deine Peers zuzulassen, und gewährt sonst nichts: Sie können keinen Peer in deinen Tunnel ausstellen, keinen aus ihm herausholen und deinen Verkehr nicht lesen — weitergeleitete Bytes sind zwischen den beiden Peers versiegelt. Die `.tunnel`, die Mitgliedschaften signiert, verlässt deine Maschine nie.
+
+**[→ Beide Seiten eines geteilten Gateways](./docs/USAGE.de.md#shared-gateway)**
+
+Ein fertiges `.peer` aus dem Tunnel einer anderen Person ist kein eigener Modus: Client installieren, **Import .peer** — auf dem Handy auch per QR-Code — verbinden. Aber ein Profil pro Gerät; eine `.peer` enthält den privaten Schlüssel dieses Geräts, lass dir also ein eigenes ausstellen, statt ein fremdes mitzubenutzen.
 
 📘 **[Vollständige Anleitung — Installation, LAN-Freigaben, Zugriffsregeln, Server, Mobilgeräte, Fehlersuche →](./docs/USAGE.de.md)**
 

@@ -9,6 +9,7 @@ StartLimitBurst=10
 Type=simple
 WorkingDirectory=/root/lantunnel
 ExecStart=/root/lantunnel/lantunnel-gateway --config /root/lantunnel/configs/gateway.yaml
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=3
 LimitNOFILE=1048576

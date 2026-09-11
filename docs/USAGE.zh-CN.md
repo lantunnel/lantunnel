@@ -49,7 +49,7 @@
 | 中继流量 | 每月 5 GB 免费，超出计量 | 你自己的，不计量 |
 | 点对点直连 | 不限量 | 不限量 |
 
-两条路用的是同一个 Client、同一套协议。可以先用托管的，之后再搬 —— 也可以两个都跑，因为 Tunnel 本身跟任何账号都无关。
+两条路用的是同一个 Client、同一套协议。可以先用托管的，之后再搬 —— 也可以两个都跑，因为 Tunnel 本身跟任何账号都无关。Gateway 和 Tunnel 之间同样是解耦的：如果你信得过的人已经跑着一台 Gateway，那就把自己的 Tunnel 放上去，服务器这一步整个跳过 —— 见[共用一台 Gateway](#shared-gateway)。
 
 ---
 
@@ -248,7 +248,7 @@ Gateway 自己绑定选定的 UDP 映射端口，无需启动第二个进程。Q
 
 Tunnel ID、已安装的 `.scope` 和 Peer 成员身份签名仍然有效，无需新建 Tunnel、更换 Scope 或重新签名。只有原 `.peer` 已遗失时，才需要用同一个 `.tunnel` 执行 `add-peer` 创建新的 Peer 身份。
 
-以后要加新的 Tunnel，往 `scopes_dir` 里再丢一个 `.scope` 就行。systemd 示例单元在 [`scripts/remote/`](../scripts/remote/)。
+以后要加新的 Tunnel，往 `scopes_dir` 里再丢一个 `.scope` 就行：一台 Gateway 有几份 scope 就能放行几条 Tunnel，而且每条 Tunnel 的主人可以是别人。在 Unix 上，`kill -HUP <pid>`（用仓库里那份 systemd 单元就是 `systemctl reload lantunnel-gateway`）会重新读取这个目录，已有的连接不受影响。删掉某份 `.scope` 再 reload，那条 Tunnel 的 Peer 会被断开。校验不通过的 reload 会被拒绝，继续沿用上一份可用的集合。systemd 示例单元在 [`scripts/remote/`](../scripts/remote/)。
 
 ### 6. 各设备连接
 
@@ -260,6 +260,15 @@ lantunnel-client tunnel list          # 确认；不会打印私钥
 lantunnel-client                      # 图形界面
 lantunnel-client connect <tunnel-id>  # 或者无界面运行
 ```
+
+<a id="shared-gateway"></a>
+### 两个主人共用一台 Gateway
+
+Gateway 并不绑定某一条 Tunnel，所以朋友的机器可以承载你的 Tunnel，而双方都不用交出任何私密的东西。
+
+**如果 Gateway 是你在跑：** 把传输方式、地址、数据端口、mapping 端口告诉对方，证书是自签名的话再给一份公开的 `certs/server.crt`。永远不要给 `certs/server.key`。把收到的每份 `.scope` 丢进 `scopes_dir` 然后 reload。你是在放行那条 Tunnel，而不是加入它：你没法往里面签发 Peer，看到的也只有封装好的字节。
+
+**如果 Tunnel 是你带来的：** 用对方的连接参数跑第 3、4、6 步，第 1、2、5 步整个跳过。只把公开的 `<tunnel-id>.scope` 发给他，签发成员身份的 `.tunnel` 留在自己机器上 —— 这样除了你，没人能往你的 Tunnel 里加 Peer。对方手里唯一的筹码是放不放行：删掉你的 `.scope` 再 reload，Gateway 就不再接受你的 Peer。
 
 ---
 

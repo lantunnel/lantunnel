@@ -57,7 +57,9 @@ password.
 | Direct P2P | Unlimited | Unlimited |
 
 Both use the same Client and the same protocol. You can start hosted and move later — or
-run both, since a Tunnel is independent of any account.
+run both, since a Tunnel is independent of any account. A Gateway is independent of a Tunnel
+too: if someone you trust already runs one, put your own Tunnel on it and skip the server
+entirely — [Sharing one Gateway](#shared-gateway).
 
 ---
 
@@ -324,8 +326,12 @@ The Tunnel ID, installed `.scope`, and Peer membership signatures remain valid; 
 Tunnel, Scope, or signature is required. If an original `.peer` is unavailable, use
 `add-peer` with the same `.tunnel` to create a new Peer identity.
 
-Adding a Tunnel later means dropping another `.scope` into `scopes_dir`. Example systemd
-units are in [`scripts/remote/`](../scripts/remote/).
+Adding a Tunnel later means dropping another `.scope` into `scopes_dir`: one Gateway admits
+as many Tunnels as it has scopes, and the owner of each one can be someone else. On Unix,
+`kill -HUP <pid>` — `systemctl reload lantunnel-gateway` with the bundled unit — rereads the
+directory without disturbing live attachments. Removing a `.scope` and reloading disconnects
+that Tunnel's Peers. A reload that fails validation is refused and the last good set stays in
+force. Example systemd units are in [`scripts/remote/`](../scripts/remote/).
 
 ### 6. Every Client device: connect
 
@@ -337,6 +343,24 @@ lantunnel-client tunnel list          # confirm; never prints private keys
 lantunnel-client                      # UI
 lantunnel-client connect <tunnel-id>  # or headless
 ```
+
+<a id="shared-gateway"></a>
+### Sharing one Gateway between two owners
+
+A Gateway is not tied to one Tunnel, so a friend's machine can carry your Tunnel without
+either of you handing over anything private.
+
+**If you run the Gateway:** give out the transport, address, data port, mapping port, and —
+for a self-signed certificate — the public `certs/server.crt`. Never `certs/server.key`.
+Drop each `.scope` you are sent into `scopes_dir` and reload. You are admitting that Tunnel,
+not joining it: you cannot issue a Peer into it, and you never see anything but sealed
+bytes.
+
+**If you bring the Tunnel:** run steps 3, 4, and 6 against their connection facts and skip
+steps 1, 2, and 5. Send them the public `<tunnel-id>.scope` and keep the `.tunnel` — the file
+that signs memberships — on your own machine, so nobody but you can add a Peer to your
+Tunnel. Their whole leverage is admission: deleting your `.scope` and reloading stops the
+Gateway from accepting your Peers.
 
 ---
 

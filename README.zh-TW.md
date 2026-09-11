@@ -68,7 +68,7 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
   - [1. 用平台的 Gateway](#mode-1) —— *最省事，什麼都不用部署*
   - [2. 自己的 Gateway，交給平台託管](#mode-2)
   - [3. 全部自己來](#mode-3)
-  - [4. 加入別人的 Tunnel](#mode-4)
+  - [4. 自己的 Tunnel，跑在朋友的 Gateway 上](#mode-4)
 - [你會得到什麼](#what-you-get) · [大家實際拿它做什麼](#use-cases)
 - [運作方式](#how-it-works) —— 三個元件，以及為什麼直連優先
 - [儲存庫內容](#whats-inside)
@@ -145,7 +145,7 @@ flowchart LR
 | **1. [平台的 Gateway](#mode-1)** | 只跑 Client | 一個帳號 | 免費 Tunnel，直連不限量，每月 5 GB 中繼 |
 | **2. [自己的 Gateway，平台託管](#mode-2)** | Client 加一台 Gateway 主機 | 帳號，外加一台有公網位址的機器 | 付費方案；你自己的中繼不計量 |
 | **3. [全部自己來](#mode-3)** | 三個元件全都自己跑 | 一台有公網位址的機器 | 免費，Apache-2.0，不用帳號，永不連線平台 |
-| **4. [別人的 Tunnel](#mode-4)** | 只跑 Client | 對方傳給你的一個 `.peer` 檔 | 看對方怎麼跑 |
+| **4. [自己的 Tunnel，借朋友的 Gateway](#mode-4)** | Client，外加離線跑一次 `lantunnel-admin` | 一個已經在跑 Gateway 的朋友 | 免費；中繼走對方的機器 |
 
 <a id="mode-1"></a>
 ### 1. 用平台的 Gateway —— *最省事*
@@ -188,15 +188,26 @@ lantunnel-client tunnel import ./nas.peer
 **[→ 完整自行託管流程](./docs/USAGE.zh-TW.md#self-hosted)**
 
 <a id="mode-4"></a>
-### 4. 加入別人的 Tunnel
+### 4. 自己的 Tunnel，跑在朋友的 Gateway 上
 
-什麼都不用架。Tunnel 的主人給你簽發一份 `.peer` 設定，透過私密管道傳給你；你裝上 Client 匯入即可。對方的 Gateway 是自建的還是平台的，對你來說沒差別。
+就是第三種，只是不用自己出伺服器。Tunnel 仍然是你的 —— 你離線建立它，自己簽發 `.peer` —— 朋友那台已經在跑的 Gateway 只負責放行。跟他要傳輸方式、位址、資料埠、mapping 埠，憑證是自簽的話再要一份公開的 `server.crt`：
 
-1. 從 [lantunnel.app/download](https://lantunnel.app/download) 裝上 Client。
-2. **Import .peer** —— 手機上也可以掃 QR Code。
-3. **連線。**
+```bash
+lantunnel-admin init-tunnel --gateway-transport quic \
+  --gateway-ip <對方的 IP> --gateway-port 8443 --gateway-mapping-port 8444 \
+  --gateway-cert ./server.crt --output-dir ./provision
 
-> 一台裝置一份設定。`.peer` 裡帶著這台裝置的私鑰，不是拿來到處複製的 —— 找對方要一份你自己的，別去共用別人的。
+lantunnel-admin add-peer --tunnel ./provision/<tunnel-id>.tunnel \
+  --name laptop --output ./provision/laptop.peer
+```
+
+傳給他 `<tunnel-id>.scope`，只傳這一個。他把它丟進自己的 `scopes.d` 再 reload 一下就行；一台 Gateway 有幾份 scope 就能放行幾條 Tunnel。
+
+> `.scope` 裡只有 Tunnel ID 和一把簽章公鑰。它只讓對方的 Gateway 放行你的 Peer，別的什麼都給不了：他沒辦法往你的 Tunnel 簽發 Peer，沒辦法把你的 Peer 遷出去，也讀不到你的流量 —— 走中繼的位元組是兩個 Peer 之間封好的。簽發成員身分的 `.tunnel` 始終不離開你自己的機器。
+
+**[→ 共用一台 Gateway 時兩邊各自怎麼做](./docs/USAGE.zh-TW.md#shared-gateway)**
+
+別人從他自己的 Tunnel 簽好一份 `.peer` 傳給你 —— 那不算另一種玩法：裝上 Client，**Import .peer**（手機上掃 QR Code 也行），連線。但一台裝置一份設定：`.peer` 裡帶著這台裝置的私鑰，找對方要一份你自己的，別去共用別人的。
 
 📘 **[完整使用指南 —— 安裝、內網發布、存取規則、伺服器部署、手機端、疑難排解 →](./docs/USAGE.zh-TW.md)**
 
