@@ -57,6 +57,23 @@
 
 **[lantunnel.app](https://lantunnel.app/)** 替你營運整個 Gateway 叢集。每個帳號有一條永久免費的 Tunnel：點對點流量不限，每個 Client 後面的內網裝置數不限，另外每月 5 GB 加密中繼，留給直連打不通的時候。
 
+### 在 Client 裡完成
+
+桌面端和手機端可以全程自己搞定，不用在機器之間搬檔案：
+
+1. **裝 Client** —— 從 [lantunnel.app/download](https://lantunnel.app/download) 下載，或從本儲存庫自行建置。
+2. **登入** —— 在連線頁點「Sign in」。Client 會顯示一串短碼並開啟瀏覽器。核對網頁上的碼跟 Client 上的一致，批准它，Client 就會自己登入。只批准你此刻正在自己裝置上讀到的碼。
+3. **加一個 Peer** —— 點「Add a Peer」，按名稱選好 Tunnel。然後要麼取用這條 Tunnel 已經簽發過的 Peer（先前從 Console 加過的裝置就已經有一個），要麼給這台裝置取名新建一個。設定會在同一步裡匯入。
+4. **連線。**
+
+每台裝置重複一遍。剛在瀏覽器裡新建的 Tunnel 或 Peer，點一下 Tunnel 選擇器旁的「Refresh」就會出現。
+
+登入會在這台裝置上儲存一個該帳號的權杖。它能列出你的 Tunnel 並在其中新增 Peer，所以只有擁有者可讀 —— Linux 和 macOS 上是 `0600`，iOS 存在 Keychain，Android 存在應用私有儲存 —— 點「Sign out」即可刪除。它本身有效期有限，過期後 Client 會登出而不是自動續期。
+
+### 在瀏覽器裡完成
+
+這條路沒變，也仍然是無介面主機唯一的路 —— 它沒有螢幕顯示短碼：
+
 1. **建立一條 Tunnel** —— 到 [lantunnel.app](https://lantunnel.app/) 註冊並建立免費 Tunnel。不必填 Gateway 位址、不必準備憑證、不必設定 DNS。
 2. **為每台裝置新增一個 Peer** —— 筆電一個、NAS 一個、桌機一個。分別下載 `.peer` 設定檔。
 3. **安裝 Client** —— 從 [lantunnel.app/download](https://lantunnel.app/download) 下載，或自行從本儲存庫建置。

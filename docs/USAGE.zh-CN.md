@@ -57,6 +57,23 @@
 
 **[lantunnel.app](https://lantunnel.app/)** 替你运行整个 Gateway 集群。每个账号有一条永久免费的 Tunnel：点对点流量不限，每个 Client 后面的内网设备数不限，外加每月 5 GB 加密中继，留给直连打不通的时候。
 
+### 在 Client 里完成
+
+桌面端和手机端可以全程自己搞定，不用在机器之间搬文件：
+
+1. **装 Client** —— 从 [lantunnel.app/download](https://lantunnel.app/download) 下载，或者从本仓库自行构建。
+2. **登录** —— 在连接页点「Sign in」。Client 会显示一串短码并打开浏览器。核对网页上的码跟 Client 上的一致，批准它，Client 就会自己登录。只批准你此刻正在自己设备上读到的码。
+3. **加一个 Peer** —— 点「Add a Peer」，按名字选好 Tunnel。然后要么取用这条 Tunnel 已经签发过的 Peer（先前从 Console 加过的设备就已经有一个），要么给这台设备起名新建一个。配置会在同一步里导入。
+4. **连接。**
+
+每台设备重复一遍。刚在浏览器里新建的 Tunnel 或 Peer，点一下 Tunnel 选择器旁的「Refresh」就会出现。
+
+登录会在这台设备上保存一个该账号的令牌。它能列出你的 Tunnel 并向其中添加 Peer，所以只有属主可读 —— Linux 和 macOS 上是 `0600`，iOS 存在 Keychain，Android 存在应用私有存储 —— 点「Sign out」即可删除。它自身有有效期，过期后 Client 会登出而不是自动续期。
+
+### 在浏览器里完成
+
+这条路没变，也仍然是无界面主机唯一的路 —— 它没有屏幕显示短码：
+
 1. **建一条 Tunnel** —— 到 [lantunnel.app](https://lantunnel.app/) 注册并创建免费 Tunnel。不用填 Gateway 地址，不用证书，不用配 DNS。
 2. **给每台设备加一个 Peer** —— 笔记本一个，NAS 一个，台式机一个。分别下载 `.peer` 配置文件。
 3. **装 Client** —— 从 [lantunnel.app/download](https://lantunnel.app/download) 下载，或者从本仓库自行构建。

@@ -84,7 +84,7 @@ Lantunnel 把这些机器组成一个小小的私有网络 —— 一条 **Tunne
 
 <table>
   <tr>
-    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="连接"><br><sub><b>连接</b><br>连接状态、本机 Overlay IP，以及直连和中继各走了多少字节。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="连接"><br><sub><b>连接</b><br>连接状态、本机 Overlay IP、直连与中继各走了多少字节，以及当前登录的账号。</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Tunnel 里的每个 Peer、它的 Overlay IP，以及当前走的路径。</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="设置"><br><sub><b>设置</b><br>开机自启、原生路由、内网导出。</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="访问"><br><sub><b>访问</b><br>本地回环 SOCKS5 监听，以及这台设备愿意提供什么。</sub></td>
@@ -153,16 +153,24 @@ flowchart LR
 什么都不用部署。平台替你跑 Gateway 集群，你只跑 Client。
 
 1. **装上 Client** —— [lantunnel.app/download](https://lantunnel.app/download)。
-2. **登录** —— 在连接页点「Sign in」。Client 会打开你的浏览器，你核对并批准它显示的那串码，就登录好了。不用下载任何文件。
-3. **加一个 Peer** —— 点「Add a Peer」，选好 Tunnel，给这台设备起个名字。Client 会一步建好 Peer 并导入进来。
+2. **登录** —— 在连接页点「Sign in」。Client 会显示一串短码并打开浏览器；在网页上核对并批准这串码，Client 就自己登录好了。什么都不用下载。
+3. **加一个 Peer** —— 点「Add a Peer」，按名字选好 Tunnel。然后要么**直接取用这条 Tunnel 已经签发过的 Peer**，要么给这台设备起个名字新建一个。两种方式都会在同一步里把配置导入进来。
 4. **连接。**
 
 每台想加进 Tunnel 的设备都重复一遍。然后把程序的代理指到 `127.0.0.1:1080`，或者打开系统路由直接用内网地址访问。
 
-<details>
-<summary>更习惯在浏览器里操作？或者要从手机加入？</summary>
+> 同一台机器上，优先取用已有的 Peer，而不是再建一个。被你丢下的那个 Peer 仍然留在 Tunnel 里，还占着它的地址。
 
-到 [lantunnel.app](https://lantunnel.app/) 建好 Peer，下载它的 `.peer` 文件，在 Client 里用「Import .peer」导入。Android 和 iOS 上扫这份配置的二维码同样能导入。
+<details>
+<summary>无界面主机？或者还没有账号？</summary>
+
+登录是桌面端和手机端的功能 —— 无界面的 Client 没有屏幕显示短码，所以它走配置文件这条路。到 [lantunnel.app](https://lantunnel.app/) 建好 Peer，下载它的 `.peer`，然后导入：
+
+```bash
+lantunnel-client tunnel import ./nas.peer
+```
+
+桌面端用「Import .peer」是同一回事；Android 和 iOS 上扫这份配置的二维码也能导入。
 </details>
 
 <a id="mode-2"></a>

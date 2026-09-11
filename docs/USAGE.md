@@ -67,6 +67,35 @@ run both, since a Tunnel is independent of any account.
 gets one permanent Free Tunnel: unlimited direct peer-to-peer traffic, unlimited LAN
 devices behind each Client, and 5 GB/month of encrypted relay for when direct fails.
 
+### From the Client
+
+The desktop and phone Clients do the whole thing, so there is no file to move between
+machines:
+
+1. **Install the Client** — [lantunnel.app/download](https://lantunnel.app/download), or
+   build it from this repository.
+2. **Sign in** — press *Sign in* on the Connection screen. The Client shows a short code
+   and opens your browser. Check that the code on the page matches the one on the Client,
+   approve it, and the Client signs in by itself. Only ever approve a code you are reading
+   off your own device.
+3. **Add a Peer** — press *Add a Peer* and pick the Tunnel by name. Then either take a
+   Peer the Tunnel has already issued — a device added from the Console first already has
+   one — or name this device and create a new one. The profile is imported in the same
+   step.
+4. **Connect.**
+
+Repeat on every device. A Tunnel or Peer created in the browser a moment ago appears after
+*Refresh* in the Tunnel picker.
+
+Signing in stores a token for this account on the device. It can list your Tunnels and add
+Peers to them, so it is kept owner-only — mode `0600` on Linux and macOS, the Keychain on
+iOS, app-private storage on Android — and *Sign out* removes it. It expires on its own,
+and an expired one signs the Client out rather than renewing itself.
+
+### From the browser
+
+Unchanged, and still the route for a headless host, which has no screen to show a code on:
+
 1. **Create a Tunnel** — sign up at [lantunnel.app](https://lantunnel.app/) and create your
    Free Tunnel. No Gateway address, no certificate, no DNS to configure.
 2. **Add a Peer per device** — one for the laptop, one for the NAS, one for the desktop.
@@ -439,6 +468,10 @@ what the UI's "block all incoming" writes, so the saved file matches what you as
 
 `--headless` (alias `--no-ui`) runs the identical runtime with no window, tray, or WebView
 — same reconnect logic, same PeerLink and relay behaviour, same SOCKS5 and TUN surfaces.
+
+Signing in from the app is a desktop and phone feature: the device grant needs a screen to
+show its code on. A headless host imports a `.peer` file — download it from the Console, or
+issue it with `lantunnel-admin`, and run `lantunnel-client tunnel import`.
 
 Download `lantunnel-client-headless-<version>-<triple>` rather than the desktop package.
 It is the same runtime built with the UI compiled out: no Tauri, no WebView, 5-7MB

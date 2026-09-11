@@ -97,7 +97,7 @@ Lantunnel, easiest first — and the first one is three steps with no server to 
 
 <table>
   <tr>
-    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="Connection"><br><sub><b>Connection</b><br>State, this Peer's Overlay IP, and direct versus relayed bytes.</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="Connection"><br><sub><b>Connection</b><br>State, this Peer's Overlay IP, direct versus relayed bytes, and the account this Client is signed in as.</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Every Peer in the Tunnel, its Overlay IP, and the path in use.</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="Settings"><br><sub><b>Settings</b><br>Start at login, native routing, LAN export.</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="Access"><br><sub><b>Access</b><br>The loopback SOCKS5 listener and what this device will serve.</sub></td>
@@ -124,21 +124,33 @@ the first one** — it needs no server, no certificates, and no DNS.
 Nothing to deploy. The Platform runs the Gateway fleet; you run the Client.
 
 1. **Install the Client** — [lantunnel.app/download](https://lantunnel.app/download).
-2. **Sign in** — press *Sign in* on the Connection screen. The Client opens your browser,
-   you approve the code it shows, and it is signed in. No file to download.
-3. **Add a Peer** — press *Add a Peer*, choose your Tunnel, and name this device. The
-   Client creates the Peer and imports it in one step.
+2. **Sign in** — press *Sign in* on the Connection screen. The Client shows a short code
+   and opens your browser; approve that code there and the Client is signed in. Nothing to
+   download.
+3. **Add a Peer** — press *Add a Peer* and pick your Tunnel by name. Then either take a
+   Peer the Tunnel has already issued, or name this device and create a new one. Either
+   way the profile is imported here in the same step.
 4. **Connect.**
 
 Repeat on every device you want in the Tunnel. Then point an app at `127.0.0.1:1080`, or
 turn on native routing and use the LAN addresses directly.
 
-<details>
-<summary>Prefer the browser, or joining from a phone?</summary>
+> Take the Peer that already exists rather than adding a second one for the same machine.
+> A Peer you leave behind stays in the Tunnel and keeps its address.
 
-Create the Peer at [lantunnel.app](https://lantunnel.app/), download its `.peer` file, and
-use **Import .peer** in the Client. On Android and iOS the same profile imports by
-scanning its QR code.
+<details>
+<summary>Headless host, or no account?</summary>
+
+Signing in is a desktop and phone feature — a headless Client has no screen to show a code
+on, so it takes a profile file. Create the Peer at
+[lantunnel.app](https://lantunnel.app/), download its `.peer`, and import it:
+
+```bash
+lantunnel-client tunnel import ./nas.peer
+```
+
+**Import .peer** does the same in the desktop app, and Android and iOS also import by
+scanning the profile's QR code.
 </details>
 
 <a id="mode-2"></a>

@@ -84,7 +84,7 @@ Lantunnel 把這些機器組成一個小型私有網路 —— 一條 **Tunnel**
 
 <table>
   <tr>
-    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="連線"><br><sub><b>連線</b><br>連線狀態、本機 Overlay IP，以及直連和中繼各走了多少位元組。</sub></td>
+    <td width="25%" align="center" valign="top"><img src="./docs/images/client-connection.png" width="220" alt="連線"><br><sub><b>連線</b><br>連線狀態、本機 Overlay IP、直連與中繼各走了多少位元組，以及目前登入的帳號。</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-peers.png" width="220" alt="Peers"><br><sub><b>Peers</b><br>Tunnel 裡的每個 Peer、它的 Overlay IP，以及目前走的路徑。</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-settings.png" width="220" alt="設定"><br><sub><b>設定</b><br>開機自動啟動、原生路由、內網匯出。</sub></td>
     <td width="25%" align="center" valign="top"><img src="./docs/images/client-access.png" width="220" alt="存取"><br><sub><b>存取</b><br>本機回送 SOCKS5 監聽，以及這台裝置願意提供什麼。</sub></td>
@@ -153,16 +153,24 @@ flowchart LR
 什麼都不用部署。平台替你跑 Gateway 叢集，你只跑 Client。
 
 1. **裝上 Client** —— [lantunnel.app/download](https://lantunnel.app/download)。
-2. **登入** —— 在連線頁點「Sign in」。Client 會開啟你的瀏覽器，你核對並批准它顯示的那串碼，就登入好了。不用下載任何檔案。
-3. **加一個 Peer** —— 點「Add a Peer」，選好 Tunnel，給這台裝置取個名字。Client 會一步建好 Peer 並匯入進來。
+2. **登入** —— 在連線頁點「Sign in」。Client 會顯示一串短碼並開啟瀏覽器；在網頁上核對並批准這串碼，Client 就會自己登入。什麼都不用下載。
+3. **加一個 Peer** —— 點「Add a Peer」，按名稱選好 Tunnel。然後要麼**直接取用這條 Tunnel 已經簽發過的 Peer**，要麼給這台裝置取個名字新建一個。兩種方式都會在同一步裡把設定匯入進來。
 4. **連線。**
 
 每台想加進 Tunnel 的裝置都重複一遍。然後把程式的代理指到 `127.0.0.1:1080`，或者開啟系統路由直接用內網位址存取。
 
-<details>
-<summary>更習慣在瀏覽器裡操作？或者要從手機加入？</summary>
+> 同一台機器上，優先取用已有的 Peer，而不是再建一個。被你丟下的那個 Peer 仍然留在 Tunnel 裡，還占著它的位址。
 
-到 [lantunnel.app](https://lantunnel.app/) 建好 Peer，下載它的 `.peer` 檔，在 Client 裡用「Import .peer」匯入。Android 和 iOS 上掃這份設定的 QR Code 同樣能匯入。
+<details>
+<summary>無介面主機？或者還沒有帳號？</summary>
+
+登入是桌面端和手機端的功能 —— 無介面的 Client 沒有螢幕顯示短碼，所以它走設定檔這條路。到 [lantunnel.app](https://lantunnel.app/) 建好 Peer，下載它的 `.peer`，然後匯入：
+
+```bash
+lantunnel-client tunnel import ./nas.peer
+```
+
+桌面端用「Import .peer」是同一回事；Android 和 iOS 上掃這份設定的 QR Code 也能匯入。
 </details>
 
 <a id="mode-2"></a>

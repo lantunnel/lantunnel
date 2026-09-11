@@ -57,6 +57,23 @@ Beide Wege nutzen denselben Client und dasselbe Protokoll. Du kannst gehostet an
 
 **[lantunnel.app](https://lantunnel.app/)** betreibt die Gateway-Flotte für dich. Jedes Konto bekommt einen dauerhaft kostenlosen Tunnel: unbegrenzten Direktverkehr, beliebig viele LAN-Geräte hinter jedem Client und 5 GB verschlüsseltes Relay pro Monat für die Fälle, in denen die Direktverbindung scheitert.
 
+### Im Client
+
+Der Desktop- und der Telefon-Client erledigen den ganzen Weg, es muss also keine Datei zwischen Maschinen wandern:
+
+1. **Client installieren** — von [lantunnel.app/download](https://lantunnel.app/download) oder aus diesem Repository gebaut.
+2. **Anmelden** — im Verbindungsbildschirm auf „Sign in“ drücken. Der Client zeigt einen kurzen Code und öffnet deinen Browser. Prüfe, dass der Code auf der Seite dem im Client entspricht, bestätige ihn, und der Client meldet sich von selbst an. Bestätige nur einen Code, den du gerade auf deinem eigenen Gerät abliest.
+3. **Peer hinzufügen** — auf „Add a Peer“ drücken und den Tunnel am Namen wählen. Dann entweder einen Peer übernehmen, den der Tunnel schon ausgestellt hat — ein zuvor in der Konsole angelegtes Gerät hat bereits einen —, oder diesem Gerät einen Namen geben und einen neuen anlegen. Das Profil wird im selben Schritt importiert.
+4. **Verbinden.**
+
+Auf jedem Gerät wiederholen. Ein eben im Browser angelegter Tunnel oder Peer erscheint, sobald du neben der Tunnel-Auswahl „Refresh“ drückst.
+
+Beim Anmelden wird ein Token dieses Kontos auf dem Gerät abgelegt. Es kann deine Tunnel auflisten und ihnen Peers hinzufügen, also liegt es nur für den Besitzer lesbar — Modus `0600` unter Linux und macOS, der Schlüsselbund unter iOS, app-privater Speicher unter Android — und „Sign out“ entfernt es. Es läuft von selbst ab, und ein abgelaufenes meldet den Client ab, statt sich zu erneuern.
+
+### Im Browser
+
+Unverändert, und weiterhin der Weg für einen Host ohne Oberfläche, der keinen Bildschirm für einen Code hat:
+
 1. **Tunnel anlegen** — bei [lantunnel.app](https://lantunnel.app/) registrieren und den kostenlosen Tunnel erstellen. Keine Gateway-Adresse, kein Zertifikat, kein DNS.
 2. **Pro Gerät einen Peer hinzufügen** — einen fürs Notebook, einen fürs NAS, einen für den Desktop. Lade jedes `.peer`-Profil herunter.
 3. **Client installieren** — von [lantunnel.app/download](https://lantunnel.app/download) oder aus diesem Repository gebaut.

@@ -57,6 +57,23 @@ Les deux voies utilisent le même Client et le même protocole. Vous pouvez comm
 
 **[lantunnel.app](https://lantunnel.app/)** exploite la flotte de Gateways à votre place. Chaque compte dispose d'un Tunnel gratuit permanent : trafic pair à pair illimité, nombre illimité d'appareils LAN derrière chaque Client, et 5 Go de relais chiffré par mois pour les cas où la liaison directe échoue.
 
+### Depuis le Client
+
+Les Clients de bureau et mobiles font tout le parcours : aucun fichier à déplacer d'une machine à l'autre.
+
+1. **Installez le Client** — depuis [lantunnel.app/download](https://lantunnel.app/download), ou compilé depuis ce dépôt.
+2. **Connectez-vous** — appuyez sur « Sign in » dans l'écran de connexion. Le Client affiche un code court et ouvre votre navigateur. Vérifiez que le code de la page correspond à celui du Client, approuvez-le, et le Client se connecte tout seul. N'approuvez qu'un code que vous lisez à cet instant sur votre propre appareil.
+3. **Ajoutez un Peer** — appuyez sur « Add a Peer » et choisissez le Tunnel par son nom. Reprenez ensuite un Peer que le Tunnel a déjà émis — un appareil ajouté auparavant depuis la Console en a déjà un — ou nommez cet appareil et créez-en un nouveau. Le profil est importé dans la même étape.
+4. **Connectez-vous.**
+
+Recommencez sur chaque appareil. Un Tunnel ou un Peer créé il y a un instant dans le navigateur apparaît après un clic sur « Refresh » à côté du sélecteur de Tunnel.
+
+La connexion enregistre sur l'appareil un jeton de ce compte. Il peut lister vos Tunnels et y ajouter des Peers : il est donc conservé en lecture réservée au propriétaire — permissions `0600` sous Linux et macOS, le Trousseau sous iOS, le stockage privé de l'application sous Android — et « Sign out » le supprime. Il expire de lui-même, et un jeton expiré déconnecte le Client au lieu de se renouveler.
+
+### Depuis le navigateur
+
+Inchangé, et toujours la voie d'un hôte sans interface, qui n'a pas d'écran pour afficher un code :
+
 1. **Créez un Tunnel** — inscrivez-vous sur [lantunnel.app](https://lantunnel.app/) et créez votre Tunnel gratuit. Aucune adresse de Gateway, aucun certificat, aucun DNS à configurer.
 2. **Ajoutez un Peer par appareil** — un pour le portable, un pour le NAS, un pour le poste fixe. Téléchargez chaque profil `.peer`.
 3. **Installez le Client** — depuis [lantunnel.app/download](https://lantunnel.app/download), ou en le compilant depuis ce dépôt.
