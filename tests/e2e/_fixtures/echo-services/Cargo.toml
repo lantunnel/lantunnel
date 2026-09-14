@@ -34,7 +34,7 @@ anyhow.workspace = true
 # SHA-256 for the TCP large-download X-SHA256 header. Not in workspace deps;
 # 0.10 is already in Cargo.lock transitively, so pinning to 0.10 here adds no
 # new lock entries.
-sha2 = "0.10"
+sha2 = "0.11"
 
 [dev-dependencies]
 # Smoke tests use tokio for TCP/UDP and reqwest for HTTP/POST + /stats.
@@ -47,4 +47,4 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 reqwest.workspace = true
-sha2 = "0.10"
+sha2 = "0.11"
