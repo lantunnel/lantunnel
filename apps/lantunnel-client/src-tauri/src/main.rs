@@ -31,10 +31,14 @@ use lantunnel_client::client_ui_status::{
 };
 use lantunnel_client::peer_store::{
     import_peer_profile as import_peer_profile_file,
-    import_peer_profile_bytes as import_peer_profile_from_bytes,
     list_peer_profiles as list_peer_profiles_from_store, load_peer_profile,
-    replace_private_json_file, ImportedPeerSummaryV2, PeerLabelsV2,
+    replace_private_json_file, ImportedPeerSummaryV2,
 };
+#[cfg(feature = "ui")]
+use lantunnel_client::peer_store::{
+    import_peer_profile_bytes as import_peer_profile_from_bytes, PeerLabelsV2,
+};
+#[cfg(feature = "ui")]
 use lantunnel_client::platform_session::{
     clear_platform_session, load_platform_session, store_platform_session, PlatformSession,
 };

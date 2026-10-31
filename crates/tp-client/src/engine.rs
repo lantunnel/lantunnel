@@ -1460,6 +1460,8 @@ impl ReplicaActivity {
     }
 
     fn mark_disconnected(&self, engine: &Engine, parent_cancelled: bool) {
+        // `fetch_update` is deprecated in favour of `try_update`, which is unstable at the 1.89 MSRV.
+        #[allow(deprecated)]
         let active = self
             .active
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
