@@ -57,6 +57,7 @@ ignore = [
     { id = "RUSTSEC-2024-0370", reason = "proc-macro-error unmaintained; transitive via older procedural-macro crates; no user-facing impact" },
     { id = "RUSTSEC-2025-0057", reason = "fxhash unmaintained; transitive; no user-facing impact" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; transitive via rustls ecosystem; re-check when rustls upstream migrates" },
+    { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml unmaintained, no fixed release; pulled in by our direct serde_yaml 0.9 dependency for config and provisioning YAML. No known vulnerability. Drop when serde_yaml is replaced." },
 
     # --- Unsoundness GitHub's advisory database reports and cargo-audit files
     #     as warnings. Listed explicitly so this repository has one reviewed
