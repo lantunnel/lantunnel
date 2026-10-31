@@ -161,7 +161,7 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-workspace-gates-stable
 
@@ -298,7 +298,7 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.rust_target }}
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-cli-${{ matrix.rust_target }}
 
@@ -455,7 +455,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/lantunnel-client/frontend/package-lock.json
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-client-${{ matrix.rust_target }}
 
@@ -521,7 +521,7 @@ jobs:
           $nodeDirectory = Split-Path (Get-Command node).Source
           "WINDOWS_NODE_DIRECTORY=$nodeDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-client-x86_64-pc-windows-msvc
 
@@ -662,7 +662,7 @@ jobs:
           toolchain: stable
           targets: aarch64-linux-android
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-client-aarch64-linux-android
 
