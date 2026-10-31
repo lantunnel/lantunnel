@@ -67,6 +67,16 @@ updates:
       # entry point both have to be rewritten. Not a bump.
       - dependency-name: tailwindcss
         update-types: ["version-update:semver-major"]
+      # `tauri build` refuses Tauri npm packages that are not on the same
+      # major/minor as their Rust crates. tauri 2.12 and tauri-plugin-dialog
+      # 2.8 need Rust 1.90, above the 1.89 MSRV, so the crates stay on 2.11
+      # and 2.7 and these npm packages wait with them.
+      - dependency-name: "@tauri-apps/api"
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "@tauri-apps/plugin-dialog"
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
