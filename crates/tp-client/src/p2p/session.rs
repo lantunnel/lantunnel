@@ -99,6 +99,8 @@ pub struct TcpFlowStreamGuard {
 
 impl Drop for TcpFlowStreamGuard {
     fn drop(&mut self) {
+        // `fetch_update` is deprecated in favour of `try_update`, which is unstable at the 1.89 MSRV.
+        #[allow(deprecated)]
         let _ = self
             .active
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {

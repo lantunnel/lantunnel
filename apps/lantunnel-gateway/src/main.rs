@@ -496,12 +496,10 @@ fn reject_legacy_public_gateway_yaml(raw: &str) -> anyhow::Result<()> {
             "lantunnel-gateway is V2-only; gateway config keys must be plain YAML strings"
         );
     }
-    for forbidden_runtime_key in ["platform_pairing"] {
-        if gateway.contains_key(serde_yaml::Value::String(forbidden_runtime_key.into())) {
-            anyhow::bail!(
-                "lantunnel-gateway Managed V2 identity is state-owned; gateway.{forbidden_runtime_key} is forbidden in runtime YAML"
-            );
-        }
+    if gateway.contains_key(serde_yaml::Value::String("platform_pairing".into())) {
+        anyhow::bail!(
+            "lantunnel-gateway Managed V2 identity is state-owned; gateway.platform_pairing is forbidden in runtime YAML"
+        );
     }
     for obsolete_inbound_key in ["web", "platform_auth"] {
         if gateway.contains_key(serde_yaml::Value::String(obsolete_inbound_key.into())) {

@@ -98,6 +98,8 @@ impl TrafficCounters {
     }
 
     pub fn mark_progress(&self) {
+        // `fetch_update` is deprecated in favour of `try_update`, which is unstable at the 1.89 MSRV.
+        #[allow(deprecated)]
         let _ = self
             .progress_epoch
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
@@ -110,6 +112,8 @@ fn saturating_atomic_add(slot: &AtomicU64, bytes: u64) {
     if bytes == 0 {
         return;
     }
+    // `fetch_update` is deprecated in favour of `try_update`, which is unstable at the 1.89 MSRV.
+    #[allow(deprecated)]
     let _ = slot.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
         Some(current.saturating_add(bytes))
     });
