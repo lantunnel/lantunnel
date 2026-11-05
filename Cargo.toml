@@ -67,7 +67,7 @@ subtle = "2.6"
 # Key material read off disk is wiped on drop rather than left in freed heap.
 zeroize = { version = "1", features = ["alloc", "serde"] }
 x25519-dalek = "2"
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 
 # HTTP (platform API client + HTTP proxy + gateway admin)
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots", "stream"] }
