@@ -55,3 +55,4 @@ windows-sys = { version = "0.61.2", features = [
 tempfile = "3"
 rand.workspace = true
 rsa = { version = "0.9", features = ["pem"] }
+tokio = { workspace = true, features = ["test-util"] }

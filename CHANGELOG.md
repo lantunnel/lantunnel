@@ -10,6 +10,13 @@ before this repository was opened and are not documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Managed Gateway whose connection to lantunnel.app stalls while connecting
+  now gives up after 30 seconds and tries again. Before, a stalled connection
+  attempt could leave the Gateway shown as Offline for days while it kept
+  serving traffic, until someone restarted it.
+
 ## [2.0.12] - 2026-09-11
 
 ### Added
