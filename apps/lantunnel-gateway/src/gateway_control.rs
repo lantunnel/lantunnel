@@ -25,7 +25,10 @@ const MAX_GATEWAY_STATE_FRAME_BYTES: usize = 1024;
 const MAX_USAGE_FRAME_BYTES: usize = 1024 * 1024;
 const MAX_USAGE_ITEMS: usize = 256;
 const SCOPE_SNAPSHOT_DIGEST_DOMAIN: &str = "lantunnel.gateway.scope-snapshot.v2";
-const REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+/// Deadline to connect, authenticate, and apply the first Scope snapshot. Until
+/// that snapshot the Gateway has nothing to send, so a Platform reply lost in the
+/// network would otherwise leave the session waiting forever.
+const SESSION_ESTABLISH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 pub(crate) type GatewayReadinessProbe =
     Arc<dyn Fn() -> BoxFuture<'static, bool> + Send + Sync + 'static>;
@@ -387,6 +390,10 @@ impl GatewayControlSession {
         }
     }
 
+    fn is_active(&self) -> bool {
+        self.phase == SessionPhase::Active
+    }
+
     pub(crate) fn periodic_gateway_state(&self) -> Option<GatewayFrame> {
         self.applied_scope_digest
             .as_deref()
@@ -454,7 +461,7 @@ impl GatewayControlConnectConfig {
 /// and application of the first authoritative snapshot is the success signal;
 /// callers may then remove the one-time BYOG pairing input.
 pub(crate) async fn register_once(config: GatewayControlConnectConfig) -> anyhow::Result<()> {
-    tokio::time::timeout(REGISTRATION_TIMEOUT, register_once_inner(config))
+    tokio::time::timeout(SESSION_ESTABLISH_TIMEOUT, register_once_inner(config))
         .await
         .context("Gateway control registration timed out")?
 }
@@ -554,7 +561,10 @@ async fn run_runtime_connection(
     gateway: Arc<Gateway>,
     relay_usage_wal: Arc<RelayUsageWal>,
 ) -> anyhow::Result<()> {
-    let mut socket = connect_control_socket(config).await?;
+    let establish_deadline = tokio::time::Instant::now() + SESSION_ESTABLISH_TIMEOUT;
+    let mut socket = tokio::time::timeout_at(establish_deadline, connect_control_socket(config))
+        .await
+        .context("Gateway control WSS connect timed out")??;
     let mut session = GatewayControlSession::new(config.identity()?, gateway.scopes().clone());
     let mut state_interval = tokio::time::interval_at(
         tokio::time::Instant::now() + std::time::Duration::from_secs(60),
@@ -623,6 +633,9 @@ async fn run_runtime_connection(
                         bail!("Gateway control accepts text protocol frames only")
                     }
                 }
+            }
+            _ = tokio::time::sleep_until(establish_deadline), if !session.is_active() => {
+                bail!("Gateway control session got no Scope snapshot before its deadline")
             }
             _ = state_interval.tick() => {
                 if let Some(state) = session.periodic_gateway_state() {
@@ -930,6 +943,42 @@ mod tests {
         .unwrap()
         .scope()
         .unwrap()
+    }
+
+    /// A lost Platform TLS reply once left a reconnecting Gateway with nothing
+    /// unacknowledged, so the session waited for days instead of retrying.
+    #[tokio::test(start_paused = true)]
+    async fn a_silent_platform_ends_the_runtime_session_instead_of_hanging() {
+        // Bound but never accepted: the kernel completes TCP and nothing answers TLS.
+        let silent_platform = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let config = GatewayControlConnectConfig {
+            kind: GatewayControlKind::Byog,
+            gateway_id: GATEWAY_ID.into(),
+            platform_url: format!("https://{}", silent_platform.local_addr().unwrap()),
+            boot_id: BOOT_ID.into(),
+            leaf_sha256: String::new(),
+            private_key_pem: Vec::new(),
+            certificate_pem: None,
+            claim_secret: None,
+        };
+        let wal_dir = tempfile::tempdir().unwrap();
+        let wal = Arc::new(RelayUsageWal::open(wal_dir.path().join("relay-usage.wal")).unwrap());
+        let readiness: GatewayReadinessProbe = Arc::new(|| Box::pin(async { true }));
+
+        let result = tokio::time::timeout(
+            SESSION_ESTABLISH_TIMEOUT * 2,
+            run_runtime_connection(
+                &config,
+                &readiness,
+                Gateway::new(Default::default(), None),
+                wal,
+            ),
+        )
+        .await
+        .expect("a silent Platform must end the session, not hang it");
+
+        let error = result.expect_err("no session can be established");
+        assert!(error.to_string().contains("timed out"), "{error:#}");
     }
 
     #[tokio::test]
