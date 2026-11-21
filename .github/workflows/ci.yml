@@ -192,6 +192,14 @@ jobs:
       - name: Stage the shared UI into the Android Client
         run: make _stage-android-ui
 
+      # Gradle 8.9 cannot run on the runner's default JDK once that moves past
+      # what it supports (it moved to 25). Pin the JDK the app targets, as the
+      # release workflow already does.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Android unit tests
         run: |
           cd apps/android-proxy
