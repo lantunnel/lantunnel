@@ -69,6 +69,11 @@ updates:
         update-types: ["version-update:semver-minor"]
       - dependency-name: tauri-plugin-dialog
         update-types: ["version-update:semver-minor"]
+      # parking_lot 0.13 (with lock_api 0.5 and parking_lot_core 0.10) needs
+      # Rust 1.95, above the 1.89 MSRV. It waits for an MSRV bump.
+      - dependency-name: parking_lot
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /apps/lantunnel-client/frontend
