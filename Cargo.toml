@@ -92,7 +92,7 @@ tracing-appender = "0.2"
 file-rotate = "0.8"
 
 # Rate limiting (bandwidth enforcement)
-governor = "0.7"
+governor = "0.10"
 nonzero_ext = "0.3"
 
 # Utilities
