@@ -75,6 +75,12 @@ updates:
       - dependency-name: parking_lot
         update-types:
           ["version-update:semver-minor", "version-update:semver-major"]
+      # libc 0.2.190 moved the routing constants (RTAX_MAX, ...) behind
+      # cfg(target_os = "macos"). netdev 0.37.2, pinned in tp-client, imports
+      # libc::RTAX_MAX on iOS, so the iOS build breaks. Lift this when netdev
+      # is upgraded.
+      - dependency-name: libc
+        versions: [">= 0.2.190"]
 
   - package-ecosystem: npm
     directory: /apps/lantunnel-client/frontend
