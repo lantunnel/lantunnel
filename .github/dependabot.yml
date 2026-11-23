@@ -32,6 +32,15 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: prost
         update-types: ["version-update:semver-major"]
+      # tonic and tonic-build must stay on the same minor: tonic-build 0.13
+      # generates code for the tonic 0.13 runtime (tonic::body::Body), which
+      # does not compile against tonic 0.12. They move together with prost.
+      - dependency-name: tonic
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: tonic-build
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
       # hkdf 0.13 — a pre-1.0 minor is a breaking change under Cargo's semver
       # rules, and this one moves the RustCrypto trait bounds the provisioning
       # and PeerLink key derivation are written against. It lands with the rest
