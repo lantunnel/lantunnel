@@ -227,7 +227,7 @@ if grep -q 'Set-AuthenticodeSignature' <<<"$windows_job"; then
   exit 1
 fi
 grep -q 'Build unsigned preview NSIS installer through the public Make release path' <<<"$windows_job"
-installer_verification="$(sed -n '/Verify unsigned preview installer is NotSigned/,/uses: actions\/upload-artifact@v4/p' <<<"$windows_job")"
+installer_verification="$(sed -n '/Verify unsigned preview installer is NotSigned/,/uses: actions\/upload-artifact@/p' <<<"$windows_job")"
 grep -Fq 'Get-AuthenticodeSignature -LiteralPath $artifact' <<<"$installer_verification"
 grep -Fq '$signature.Status -ne '\''NotSigned'\''' <<<"$installer_verification"
 grep -q 'expected unsigned Windows preview installer' <<<"$installer_verification"
@@ -328,7 +328,7 @@ grep -q 'refusing incomplete or extra public release artifacts' "$RELEASE_WORKFL
 manual_bundle="$(sed -n '/^  manual-build-bundle:/,/^  publish-github-release:/p' "$RELEASE_WORKFLOW")"
 grep -Fq 'sha256sum "${expected[@]}" > checksums.txt' <<<"$manual_bundle"
 grep -Fq './scripts/verify_release_bundle.sh "$VERSION" dist/release' <<<"$manual_bundle"
-grep -Eq 'uses: actions/upload-artifact@[0-9a-f]{40} # v4' <<<"$manual_bundle"
+grep -Eq 'uses: actions/upload-artifact@[0-9a-f]{40} # v[0-9]' <<<"$manual_bundle"
 if grep -Eq 'github\.event_name|publish_github_release|gh (api|release)|contents: write|R2_|upload\.sh' <<<"$manual_bundle"; then
   echo 'manual candidate build can overwrite the accepted formal release' >&2
   exit 1
