@@ -28,25 +28,14 @@ all-features = false
 #   accept the risk and under what condition we'd revisit. Any NEW advisory
 #   post-this-commit — or a new version of an ignored crate where the fix
 #   lands — will immediately trip CI and force the PR to re-evaluate.
-# - "Unmaintained" transitive advisories pulled in by Tauri's Linux path
-#   (gtk3 bindings, atk, proc-macro-error) are accepted until Tauri moves
-#   to gtk4-rs.
+# - "Unmaintained" transitive advisories pulled in by Tauri (rust-unic)
+#   are accepted until Tauri replaces those crates.
 version = 2
 yanked = "deny"
 ignore = [
-    # --- Unmaintained transitive via tauri (Linux desktop GUI path) ---
-    # Re-evaluate when tauri upstream migrates to gtk4-rs / rust-unic is
-    # replaced. We don't control these dep versions.
-    { id = "RUSTSEC-2024-0411", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0412", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0413", reason = "atk unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0414", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0415", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0416", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0417", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0418", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0419", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
-    { id = "RUSTSEC-2024-0420", reason = "gtk3-rs unmaintained; transitive via tauri; no upgrade path" },
+    # --- Unmaintained transitive via tauri ---
+    # Re-evaluate when tauri upstream replaces rust-unic. We don't control
+    # these dep versions.
     { id = "RUSTSEC-2025-0075", reason = "unic-char-range unmaintained; same rust-unic family as 0098" },
     { id = "RUSTSEC-2025-0080", reason = "unic-common unmaintained; same rust-unic family as 0098" },
     { id = "RUSTSEC-2025-0081", reason = "unic-char-property unmaintained; same rust-unic family as 0098" },
@@ -64,7 +53,7 @@ ignore = [
     #     as warnings. Listed explicitly so this repository has one reviewed
     #     answer rather than a quiet gate and open Dependabot alerts. ---
     { id = "RUSTSEC-2026-0097", reason = "rand 0.7.3 unsound with a custom logger. Build-dependency only: tauri-build -> tauri-utils -> kuchikiki -> selectors -> phf_codegen -> phf_generator. It never reaches a shipped binary and no Lantunnel code calls it. Upstream pins the chain; re-check when tauri-utils drops kuchikiki." },
-    { id = "RUSTSEC-2024-0429", reason = "glib 0.18 VariantStrIter iterator unsoundness. Linux desktop GUI path only, pinned by tauri -> webkit2gtk -> gtk 0.18. Same gtk3 family as the unmaintained advisories above and blocked on the same gtk4-rs migration." },
+    { id = "RUSTSEC-2024-0429", reason = "glib 0.18 VariantStrIter iterator unsoundness. Linux desktop GUI path only, pinned by tauri -> webkit2gtk -> gtk 0.18. Blocked on Tauri's gtk4-rs migration." },
 
     # --- Accepted vulnerabilities ---
     # `rsa` has no patched release for the Marvin sidechannel, so this entry
