@@ -14,18 +14,29 @@ before this repository was opened and are not documented here.
 
 ### Fixed
 
-- A Managed Gateway whose connection to lantunnel.app stalls while connecting
-  now gives up after 30 seconds and tries again. Before, a stalled connection
-  attempt could leave the Gateway shown as Offline for days while it kept
-  serving traffic, until someone restarted it.
+- A Gateway connected to lantunnel.app, your own or one Lantunnel runs, now
+  gives up on a connection attempt that stalls after 30 seconds and tries
+  again. Before, a stalled attempt could leave the Gateway shown as Offline for
+  days while it kept serving traffic, until someone restarted it.
 
 ### Security
 
-- On macOS and iOS, a UDP datagram larger than the receive buffer could keep
-  the network task of the Client, or of a Gateway running on macOS, busy until
-  a smaller packet arrived. Anyone who could reach that UDP port could send
-  one. Such a datagram is now dropped and the task carries on. Linux, Windows,
-  and Android were not affected.
+- The Client and the Gateway no longer accept lantunnel.app certificates that
+  chain through the emSign intermediate authorities that are no longer
+  trusted.
+- A server, or anyone who could see the Client's first QUIC packet, could
+  crash the Client or exhaust its memory by answering with an oversized Retry
+  token. This affected every platform.
+- A remote QUIC peer could make the Client or the Gateway hold unbounded
+  memory with empty datagrams, or accept far more streams than it allows.
+- TLS connections no longer accept handshake messages at the wrong encryption
+  level, and a forged server reply can no longer push later connections from
+  post-quantum key exchange back to classical key exchange.
+- On macOS and iOS, an oversized UDP packet could keep the network task of the
+  Client, or of a Gateway running on macOS, busy until a smaller packet
+  arrived, and anyone who could reach that UDP port could send one. Such a
+  packet is now dropped. Linux, Windows, and Android were not affected by this
+  one.
 
 ## [2.0.12] - 2026-09-11
 
