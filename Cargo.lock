@@ -1050,9 +1050,9 @@ dependencies = [
  "cfg-if",
  "crossbeam-utils",
  "hashbrown 0.14.5",
- "lock_api",
+ "lock_api 0.4.14",
  "once_cell",
- "parking_lot_core",
+ "parking_lot_core 0.9.12",
 ]
 
 [[package]]
@@ -1243,7 +1243,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1428,7 +1428,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1924,7 +1924,7 @@ dependencies = [
  "futures-util",
  "no-std-compat",
  "nonzero_ext",
- "parking_lot",
+ "parking_lot 0.12.5",
  "portable-atomic",
  "quanta",
  "rand 0.8.6",
@@ -2226,7 +2226,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.5",
  "tokio",
  "tower-service",
  "tracing",
@@ -2689,7 +2689,7 @@ dependencies = [
  "dirs 5.0.1",
  "fs2",
  "libc",
- "parking_lot",
+ "parking_lot 0.13.0",
  "rfd",
  "rustls",
  "serde",
@@ -2792,9 +2792,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.185"
+version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
+checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "libdbus-sys"
@@ -2847,6 +2847,15 @@ name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
+dependencies = [
+ "scopeguard",
+]
+
+[[package]]
+name = "lock_api"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65d91b22da179613dcf4d6ec8349563f52a363f6849e03b00dd0a185ec4a59af"
 dependencies = [
  "scopeguard",
 ]
@@ -3146,7 +3155,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3487,7 +3496,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.45.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3531,8 +3540,18 @@ version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
 dependencies = [
- "lock_api",
- "parking_lot_core",
+ "lock_api 0.4.14",
+ "parking_lot_core 0.9.12",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226"
+dependencies = [
+ "lock_api 0.5.0",
+ "parking_lot_core 0.10.0",
 ]
 
 [[package]]
@@ -3543,7 +3562,19 @@ checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall",
+ "redox_syscall 0.5.18",
+ "smallvec",
+ "windows-link 0.2.1",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cfff060068cc18aa7815010fcaf80c68c7fb9e85fc7f5c0f9bf142c21d19826"
+dependencies = [
+ "libc",
+ "redox_syscall 0.9.5",
  "smallvec",
  "windows-link 0.2.1",
 ]
@@ -4038,7 +4069,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.14.0",
  "log",
  "multimap",
@@ -4111,7 +4142,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.5.10",
+ "socket2 0.6.5",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -4149,9 +4180,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.5",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4336,6 +4367,15 @@ name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+dependencies = [
+ "bitflags 2.11.1",
+]
+
+[[package]]
+name = "redox_syscall"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "580c875845b41ecb1564ad1ae4703044cef774145e3d7a94dc2b3fa7c97868fd"
 dependencies = [
  "bitflags 2.11.1",
 ]
@@ -4578,7 +4618,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5071,9 +5111,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "smallvec"
-version = "1.15.1"
+version = "1.16.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+checksum = "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59"
 
 [[package]]
 name = "socket2"
@@ -5110,7 +5150,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-quartz-core",
  "raw-window-handle",
- "redox_syscall",
+ "redox_syscall 0.5.18",
  "tracing",
  "wasm-bindgen",
  "web-sys",
@@ -5155,7 +5195,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d96d2d1d716fb500937168cc09353ffdc7a012be8475ac7308e1bdf0e3923300"
 dependencies = [
- "lock_api",
+ "lock_api 0.4.14",
 ]
 
 [[package]]
@@ -5181,7 +5221,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf776ba3fa74f83bf4b63c3dcbbf82173db2632ed8452cb2d891d33f459de70f"
 dependencies = [
  "new_debug_unreachable",
- "parking_lot",
+ "parking_lot 0.12.5",
  "phf_shared 0.11.3",
  "precomputed-hash",
  "serde",
@@ -5194,7 +5234,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a18596f8c785a729f2819c0f6a7eae6ebeebdfffbfe4214ae6b087f690e31901"
 dependencies = [
  "new_debug_unreachable",
- "parking_lot",
+ "parking_lot 0.12.5",
  "phf_shared 0.13.1",
  "precomputed-hash",
 ]
@@ -5367,7 +5407,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-ui-kit",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.5",
  "percent-encoding",
  "raw-window-handle",
  "tao-macros",
@@ -5712,10 +5752,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6178,7 +6218,7 @@ dependencies = [
  "futures-util",
  "if-addrs",
  "netdev",
- "parking_lot",
+ "parking_lot 0.13.0",
  "quinn",
  "rcgen",
  "reqwest 0.12.28",
@@ -6217,7 +6257,7 @@ dependencies = [
  "governor",
  "hkdf",
  "nonzero_ext",
- "parking_lot",
+ "parking_lot 0.13.0",
  "rand 0.8.6",
  "ring",
  "rustls-pemfile",
@@ -6301,7 +6341,7 @@ dependencies = [
  "futures-util",
  "governor",
  "nonzero_ext",
- "parking_lot",
+ "parking_lot 0.13.0",
  "rand 0.8.6",
  "serde",
  "serde_json",
@@ -6334,7 +6374,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "dashmap",
- "parking_lot",
+ "parking_lot 0.13.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -6350,7 +6390,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "parking_lot",
+ "parking_lot 0.13.0",
  "serde",
  "serde_json",
  "tokio",
@@ -6401,7 +6441,7 @@ dependencies = [
  "bytes",
  "criterion",
  "dashmap",
- "parking_lot",
+ "parking_lot 0.13.0",
  "tokio",
  "tp-core",
  "tp-transport",
@@ -6441,7 +6481,7 @@ dependencies = [
  "http",
  "hyper-util",
  "libc",
- "parking_lot",
+ "parking_lot 0.13.0",
  "prost",
  "quinn",
  "rcgen",
@@ -7103,7 +7143,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
