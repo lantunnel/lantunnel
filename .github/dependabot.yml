@@ -60,14 +60,15 @@ updates:
       - dependency-name: chacha20poly1305
         update-types:
           ["version-update:semver-minor", "version-update:semver-major"]
-      # tauri 2.12, tauri-build 2.7 and tauri-plugin-dialog 2.8 need Rust
-      # 1.90, above the 1.89 MSRV. They wait for an MSRV bump together with
-      # the matching @tauri-apps npm packages ignored below.
+      # tauri 2.12, tauri-build 2.7 and the plugin releases built on them
+      # (tauri-plugin-dialog 2.8, tauri-plugin-shell 2.6, ...) need Rust 1.90,
+      # above the 1.89 MSRV. They wait for an MSRV bump together with the
+      # matching @tauri-apps npm packages ignored below.
       - dependency-name: tauri
         update-types: ["version-update:semver-minor"]
       - dependency-name: tauri-build
         update-types: ["version-update:semver-minor"]
-      - dependency-name: tauri-plugin-dialog
+      - dependency-name: "tauri-plugin-*"
         update-types: ["version-update:semver-minor"]
       # parking_lot 0.13 (with lock_api 0.5 and parking_lot_core 0.10) needs
       # Rust 1.95, above the 1.89 MSRV. It waits for an MSRV bump.
