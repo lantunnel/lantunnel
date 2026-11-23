@@ -1541,9 +1541,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "form_urlencoded"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+checksum = "afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e"
 dependencies = [
  "percent-encoding",
 ]
@@ -2676,7 +2676,7 @@ dependencies = [
 
 [[package]]
 name = "lantunnel-admin"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "clap",
@@ -2691,7 +2691,7 @@ dependencies = [
 
 [[package]]
 name = "lantunnel-client"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2728,7 +2728,7 @@ dependencies = [
 
 [[package]]
 name = "lantunnel-gateway"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6176,7 +6176,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tp-client"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -6216,7 +6216,7 @@ dependencies = [
 
 [[package]]
 name = "tp-core"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -6245,7 +6245,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-echo-services"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "axum 0.8.9",
@@ -6259,7 +6259,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-p1-connectivity"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "clap",
@@ -6270,7 +6270,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-p2-latency"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "clap",
@@ -6285,7 +6285,7 @@ dependencies = [
 
 [[package]]
 name = "tp-e2e-p3-throughput"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "clap",
@@ -6301,7 +6301,7 @@ dependencies = [
 
 [[package]]
 name = "tp-gateway"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6330,7 +6330,7 @@ dependencies = [
 
 [[package]]
 name = "tp-host-filter"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "regex",
  "thiserror 2.0.18",
@@ -6338,7 +6338,7 @@ dependencies = [
 
 [[package]]
 name = "tp-ipc"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6355,7 +6355,7 @@ dependencies = [
 
 [[package]]
 name = "tp-metrics"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "chrono",
  "criterion",
@@ -6369,7 +6369,7 @@ dependencies = [
 
 [[package]]
 name = "tp-mobile-ffi"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -6388,7 +6388,7 @@ dependencies = [
 
 [[package]]
 name = "tp-proxy-http"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6404,7 +6404,7 @@ dependencies = [
 
 [[package]]
 name = "tp-proxy-socks5"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6420,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "tp-proxy-tuic"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6441,7 +6441,7 @@ dependencies = [
 
 [[package]]
 name = "tp-transport"
-version = "2.0.12"
+version = "2.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6706,9 +6706,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "url"
-version = "2.5.8"
+version = "2.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+checksum = "f00cd2407bb42c0ef17be88d4cf020f5cceffd121665bac9b8b9493a369b3b1a"
 dependencies = [
  "form_urlencoded",
  "idna",
