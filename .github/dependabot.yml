@@ -45,6 +45,21 @@ updates:
       - dependency-name: sha2
         update-types:
           ["version-update:semver-minor", "version-update:semver-major"]
+      # chacha20poly1305 0.11 is part of the same RustCrypto bump: it moves to
+      # aead 0.6 (no OsRng re-export, no generate_nonce, AeadInPlace replaced
+      # by AeadInOut), so the relay crypto in tp-client stops compiling.
+      - dependency-name: chacha20poly1305
+        update-types:
+          ["version-update:semver-minor", "version-update:semver-major"]
+      # tauri 2.12, tauri-build 2.7 and tauri-plugin-dialog 2.8 need Rust
+      # 1.90, above the 1.89 MSRV. They wait for an MSRV bump together with
+      # the matching @tauri-apps npm packages ignored below.
+      - dependency-name: tauri
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: tauri-build
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: tauri-plugin-dialog
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: npm
     directory: /apps/lantunnel-client/frontend
