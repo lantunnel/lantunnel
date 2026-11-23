@@ -24,14 +24,11 @@ before this repository was opened and are not documented here.
 - The Client and the Gateway no longer accept lantunnel.app certificates that
   chain through the emSign intermediate authorities that are no longer
   trusted.
-- A server, or anyone who could see the Client's first QUIC packet, could
-  crash the Client or exhaust its memory by answering with an oversized Retry
-  token. This affected every platform.
+- A server, or anyone who could see the Client's first QUIC packet and answer
+  before the server did, could crash the Client or exhaust its memory with an
+  oversized Retry token. This affected QUIC connections on every platform.
 - A remote QUIC peer could make the Client or the Gateway hold unbounded
   memory with empty datagrams, or accept far more streams than it allows.
-- TLS connections no longer accept handshake messages at the wrong encryption
-  level, and a forged server reply can no longer push later connections from
-  post-quantum key exchange back to classical key exchange.
 - On macOS and iOS, an oversized UDP packet could keep the network task of the
   Client, or of a Gateway running on macOS, busy until a smaller packet
   arrived, and anyone who could reach that UDP port could send one. Such a
