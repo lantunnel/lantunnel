@@ -525,7 +525,7 @@ jobs:
         with:
           key: release-client-x86_64-pc-windows-msvc
 
-      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+      - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: MSYS
           install: make gcc curl unzip mingw-w64-x86_64-protobuf
