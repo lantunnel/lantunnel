@@ -51,7 +51,7 @@ chrono.workspace = true
 uuid.workspace = true
 zeroize.workspace = true
 libc = "0.2"
-rfd = { version = "0.16", default-features = false, features = ["common-controls-v6"], optional = true }
+rfd = { version = "0.18", default-features = false, features = ["common-controls-v6"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
